@@ -618,6 +618,8 @@ return prose
 
 Every section of a task started by [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) with an `args` option reads that value through `{{ args }}` and its key paths, as a chain that `call` gave a second argument does, so `tasks.spawn('../Child', ...)` with `args = 'child args'` among its options makes `{{ args.text }}` render `child args` in `Child`.
 
+A prompt that another prompt runs with `execute` reads its own arguments through `{{ args }}` and its key paths: the arguments that the `execute` passes, checked against that prompt's own `args:` declaration and with its declared defaults filled in, and never the arguments of the prompt that executes it (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)). So when `brief.md` declares a `limit` that defaults to `3`, `execute('brief.md', { query = 'rust' })` makes `{{ args.query }}` render `rust` and `{{ args.limit }}` render `3` in its prose.
+
 ### Placeholders ignore a local named `args`
 
 `{{ args }}` and every key path under it read the chain's arguments, never a Lua variable, so a `local` named `args` leaves the placeholder unchanged:

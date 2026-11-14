@@ -1,6 +1,6 @@
 # The store
 
-The store is a run's own set of text files, kept in memory, which your Lua reaches only through calls on the `store` table. It starts empty and ends with the run. Every section of a run sees the same store, and so does every [`call`](08-jump-and-call.md#calling-a-section) and every task (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)), so the store is how they share data that has to outlive one section. This chapter shows how to write, read, edit, find, and delete store files, and what each `store` call does when it fails.
+The store is a run's own set of text files, kept in memory, which your Lua reaches only through calls on the `store` table. It starts empty and ends with the run. Every section of a prompt sees the same store, and so does every [`call`](08-jump-and-call.md#calling-a-section) and every task (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)), so the store is how they share data that has to outlive one section. This chapter shows how to write, read, edit, find, and delete store files, and what each `store` call does when it fails.
 
 ## What the store is
 
@@ -31,7 +31,7 @@ Nothing in the frontmatter mentions the store. Because every run has one, a prom
 
 Every run starts with an empty store. The store is in memory, it belongs to that run alone, and nothing outside the run reaches it: nothing puts a file in it before the run starts, and nothing reads it after the run ends (see [The store ends with the run](#the-store-ends-with-the-run)). There is one kind of store, the same on every Host, and no Host setting changes it. So in the first block of any run, `store.exists('notes.md')` is `false` and `store.glob('**')` returns an empty table.
 
-Each run has its own store, and every `store` call in a run reads and writes that same store. That is why `notebook` gets its note back: the read on the second line goes to the same store the write on the first line changed.
+Each run has its own store, and every `store` call in the run's own prompt reads and writes that same store. That is why `notebook` gets its note back: the read on the second line goes to the same store the write on the first line changed. A prompt that another prompt runs with [`execute`](08-jump-and-call.md#executing-another-prompt) is an executed prompt, and it gets a store of its own instead (see [The store of an executed prompt](#the-store-of-an-executed-prompt)).
 
 ### The `store` table
 
@@ -139,7 +139,7 @@ handoff text
 
 `Writer` writes `note.txt` and does not return, so the walk falls through to `Reader` (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)), which reads the file back and returns its text. A section that writes a store file and does not return hands that file to the next section this way, so the store hands state across fall-through.
 
-Every section of a run shares one store. Each section entry starts in a fresh Lua VM and its context clears on the transition (see [Lua blocks, section VMs, and Engine globals](05-lua-environment.md#lua-blocks-section-vms-and-engine-globals)), but the store stays: a file that one section writes or appends is readable, and can be extended, in any later section. [Appending to a file](#appending-to-a-file) shows a file that grows by one line per section.
+Every section of a prompt shares one store. Each section entry starts in a fresh Lua VM and its context clears on the transition (see [Lua blocks, section VMs, and Engine globals](05-lua-environment.md#lua-blocks-section-vms-and-engine-globals)), but the store stays: a file that one section writes or appends is readable, and can be extended, in any later section. [Appending to a file](#appending-to-a-file) shows a file that grows by one line per section. The sections of an executed prompt share a store of their own (see [The store of an executed prompt](#the-store-of-an-executed-prompt)).
 
 ### The store in the preamble
 
@@ -171,7 +171,7 @@ The preamble is the text between the frontmatter and the first heading, and when
 
 ### The store ends with the run
 
-The store lasts exactly as long as the run. When the run ends, its store is gone: nothing outside the run reads a store file, and the next run starts with an empty store, even a run of the same prompt. A block that checks `store.exists('note.txt')` before it writes `note.txt` gets `false` on every run, however many times the prompt has run before.
+The store lasts exactly as long as the run. When the run ends, its store is gone: nothing outside the run reads a store file, and the next run starts with an empty store, even a run of the same prompt. A block that checks `store.exists('note.txt')` before it writes `note.txt` gets `false` on every run, however many times the prompt has run before. The store of an executed prompt ends sooner, when that prompt ends (see [The store of an executed prompt](#the-store-of-an-executed-prompt)).
 
 A prompt hands a file to whoever ran it by returning the file's text, because the run's result is the text the run returns (see [The run result](04-how-a-prompt-runs.md#the-run-result)):
 
@@ -296,9 +296,9 @@ return store.read('state.txt')
 kept
 ````
 
-A later `store.read` sees a write in the same block, in later blocks of the same section, and in every section after that, which is how `Reader` in `handoff` reads the file `Writer` wrote. Files a block writes are in the store by the time the block returns, and a read returns the text that an earlier write to the path stored in the same run, including a write made just before it in the same block. Every other store call sees the write the same way: right after `store.write('a.txt', 'na na na')`, a `store.str_replace('a.txt', 'na', 'la')` finds all three matches of `na` (see [Editing, deleting, and checking files](#editing-deleting-and-checking-files)).
+A later `store.read` sees a write in the same block, in later blocks of the same section, and in every section after that, which is how `Reader` in `handoff` reads the file `Writer` wrote. Files a block writes are in the store by the time the block returns, and a read returns the text that an earlier write to the path stored there, including a write made just before it in the same block. Every other store call sees the write the same way: right after `store.write('a.txt', 'na na na')`, a `store.str_replace('a.txt', 'na', 'la')` finds all three matches of `na` (see [Editing, deleting, and checking files](#editing-deleting-and-checking-files)).
 
-A note you write reads back with the same text for the rest of the run, even when a library wrote the file as it loaded and a later section reads it (see [Sharing code with `require`](03-blocks-and-prose.md#sharing-code-with-require)). Text written with `store.write` stays in the run's shared store beyond the block and the Lua code that wrote it, until the run ends.
+A note you write reads back with the same text for the rest of the run, even when a library wrote the file as it loaded and a later section reads it (see [Sharing code with `require`](03-blocks-and-prose.md#sharing-code-with-require)). Text written with `store.write` stays in the shared store beyond the block and the Lua code that wrote it, until the store ends.
 
 ### Appending to a file
 
@@ -475,7 +475,7 @@ The same holds across chains: two fanout arms that write `Draft.md` and `draft.m
 
 ### Paths stay inside the store
 
-Every store path is relative to the store root and always resolves inside the run's store. A store path names a store file and nothing else, so it can never reach a file outside the store, such as a file that a tool works on (see [Tools and the store](#tools-and-the-store)).
+Every store path is relative to the store root and always resolves inside the store. A store path names a store file and nothing else, so it can never reach a file outside the store, such as a file that a tool works on (see [Tools and the store](#tools-and-the-store)).
 
 Every path you pass to a `store` call is checked against the path rules before the call touches any file, so a refused call reads, creates, writes, appends, replaces, or deletes nothing.
 
@@ -1406,11 +1406,11 @@ return 'tidied'
 
 The caught store error, raised again with `error(err)`, ends the run with its code, `not_found`, and the original store message, still placed on the `store.read` line: `file not found in store: missing.txt (at reraise.md:10)`. That holds even though another suspending call, `call('Cleanup', '')` (see [Calling a section](08-jump-and-call.md#calling-a-section)), ran in between.
 
-Only a store call can fail in the store, so a run whose prompt never calls `store` cannot fail because of the store. A store problem that ends a run has a store code, whether it is an ordinary store failure, which keeps its own code such as `not_found`, or a claims conflict, such as a library write that races across two [arms](14-fanout.md#what-an-arm-sees), which is `determinism`. A claims conflict is never raised at the call. It ends the run on the spot with `determinism`, even when a `pcall` surrounds the call, so a library that runs `local ok = pcall(function() store.write('seeded.txt', 'seed') end)` in two racing arms still ends the run with `determinism`. [Races, claims, and determinism](#races-claims-and-determinism) explains when a conflict happens.
+Only a store call can fail in the store, so a run whose prompts never call `store` cannot fail because of the store. A store problem that ends a run has a store code, whether it is an ordinary store failure, which keeps its own code such as `not_found`, or a claims conflict, such as a library write that races across two [arms](14-fanout.md#what-an-arm-sees), which is `determinism`. A claims conflict is never raised at the call. It ends the run on the spot with `determinism`, even when a `pcall` surrounds the call, so a library that runs `local ok = pcall(function() store.write('seeded.txt', 'seed') end)` in two racing arms still ends the run with `determinism`. [Races, claims, and determinism](#races-claims-and-determinism) explains when a conflict happens.
 
 ## Sharing files across sections, calls, and tasks
 
-After this section you can hand files from one section, called section, or task to another, tell the moment another chain's writes become safe to read, and move text between the store and a tool.
+After this section you can hand files from one section, called section, or task to another, pass a file's text to and from an executed prompt, tell the moment another chain's writes become safe to read, and move text between the store and a tool.
 
 ````markdown
 ---
@@ -1437,7 +1437,7 @@ store.write('findings.md', 'three sources agree')
 three sources agree
 ````
 
-A run has one store, and every chain of the run uses it. A chain is a walk with its own entries, as the main walk, each `call`, and each task have (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). So the file `Gather` writes inside the `call` chain is readable by `Main` as soon as `call` returns.
+A prompt has one store, and every chain that runs its sections uses it. A chain is a walk with its own entries, as the main walk, each `call`, and each task have (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). So the file `Gather` writes inside the `call` chain is readable by `Main` as soon as `call` returns.
 
 Store writes made inside a `call` chain stay in the store after the chain returns, so the caller and every later section read them. `var` writes made inside the call are discarded instead (see [Call args and `var`](08-jump-and-call.md#call-args-and-var)), which makes the store the place to put anything a called section needs to hand back besides its return value. Writes made by child-level sections and by sections in a `call` chain are visible to the caller and to later sections of the outer walk in the same run.
 
@@ -1447,7 +1447,106 @@ The store orders each chain's calls through an identity, the name its store call
 
 A `call` chain shares its caller's identity, so a `call` needs no join, and a called section's store operations on paths the caller already touched never conflict with the caller. When `Main` appends to `ids.txt`, then calls `Sub`, which appends to the same file, then appends again and reads every line back, nothing conflicts.
 
-`store.write(path, text)` replaces a store file's content, and the new content is visible to later sections and to deeper call levels in the same run. A section that calls itself recursively can count its runs this way, rereading `n.txt` and writing `store.write('n.txt', tostring(n))` at each step. Store writes made before a `jump` are visible to the section the jump lands on (see [Jumping to a section](08-jump-and-call.md#jumping-to-a-section)): when `Check` runs `store.write('seen.txt', 'check')` and then jumps to `Help`, and `Help` returns `'helped:' .. store.read('seen.txt')`, the run result is `helped:check`.
+`store.write(path, text)` replaces a store file's content, and the new content is visible to later sections and to deeper `call` levels in the same run. A section that calls itself recursively can count its runs this way, rereading `n.txt` and writing `store.write('n.txt', tostring(n))` at each step. Store writes made before a `jump` are visible to the section the jump lands on (see [Jumping to a section](08-jump-and-call.md#jumping-to-a-section)): when `Check` runs `store.write('seen.txt', 'check')` and then jumps to `Help`, and `Help` returns `'helped:' .. store.read('seen.txt')`, the run result is `helped:check`. An executed prompt sees none of these writes: a called chain shares its caller's store, and an executed prompt does not (see [The store of an executed prompt](#the-store-of-an-executed-prompt)).
+
+### The store of an executed prompt
+
+Each [`execute`](08-jump-and-call.md#executing-another-prompt) gives the prompt it runs a store of its own, which is empty when that prompt starts and gone when it ends:
+
+````markdown
+---
+name: scribe
+description: Counts the files it starts with, writes two files, and returns one.
+runvil: 0
+---
+
+## Only
+
+```lua
+local found = #store.glob('**')
+store.write('note.txt', 'scribe started with ' .. found .. ' files')
+store.write('draft.txt', 'a draft by scribe')
+return store.read('note.txt')
+```
+````
+
+The next prompt writes a `note.txt` of its own and then executes `scribe.md`:
+
+````markdown
+---
+name: archive
+description: Writes a note, executes scribe, and lists its own store afterward.
+runvil: 0
+prompts:
+  - scribe.md
+---
+
+## Main
+
+```lua
+store.write('note.txt', 'kept by archive')
+local got = execute('scribe.md')
+return got .. ' | ' .. store.read('note.txt') .. ' | ' .. table.concat(store.glob('**'), ',')
+```
+````
+
+````text
+scribe started with 0 files | kept by archive | note.txt
+````
+
+Here `archive.md` is the caller, the prompt whose Lua runs `execute`, and `scribe.md` is the executed prompt. `scribe.md` starts with an empty store, though its caller wrote `note.txt` before the `execute`, so its `store.glob('**')` finds no file. It writes a `note.txt` of its own, and the one path names two files, one in each store: `scribe.md` reads back the text it wrote, and after the `execute` returns, `archive.md` still reads `kept by archive`. The caller's store holds what it held before the `execute` and no file of the executed prompt, so the caller's `store.glob('**')` lists `note.txt` alone, with no `draft.txt`.
+
+The caller and the executed prompt see none of each other's store files, so a file moves between them only as text (see [What crosses an execute](08-jump-and-call.md#what-crosses-an-execute)). A file leaves an executed prompt only as its returned text, which is why `scribe.md` ends with `return store.read('note.txt')`, the way a prompt hands a file to whoever ran it (see [The store ends with the run](#the-store-ends-with-the-run)). A file enters an executed prompt only as an argument: `execute('scribe.md', store.read('note.txt'))` passes the text of the caller's note, which the executed prompt reads as `args.text` (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
+
+Inside the executed prompt, its store follows the rules this chapter gives for one prompt. The executed prompt's sections share it, and so do the chains it calls, its tasks, and its [fanout arms](14-fanout.md#what-an-arm-sees). The store lasts for that one execution, so a prompt that is executed twice starts with an empty store both times, and an executed prompt that executes another prompt gives that prompt a third store.
+
+Each store also keeps its own claims, the record of which chain touched which path (see [Races, claims, and determinism](#races-claims-and-determinism)). Two fanout arms that write one path in one store conflict, and that conflict ends the run. Two arms that each execute a prompt cannot conflict over a path that prompt writes. Here `stamp.md` writes one fixed path, and both arms of `stamp_both.md` execute it:
+
+````markdown
+---
+name: stamp
+description: Writes one fixed store path and returns its text.
+runvil: 0
+---
+
+## Only
+
+```lua
+store.write('out.txt', 'stamped ' .. args.text)
+return store.read('out.txt')
+```
+````
+
+````markdown
+---
+name: stamp_both
+description: Two fanout arms execute a prompt that writes one path.
+runvil: 0
+prompts:
+  - stamp.md
+---
+
+## Main
+
+```lua
+local r = tasks.fanout('Worker', { 'alpha', 'beta' })
+return r[1].text .. ' | ' .. r[2].text
+```
+
+### Worker
+
+```lua
+return execute('stamp.md', item)
+```
+````
+
+````text
+stamped alpha | stamped beta
+````
+
+Each arm's `execute` gives `stamp.md` a store of its own, so the two writes of `out.txt` are writes of two files, each under the claims of its own store. Both succeed, and each arm returns the text of its own `out.txt`. Inside one executed prompt the claims rules hold as they do in any prompt: two of its tasks that write one path with no order between them conflict, and that conflict ends the whole run with the error code `determinism`, which a `pcall` around the `execute` does not catch (see [A claims conflict ends the run](#a-claims-conflict-ends-the-run)).
+
+Tool calls are different. A tool call in an executed prompt works in the run's files, the same files that its caller's tool calls work in, and a tool never sees a store (see [Tools and the store](#tools-and-the-store)).
 
 ### Forks and joins between tasks
 
@@ -1490,7 +1589,7 @@ return 'summarized'
 summary of: gathered content
 ````
 
-A chain that [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) starts runs beside its owner, the chain that spawned it, and for store ordering each arm of a fanout (see [What an arm sees](14-fanout.md#what-an-arm-sees)) is such a task as well. A task works on the same store as its owner and every other chain of the run. What differs is ordering: a task gets its own identity, forked from its owner's at the spawn.
+A chain that [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) starts runs beside its owner, the chain that spawned it, and for store ordering each arm of a fanout (see [What an arm sees](14-fanout.md#what-an-arm-sees)) is such a task as well. A task works on the same store as its owner and every other chain of its prompt. What differs is ordering: a task gets its own identity, forked from its owner's at the spawn.
 
 Spawning a task is a fork. Everything the owner did in the store before `tasks.spawn` comes ahead of anything the task does, so the task can build on files the owner wrote. In `summarize`, `Summarize` is spawned after `Parent` has joined `Gather`, so it reads `gathered.md` freely. A task or a fanout arm sees every store write its owner made before spawning it, and it can write the same path itself without a conflict.
 
@@ -1541,7 +1640,7 @@ part beta
 part gamma
 ````
 
-Each arm writes its own path, built from its `sys.index` and its `item` (see [What an arm sees](14-fanout.md#what-an-arm-sees)). After `tasks.fanout` returns, or after `tasks.join` or `tasks.join_any` delivers a task, the caller can read, glob, and merge that task's files freely, as `Parent` does here. A fanout arm can write a store path with `store.write(path, text)` and append to one with `store.append(path, text)`, so two sections that run inside one arm, one after the other, can both append to `order.txt`, which then holds both lines. Store files written by sections inside a fanout arm stay in the run's store after the arm finishes.
+Each arm writes its own path, built from its `sys.index` and its `item` (see [What an arm sees](14-fanout.md#what-an-arm-sees)). After `tasks.fanout` returns, or after `tasks.join` or `tasks.join_any` delivers a task, the caller can read, glob, and merge that task's files freely, as `Parent` does here. A fanout arm can write a store path with `store.write(path, text)` and append to one with `store.append(path, text)`, so two sections that run inside one arm, one after the other, can both append to `order.txt`, which then holds both lines. Store files written by sections inside a fanout arm stay in the store after the arm finishes.
 
 The delivery has to come first. Reading a task's file after a timed `tasks.join` ran out of time (see [Time limits on waits](15-tasks.md#time-limits-on-waits)) and before any delivery of that task ends the run with a claims conflict, even if the task has already written the file.
 
@@ -1633,7 +1732,7 @@ Every store call claims what it touches for the chain that made it, so the store
 
 Read claims never conflict with each other, whether they come from `store.read`, `store.read_numbered`, `store.exists`, or `store.glob`. A chain never conflicts with itself either, so a chain may write a path, overwrite it, append to it, and read it back freely.
 
-A store write leaves a standing write claim on its path for the rest of the run. So when two fanout arms write or append to one path, whichever reaches the store second always meets the first's claim and fails with a claims conflict, however the run interleaves. The whole run then ends with a fatal claims conflict whose message names the conflicting path, as `race` shows. A store operation that conflicts under the claims model is a determinism violation, and it ends the run with the error code `determinism`, a store code like any other store failure's, except that no Lua code can catch it.
+A store write leaves a standing write claim on its path for as long as its store lasts. So when two fanout arms write or append to one path, whichever reaches the store second always meets the first's claim and fails with a claims conflict, however the run interleaves. The whole run then ends with a fatal claims conflict whose message names the conflicting path, as `race` shows. A store operation that conflicts under the claims model is a determinism violation, and it ends the run with the error code `determinism`, a store code like any other store failure's, except that no Lua code can catch it.
 
 Store race detection is deterministic. Whether an access conflicts depends only on the order that spawns, joins, and chain ends set, never on how the arms or tasks happen to interleave in time, so a prompt gets the same store verdicts and the same file contents in every interleaving. A race in your prompt shows up on every run, not only on unlucky ones.
 
@@ -1680,7 +1779,7 @@ Globs race with the writes they would see. A store write and a sibling task's `s
 
 ### Claims stay inside one run
 
-A store's claims belong to one run. Two runs never share a store, so two runs of one prompt going at the same time cannot conflict in it. Inside a run, every claim lasts until the run ends, so a race is caught no matter how long ago the earlier unordered access happened. Tools keep separate claims on separate files: a tool's file operation in the run's files and a store call are never checked against each other (see [Tools and the store](#tools-and-the-store)).
+A store's claims belong to one run. Two runs never share a store, so two runs of one prompt going at the same time cannot conflict in it. Inside a run, each store keeps its own claims, so a claim in a caller's store and a claim in the store of a prompt it executes never conflict, even on one path (see [The store of an executed prompt](#the-store-of-an-executed-prompt)). Every claim lasts as long as its store, so a race is caught no matter how long ago the earlier unordered access happened. Tools keep separate claims on separate files: a tool's file operation in the run's files and a store call are never checked against each other (see [Tools and the store](#tools-and-the-store)).
 
 ### Reading a task's files too early
 
@@ -1710,7 +1809,7 @@ local ok, err = pcall(store.append, 'notes.md', item .. '\n')
 ```
 ````
 
-With this `Worker` in place of the one in `race`, and the same two members `alpha` and `beta`, the run still ends with the claims conflict. A claims conflict between two chains is never raised at the store call. It ends the run before the losing call returns, so the losing arm never resumes into Lua, and no Lua code or `pcall` can catch it. A claims conflict ends the run with `determinism` in whichever section it happens, the [preamble](02-file-structure.md#the-preamble) included.
+With this `Worker` in place of the one in `race`, and the same two members `alpha` and `beta`, the run still ends with the claims conflict. A claims conflict between two chains is never raised at the store call. It ends the run before the losing call returns, so the losing arm never resumes into Lua, and no Lua code or `pcall` can catch it. A claims conflict ends the run with `determinism` in whichever section it happens, the [preamble](02-file-structure.md#the-preamble) included. A conflict inside an executed prompt ends the whole run too, and a `pcall` around the [`execute`](08-jump-and-call.md#catching-a-failed-execute) does not catch it.
 
 When a claims conflict ends the run, no task or arm counts as failed. Every other live task is abandoned with the run, and at most the arm whose access came first completes. Store writes still in flight when the run ends finish before the run completes.
 
@@ -2068,7 +2167,7 @@ The `store` functions suspend the block that calls them from the moment a sectio
 
 Each store call is one piece of [Harness work](01-what-a-prompt-is.md#effects-and-harness-work): one store operation that the Harness performs and answers. In a Lua block, each store call is one [suspending call](05-lua-environment.md#lua-blocks-section-vms-and-engine-globals) answered by the Harness, which makes it a point where other chains may run.
 
-The run's record holds every store call, with its arguments and its outcome, in the order the run made them (see [What a run's record holds](04-how-a-prompt-runs.md#what-a-runs-record-holds)). The store itself is gone when the run ends, so that record is the only view of a store outside its run, and it is enough to rebuild the store's files at any point of the run.
+The run's record holds every store call, with the store it worked in, its arguments, and its outcome, in the order the run made them (see [What a run's record holds](04-how-a-prompt-runs.md#what-a-runs-record-holds)). Every store is gone by the time the run ends, so that record is the only view of a store outside its run, and it is enough to rebuild each store's files at any point of the run.
 
 Every `store.*` call suspends the calling chain as a single operation of its own, with no inline fast path. Other chains can interleave between store calls.
 
@@ -2142,6 +2241,6 @@ Each store call's event is reported as soon as the operation lands, before the n
 
 A successful `store.write` reports a write-succeeded event in the run's event stream, tagged with the section, in the order the write happened. A write made after the section's model round is reported right after that model round's completed event.
 
-Each store event names the section whose Lua block made the call, such as `Gather` for a write made in the `Gather` section. Beyond that, store events include only the operation's identity and outcome, never the store path, the file contents, the replacement text, or the section input. Writing `private contents` to `secret/path.txt` in a run whose input is `private input` produces store events that contain none of those strings, even when the operation fails. The path and the text are in the run's record with the store call itself, not in its event (see [One store call, one piece of Harness work](#one-store-call-one-piece-of-harness-work)).
+Each store event names the section whose Lua block made the call, such as `Gather` for a write made in the `Gather` section. Beyond that, store events include only the operation's identity and outcome, never the store path, the file contents, the replacement text, or the section input. Writing `private contents` to `secret/path.txt` in a run whose input is `private input` produces store events that contain none of those strings, even when the operation fails. The path and the text are in the run's record with the store call itself, not in its event (see [One store call, one piece of Harness work](#one-store-call-one-piece-of-harness-work)). No event names the store either: a store call in an executed prompt reports the same events as any other, under the name of that prompt's own section.
 
 A store failure you catch with `pcall` is still reported as that operation's failed event. A block that catches a failed `store.exists` reports, in order, its block started, `vfs_exists_failed`, and its block succeeded.

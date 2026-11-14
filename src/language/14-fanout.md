@@ -643,7 +643,7 @@ Worker section Lua can also run one round on a different model through a [model 
 
 A fanout arm can call the run's bound tools with [`tools.call`](12-tools.md#calling-tools-from-lua-and-counting-calls), such as `tools.call('web/search', { query = item })` in a prompt that declares `uses: [web]`. Inside an arm, [`sys.model`](05-lua-environment.md#run-facts-in-sys-and-ui) reads the name part of the id of the arm's current model, without the server namespace, as the model stood at the arm's first `tools.call`, and the name stays fixed for the rest of the arm, as in any section, so a worker section that runs `tools.call('web/search', { query = item })` and then `return sys.model .. ':' .. item` gives a text such as `claude-sonnet-4-6:a` when that model's id is `gateway/claude-sonnet-4-6`.
 
-Inside an arm, and in a chain the arm starts with `call`, `sys.section_count` is the run's top-level section count, so a child worker section does not add to it. With `Parent` as the only top-level section and the worker section under it, the arm and a `Sub` it calls both read `sys.section_count == 1`.
+Inside an arm, and in a chain the arm starts with `call`, `sys.section_count` is the top-level section count of the prompt the worker section belongs to, so a child worker section does not add to it. With `Parent` as the only top-level section and the worker section under it, the arm and a `Sub` it calls both read `sys.section_count == 1`.
 
 A library loaded with [`require`](03-blocks-and-prose.md#sharing-code-with-require) inside a fanout arm runs in the arm's environment, so its top-level code reads the arm's `item`. [`call` and `require` inside an arm](#call-and-require-inside-an-arm) shows an example.
 
@@ -1015,7 +1015,7 @@ The outer results come back in the order `a`, `b`, `c`, and each outer arm's inn
 
 ### The depth cap for arms
 
-A fanout arm runs one level deeper than the section that fanned out, so arms count toward the [recursion depth cap](08-jump-and-call.md#the-recursion-depth-cap) of 8. A `call` inside an arm that is already at depth 8 fails with `recursion exceeded cap of 8`, and so does a `tasks.fanout` requested from a chain already at depth 8. Either failure points at the line of the `call` or `tasks.fanout` that went too deep: caught, its message is ``{file}:{line}: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `tasks.spawn`, and `tasks.fanout` less deeply.``, and left uncaught it fails the run with exactly `recursion exceeded cap of 8 (at {file}:{line})`, with no traceback.
+A fanout arm runs one level deeper than the section that fanned out, so arms count toward the [recursion depth cap](08-jump-and-call.md#the-recursion-depth-cap) of 8. A `call` inside an arm that is already at depth 8 fails with `recursion exceeded cap of 8`, and so does a `tasks.fanout` requested from a chain already at depth 8. Either failure points at the line of the `call` or `tasks.fanout` that went too deep: caught, its message is ``{file}:{line}: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `execute`, `tasks.spawn`, and `tasks.fanout` less deeply.``, and left uncaught it fails the run with exactly `recursion exceeded cap of 8 (at {file}:{line})`, with no traceback. An arm can also run another prompt with [`execute`](08-jump-and-call.md#where-execute-works), which adds one level as a `call` does and fails the same way from an arm that is already at depth 8.
 
 A `tasks.fanout` arm that would nest past the cap ends the run with error code `call_depth_exceeded` (see [Run error codes](16-limits-and-errors.md#run-error-codes)). The cap applies to each arm, the same as it does to a `call` or to a `tasks.spawn` task.
 
@@ -1181,7 +1181,7 @@ Model replies for arms admitted at the same time can land on either arm, so do n
 
 The Harness sets one concurrency limit for the whole run: the most tasks admitted to run at once. Every task counts against it, including fanout arms, tasks started with [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), and the tasks those start in turn. The run's concurrency limit defaults to 8 tasks at once.
 
-Because every task counts against the one limit, a fanout nested inside an arm shares the budget with that arm and every ancestor instead of multiplying it, and the whole run never exceeds the limit. A spawned task's concurrency limit starts out equal to its spawner's, so the tasks it starts run within the concurrency limit of their parent task and of every ancestor task. The main walk never waits for a slot.
+Because every task counts against the one limit, a fanout nested inside an arm shares the budget with that arm and every ancestor instead of multiplying it, and the whole run never exceeds the limit. A spawned task's concurrency limit starts out equal to its spawner's, so the tasks it starts run within the concurrency limit of their parent task and of every ancestor task. A prompt run with [`execute`](08-jump-and-call.md#one-run-shared-limits) starts with the limit of the chain that executed it, so a task or a fanout it starts runs within that limit too. The main walk never waits for a slot.
 
 ### How arms are admitted
 
@@ -1461,7 +1461,7 @@ Both arms write `shared.txt`, so the run never returns `alpha,beta`. It ends wit
 
 ### One store for every arm
 
-The arms of a fanout and the section that called `tasks.fanout` all use the run's one store (see [Writing and reading files](09-the-store.md#writing-and-reading-files)). The store is the exception to arm isolation, and whatever each arm writes stays in the store after the arm ends, so when two arms write `arm-1.md` and `arm-2.md`, the section that called `tasks.fanout` reads `alpha` and `beta` from those files once the fanout returns.
+The arms of a fanout and the section that called `tasks.fanout` all use one store, the store of the prompt they run in (see [Writing and reading files](09-the-store.md#writing-and-reading-files)). The store is the exception to arm isolation, and whatever each arm writes stays in the store after the arm ends, so when two arms write `arm-1.md` and `arm-2.md`, the section that called `tasks.fanout` reads `alpha` and `beta` from those files once the fanout returns. A prompt that an arm runs with `execute` gets a store of its own, so two arms that each execute the same prompt, which writes one path, both succeed (see [The store of an executed prompt](09-the-store.md#the-store-of-an-executed-prompt)).
 
 An arm can read the files the caller wrote before it called `tasks.fanout`, because starting an arm orders everything the caller did in the store before that point ahead of the arm's first step. It is the same rule that lets a `tasks.spawn` task build on the files its owner wrote. Any number of arms can read such a file, because two reads never conflict.
 
@@ -1471,7 +1471,7 @@ An arm can read the files the caller wrote before it called `tasks.fanout`, beca
 
 Two accesses make a store conflict when they touch the same store path, at least one of them writes, they come from different arms, and nothing orders one arm before the other. So two unordered arms that touch one path with a write never silently race, while any number of arms may read the same path. Two arms writing the same store path, as in `shared-path`, end the whole run with error code `determinism`.
 
-A cross-arm conflict is unconditional and never depends on timing. Sibling arms never join each other, and a claim on a path stands for the rest of the run, even after the arm that made it ends (see [Races, claims, and determinism](09-the-store.md#races-claims-and-determinism)). So whichever of two conflicting accesses runs second always meets the first one's claim, in every interleaving.
+A cross-arm conflict is unconditional and never depends on timing. Sibling arms never join each other, and a claim on a path stands for as long as its store lasts, even after the arm that made it ends (see [Races, claims, and determinism](09-the-store.md#races-claims-and-determinism)). So whichever of two conflicting accesses runs second always meets the first one's claim, in every interleaving.
 
 Of two conflicting arm accesses, the second never reaches the store, so exactly one arm's change lands, and the run's [store run events](09-the-store.md#store-run-events) show one call that succeeded and one that failed. Which arm wins is not fixed: when two arms each add their member and a newline to `notes.md`, the append that succeeds is the one for `alpha` or the one for `beta`, never both.
 

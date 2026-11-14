@@ -78,7 +78,7 @@ Each entry is a plain string with no settings of its own. A Pack's configuration
 
 ### What declaring a Pack does
 
-Listing a Pack under `uses:` declares that the prompt needs it and makes the Pack's prelude run in every section entry (see [Pack preludes](#pack-preludes)). Every listed Pack is a required Pack, one the run cannot start without (see [Packs at prepare](04-how-a-prompt-runs.md#packs-at-prepare)).
+Listing a Pack under `uses:` declares that the prompt needs it and makes the Pack's prelude run in every section entry of that prompt (see [Pack preludes](#pack-preludes)). Every listed Pack is a required Pack, one the run cannot start without (see [Packs at prepare](04-how-a-prompt-runs.md#packs-at-prepare)). When the prompt lists other prompts to execute under its `prompts:` key, each of them does the same with its own `uses:`: its Packs are required for the run, and their preludes run in its own section entries (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)).
 
 Declaring a Pack does not install it. A Host calls Plugins, each Plugin adds its Packs, zero or more, to the Host's Pack registry, and each run makes its own instance of each of its Packs, so a prompt can only declare Packs the Host already has. The Host never installs a Pack itself, never picks which Packs to build, and never picks a Pack id. A Pack id is always the second segment of the Pack's fully qualified name, so `runvil/web` has the Pack id `web`, and that Pack id prefixes its tools, as in `web/fetch`. A Pack id has no version part, so the entry `web` names exactly the Pack `runvil/web`.
 
@@ -97,15 +97,15 @@ A declared Pack also refuses the run when the Host has it but it cannot serve, e
 - {pack} is unavailable: {reason}
 ````
 
-So a prompt that declares `user` gets the line `- user is unavailable: this run has no user` in a run with no user.
+So a prompt that declares `user` gets the line `- user is unavailable: this run has no user` in a run with no user. When only a prompt that the run can execute declares the Pack, such as `review.md`, the line starts with that prompt's name: `- review.md: user is unavailable: this run has no user`.
 
-An undeclared Pack that cannot serve never refuses the run, and its tools are left out of the catalog. [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice) explains the whole notice.
+A Pack that cannot serve and that no prompt of the run declares never refuses the run, and its tools are left out of the catalog. [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice) explains the whole notice.
 
 ### The tool catalog and extra Packs
 
 The tools a prompt can call or offer come from the run's tool catalog, the set of tool descriptions the Host supplies (see [The Engine, the Harness, and the Host](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host)), so a prompt can reach only the catalog tools that the running Host provides. Each catalog tool's id starts with the Pack id of the Pack that contributed it, so the tool `web/fetch` comes from the Pack `web`. When the Host supplies no tool catalog, the catalog is empty and the run has no catalog tools to call or offer.
 
-Every run holds every Pack its Host has, whatever the Pack's vendor and whatever the prompt declares, and a run's catalog holds the tools of each of those Packs that can serve the run. A Host has at most one Pack per Pack id, so a tool id has no vendor and names one tool on that Host: on a Host whose `web` Pack is `acme/web`, `web/fetch` names a tool of `acme/web`. An extra Pack is a Pack the run knows that the prompt does not declare under `uses:`, other than the adhoc Pack that holds a section entry's own tools, and it can be a Pack of any vendor. You can call or offer an extra Pack's tool by its tool id just as you can a declared Pack's, and declaring a Pack neither adds tools to the catalog nor narrows it. On a Host that has `runvil/web`, this prompt has no `uses:` key and still reaches the fetch tool:
+Every run holds every Pack its Host has, whatever the Pack's vendor and whatever the prompt declares, and a run's catalog holds the tools of each of those Packs that can serve the run. A Host has at most one Pack per Pack id, so a tool id has no vendor and names one tool on that Host: on a Host whose `web` Pack is `acme/web`, `web/fetch` names a tool of `acme/web`. An extra Pack is a Pack the run knows that the prompt does not declare under `uses:`, other than the adhoc Pack that holds a section entry's own tools, and it can be a Pack of any vendor. You can call or offer an extra Pack's tool by its tool id just as you can a declared Pack's, and declaring a Pack neither adds tools to the catalog nor narrows it. In a run where one prompt executes another, the prompt that counts is the one the section belongs to, so a Pack can be a declared Pack in one prompt of the run and an extra in another (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)). On a Host that has `runvil/web`, this prompt has no `uses:` key and still reaches the fetch tool:
 
 ````markdown
 ---
@@ -127,11 +127,89 @@ The run result is the text of the Lua home page, wrapped the way [What a tool re
 
 The catalog holds only the tools each Pack actually contributes, so the `web` Pack's tools are exactly `web/fetch` and `web/search`, and offering any other id that starts with `web/` fails even when the prompt declares `web` (see [Errors from `tools.offer`](#errors-from-toolsoffer)).
 
-The run's declared Packs and the catalog tools it can offer stay fixed for the whole run, and every section sees the same set.
+Each prompt's declared Packs and the catalog tools the run can offer stay fixed for the whole run, and every section sees the same catalog.
+
+### Packs and preludes in an executed prompt
+
+A prompt can run another prompt with `execute`, and the prompt it runs is part of the same run (see [Executing another prompt](08-jump-and-call.md#executing-another-prompt)). The caller is the prompt whose Lua runs `execute`, and the executed prompt is the prompt it runs. A run holds every Pack its Host has, one instance of each, whatever any of its prompts declares, so executing a prompt adds no Pack to the run and removes none. What a `uses:` key does, it does for the sections of its own prompt. Here the executed prompt declares one Pack:
+
+````markdown
+---
+name: review
+description: Reports the Packs and the prelude global its section sees.
+runvil: 0
+uses: [acme/issue-tracker]
+---
+
+## Only
+
+```lua
+local names = {}
+for _, pack in ipairs(tools.packs) do
+  names[#names + 1] = pack.name .. (pack.required and '*' or '')
+end
+return table.concat(names, ' ') .. ', tickets: ' .. type(tickets)
+```
+````
+
+The caller declares another Pack, lists `review.md` under `prompts:`, and executes it:
+
+````markdown
+---
+name: plan
+description: Declares web and executes a prompt that declares another Pack.
+runvil: 0
+uses: [web]
+prompts:
+  - review.md
+---
+
+## Main
+
+```lua
+local function packs()
+  local names = {}
+  for _, pack in ipairs(tools.packs) do
+    names[#names + 1] = pack.name .. (pack.required and '*' or '')
+  end
+  return table.concat(names, ' ') .. ', tickets: ' .. type(tickets)
+end
+local before = packs()
+local review = execute('review.md')
+return 'plan: ' .. before .. '\nreview: ' .. review .. '\nplan: ' .. packs()
+```
+````
+
+Each prompt walks `tools.packs`, the table of the Pack objects its section knows, marks with `*` each Pack whose `required` field is `true` (see [Pack objects](#pack-objects)), and reads the type of the global `tickets`. Suppose the Host has two Packs besides its built-in ones: `runvil/web`, and the `acme/issue-tracker` Pack of [Pack preludes](#pack-preludes), whose prelude defines the global `tickets`.
+
+On that Host, a run of `plan.md` with no user returns:
+
+````text
+plan: adhoc issue-tracker subagents web*, tickets: nil
+review: adhoc issue-tracker* subagents web, tickets: table
+plan: adhoc issue-tracker subagents web*, tickets: nil
+````
+
+Both prompts list the same Packs: the section's own adhoc Pack, the built-in `subagents` Pack, and the Host's two Packs. Every section of a run sees every usable Pack of the run, one that can serve it (see [Walking Packs with `tools.packs`](#walking-packs-with-toolspacks)). Which of them a section reads as required is up to its own prompt: a Pack object's `required` field is `true` for the Packs that the section's own prompt declares, and `tools.packs.extras()` lists every other usable Pack of the run (see [Extra Packs with `tools.packs.extras`](#extra-packs-with-toolspacksextras)). So `web` is required in `plan.md` and an extra in `review.md`, and `issue-tracker` is the other way round: `tools.packs.extras()` lists `issue-tracker` and `subagents` in `plan.md`, and `subagents` and `web` in `review.md`. The caller's `tools.packs` reads the same before and after the `execute`, as the first and last lines show.
+
+Preludes follow the same rule. A Pack's prelude installs in the sections of each prompt that declares the Pack, and in no section of a prompt that does not, so `tickets` is a table in `review.md` and reads `nil` in `plan.md`, before the `execute` and after it. Which prompt executes which makes no difference: with the two `uses:` entries swapped, `tickets` is a table in `plan.md` and `nil` in `review.md`. A Pack that both prompts declare installs its prelude in both. Two Packs whose preludes define the same global collide only in a prompt that declares both (see [Global names a prelude cannot take](#global-names-a-prelude-cannot-take)), and a prelude that defines a global named `execute` fails to install in any prompt, because the Engine reserves that name.
+
+Tools need no declaration in either prompt. A tool of any Pack of the run answers a call from any prompt of the run, as it does in a run of one prompt, so `tools.call('web/fetch', { url = 'https://example.com/' })` in `review.md`, which does not declare `web`, reaches the `web` Pack's tool (see [One run, shared limits](08-jump-and-call.md#one-run-shared-limits)).
+
+The requirement, though, is for the whole run. A listed prompt is any prompt that the `prompts:` lists reach from the run's own prompt, the one the run starts in, whether or not an `execute` ever runs it. A Pack that a listed prompt declares is checked together with the Packs of the run's own prompt, when the Host parses the prompt and again at the run's first step. So a missing or unavailable Pack of a listed prompt refuses the run even when no run would reach the `execute`, and its line of the requirements notice starts with the listed prompt's name. On a Host that has `runvil/web` and no `acme/issue-tracker`, `plan.md` is refused with the error code `requirements_unmet` and this notice:
+
+````text
+the environment cannot satisfy this prompt:
+- review.md: issue-tracker is unavailable: acme/issue-tracker is not installed
+````
+
+A Pack that two prompts declare has one line, and the line names a listed prompt only when the run's own prompt does not declare the Pack. A refusal that comes at the run's first step also ends with the place of its first gap: with `uses: [user]` in `review.md`, a run of `plan.md` with no user is refused with the line `- review.md: user is unavailable: this run has no user (at review.md:5)`, which points at the `uses:` line of `review.md`.
+
+A prelude that fails to load fails the first section entry of the prompt that installs it (see [When a prelude fails to load](#when-a-prelude-fails-to-load)). For an executed prompt that entry is its first section, so the `execute` raises the failure in the caller. When the prelude of `acme/issue-tracker` raises an error while it loads, `plan.md` runs up to its `execute`, and a `pcall(execute, 'review.md')` there returns `false` and an error value whose `kind` is `lua` and whose `code` is `lua_runtime`. The value's message starts with the caller's file and the line of the `execute`, then reads ``Pack `issue-tracker`: its prelude failed to load:`` and the raised error. Uncaught, the failure ends the run with the code `lua_runtime` and a message that ends with ` (at plan.md:21)`, the line of the `execute`. A listed prompt that no `execute` runs installs no prelude, so a prelude that would fail to load there fails nothing.
 
 ### Errors in the `uses:` key
 
-Every mistake in a `uses:` entry, and every repeated entry, fails when the prompt is parsed, as a `Frontmatter` parse error (see [Declaration errors](06-arguments.md#declaration-errors)), before anything runs. A declared Pack that the Host lacks is a different failure, caught later on the run's first step, as shown above. The parse error for a malformed entry includes the entry's own line and column in the file.
+Every mistake in a `uses:` entry, and every repeated entry, fails when the prompt is parsed, as a `Frontmatter` parse error (see [Declaration errors](06-arguments.md#declaration-errors)), before anything runs. A declared Pack that the Host lacks is a different failure, caught later on the run's first step, as shown above. For a Pack that only a listed prompt declares, the line of that failure starts with the prompt's name, in the form `- {prompt}: {pack} is unavailable: {reason}` (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)). The parse error for a malformed entry includes the entry's own line and column in the file.
 
 Each entry must be a plain string. An entry that is any other value, such as a number or a YAML map of settings, fails with a message that contains:
 
@@ -527,7 +605,7 @@ A Pack object is the read-only Lua value that stands for one Pack: a Pack the ru
 |---|---|
 | `name` | the Pack's Pack id as a string, such as `web` or `adhoc` |
 | `tools` | a fresh array of the Pack's Tool objects, in tool id order |
-| `required` | `true` when the prompt declares the Pack under `uses:`, else `false`, and always `false` for the adhoc Pack |
+| `required` | `true` when the section's own prompt declares the Pack under `uses:` (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)), else `false`, and always `false` for the adhoc Pack |
 
 The `tools` array holds the same Tool objects `tools.get` returns, and it passes straight to `tools.offer`, which offers every tool in it one by one. So after `local web = tools.packs.get('web')`, `tools.offer(web.tools)` offers `web_fetch` and `web_search` to the model. Each read of the `tools` field builds a new array table, while the Tool objects inside are the shared ones, and `#web.tools > 0` tells you whether a Pack has tools. The adhoc Pack's `tools` lists every adhoc tool the section has defined at the moment of the read, in tool id order, so it starts empty and grows with each `tools.adhoc` call.
 
@@ -591,7 +669,7 @@ On a Host that serves `runvil/web`, the model is offered `web_fetch` and `web_se
 
 ### Extra Packs with `tools.packs.extras`
 
-`tools.packs.extras()` returns a fresh Lua array of the extra Packs' objects, the usable Packs the run knows that the prompt does not declare under `uses:`, in Pack id order. It never lists the adhoc Pack, and a Pack that cannot serve the run is never an extra. An extra can be a Pack of any vendor, because a run holds every Pack its Host has. A declared Pack is never an extra, and its object's `required` field reads `true`.
+`tools.packs.extras()` returns a fresh Lua array of the extra Packs' objects, the usable Packs the run knows that the section's own prompt does not declare under `uses:`, in Pack id order. It never lists the adhoc Pack, and a Pack that cannot serve the run is never an extra. An extra can be a Pack of any vendor, because a run holds every Pack its Host has. A Pack that the section's own prompt declares is never an extra, and its object's `required` field reads `true`, while a Pack that only another prompt of the run declares is an extra (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)).
 
 In `look-up`, which declares `web`, run with a user on that same Host, `tools.packs.extras()[1].name` reads `subagents`, `tools.packs.extras()[2].name` reads `user`, and `tools.packs.get('web').required` reads `true`. Each Pack object lists its own tools, so `tools.packs.get('web').tools[2].id` reads `web/search`, while `#tools.packs.extras()[2].tools` is `0`.
 
@@ -610,7 +688,7 @@ The run knows each of its Packs, declared or not and with or without tools: ever
 - Each usable Pack, one that can serve the run, gets its own Pack object, whether or not the prompt declares it and whether or not it has tools. An undeclared usable Pack with no tools still has its `name` and an empty `tools` array, and it appears once in `tools.packs.extras()`, sorted by name among the extras that offer tools. A usable Pack that also offers tools is still listed only once.
 - A Pack that cannot serve the run gets no object, so an undeclared one appears in neither `tools.packs` nor `tools.packs.extras()`, and `tools.packs.get` returns `nil` for it. Offering it raises its reason, as in `tools.offer: the web Pack is unavailable in this run: web needs runvil/search-provider, and this host provides none`. When the Host reports a Pack both as usable and as unavailable, it counts as unavailable.
 - A Pack that is neither declared nor reported usable has a Pack object only when it offers at least one tool to the run.
-- When the Host reports none of this, the run's Lua sees the Packs the prompt declares plus every Pack that has a tool in the catalog, and the adhoc Pack.
+- When the Host reports none of this, a section's Lua sees the Packs its own prompt declares plus every Pack that has a tool in the catalog, and the adhoc Pack.
 
 The error for offering a Pack the run does not have tells you to `declare it under uses: to require it`.
 
@@ -934,6 +1012,7 @@ Each section entry sees its own scoped tool set, built from the tools and Packs 
 - A section entered again with `jump` is a new entry, so it starts with nothing offered, whatever its earlier entry offered, and freezes its own sets (see [Jumping to a section](08-jump-and-call.md#jumping-to-a-section)).
 - Offers made in the preamble do not reach the sections the walk enters after it, because the preamble is a section entry of its own (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)).
 - A section entered with `call` starts with no tools offered, even when the calling section has offers in effect (see [Calling a section](08-jump-and-call.md#calling-a-section)).
+- A prompt run with `execute` starts each of its sections with no tools offered, even when the section that executed it has offers in effect (see [What crosses an execute](08-jump-and-call.md#what-crosses-an-execute)).
 - A task started with `tasks.spawn` does not inherit the spawning section entry's offers and sees only the offers its own entry makes (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)).
 - An arm makes its own offers, so `tools.offer('web/search')` inside an arm offers that tool to the arm's `models.loop`, which then sends the model's calls to it (see [What an arm sees](14-fanout.md#what-an-arm-sees)).
 
@@ -1885,7 +1964,7 @@ Each handler shows one kind of call:
 
 The results are strings, so a block can join several tool results with `..` into one return value, as in `return tools.call(plain, {}) .. '||' .. tools.call(grab, { value = 'hi' })`.
 
-A handler can also run a model round of its own. A model-called handler that does `return 'inferred ' .. models.infer('inner prompt')` runs a nested [`models.infer`](10-models.md#running-a-round-with-modelsinfer) round, and the loop goes on with the handler's text as the call's result. A note-taking handler can append to the store with `store.append('notes.md', args.text .. '\n')`, and a handler can [`call`](08-jump-and-call.md#calling-a-section) a section the same way.
+A handler can also run a model round of its own. A model-called handler that does `return 'inferred ' .. models.infer('inner prompt')` runs a nested [`models.infer`](10-models.md#running-a-round-with-modelsinfer) round, and the loop goes on with the handler's text as the call's result. A note-taking handler can append to the store with `store.append('notes.md', args.text .. '\n')`, and a handler can [`call`](08-jump-and-call.md#calling-a-section) a section or [`execute`](08-jump-and-call.md#where-execute-works) another prompt the same way.
 
 A handler that runs inside `models.loop` cannot offer: `tools.offer` and `tools.offer_dynamic` raise there, because the round that called the handler already froze the section entry's tool list (see [When an offer takes effect](#when-an-offer-takes-effect)), though `tools.adhoc` still defines a tool there. It cannot start a loop or a compaction either, so `models.loop`, with or without a model handle, and `models.compact` raise inside it (see [Argument errors](11-conversations.md#argument-errors)). `models.infer` and `tools.call` stay allowed, so a handler asks a side question with `models.infer`.
 
@@ -2606,11 +2685,11 @@ When `issue-tracker/open` answers `T-1`, the run result is:
 T-1
 ````
 
-The prompt never defines `tickets`. Declaring the Pack adds its prelude's globals to every Lua block as ordinary entries of `_G`, so your code reads their values and calls their helpers, such as `tickets.open`, without defining, loading, or requiring them. A prelude typically defines helper tables and functions like this one that call the Pack's own tools through `tools.call`, and you call the helpers. Declaring the Pack under `uses:` is all the prompt needs: the prelude installs even when nothing else in the prompt names the Pack's tools, and the helper's calls to its own Pack's tools succeed.
+The prompt never defines `tickets`. Declaring the Pack adds its prelude's globals to every Lua block of the prompt as ordinary entries of `_G`, so your code reads their values and calls their helpers, such as `tickets.open`, without defining, loading, or requiring them. A prelude typically defines helper tables and functions like this one that call the Pack's own tools through `tools.call`, and you call the helpers. Declaring the Pack under `uses:` is all the prompt needs: the prelude installs even when nothing else in the prompt names the Pack's tools, and the helper's calls to its own Pack's tools succeed.
 
 ### Where and when preludes install
 
-Every Pack the prompt declares can define globals of its own in every section entry's Lua VM, and each declared Pack's prelude installs under that Pack's id. A prelude runs in every section entry of the run, not only the first, so the globals it defines are there in every entry:
+Every Pack the prompt declares can define globals of its own in the Lua VM of every section entry of that prompt, and each declared Pack's prelude installs under that Pack's id. A prelude runs in every section entry of the prompt, not only the first, so the globals it defines are there in every entry:
 
 ````markdown
 ---
@@ -2643,11 +2722,11 @@ T-2|true
 
 Both sections reached the prelude's function. The `Second` section also tried to replace `tickets.open`, and the write was refused, so `sealed` is `true`. The refused write left the function in place, and the later `tickets.open('Second')` call in the same section still works. [Sealed prelude tables](#sealed-prelude-tables) explains the refusal.
 
-A prelude runs once in each section entry's Lua VM, as top-level code. Every section entry, every [arm](14-fanout.md#what-an-arm-sees), and every task a block starts with [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) installs the preludes afresh. Each gets its own copy of the prelude's tables and functions, the prelude's top-level code runs again each time, and nothing one of them does to prelude state reaches another's copy.
+A prelude runs once in each section entry's Lua VM, as top-level code. Every section entry, every [arm](14-fanout.md#what-an-arm-sees), and every task a block starts with [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) installs its prompt's preludes afresh. Each gets its own copy of the prelude's tables and functions, the prelude's top-level code runs again each time, and nothing one of them does to prelude state reaches another's copy.
 
 Preludes install during each section entry's Lua setup, before any block runs and before `require` exists. They come after the [Engine globals](05-lua-environment.md#lua-blocks-section-vms-and-engine-globals), the control globals such as `jump` and `call`, and the suspending forms of calls such as `models.loop`. Because they install before `require`, a library a section loads with [`require`](03-blocks-and-prose.md#sharing-code-with-require) can call prelude helpers, even from its own top-level code while it loads. With `acme/issue-tracker` declared, a library section whose top-level code runs `local first = tickets.open('Setup')`, an arm that runs `tickets.open(item)`, and a spawned task that runs `tickets.open('Follow up')` all reach `issue-tracker/open`.
 
-Only declared Packs contribute. An undeclared Pack's prelude does not run, so a global it would define stays nil: on a Host that has `acme/issue-tracker`, a prompt that does not declare it reads `type(tickets)` as `nil`. That holds for a Pack of any vendor: the Pack's tools are in the run whether or not the prompt declares it, but its prelude runs only when the prompt declares it. Preludes install in the order the prompt lists Packs under `uses:`, not the order the Host's Plugins added them, so the prelude of the Pack listed first runs first.
+Only declared Packs contribute. An undeclared Pack's prelude does not run, so a global it would define stays nil: on a Host that has `acme/issue-tracker`, a prompt that does not declare it reads `type(tickets)` as `nil`. That holds for a Pack of any vendor: the Pack's tools are in the run whether or not the prompt declares it, but its prelude runs only when the prompt declares it. It holds between the prompts of one run too: a prompt reads no global of a Pack that only its caller, or only a prompt it executes, declares (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)). Preludes install in the order the prompt lists Packs under `uses:`, not the order the Host's Plugins added them, so the prelude of the Pack listed first runs first.
 
 ### The prelude's own Pack id
 
@@ -2704,7 +2783,7 @@ A prelude runs in a restricted environment of its own, and its functions keep th
 
 Every other global reads as nil inside a prelude and its functions, including Engine globals such as `sys`, `log`, `models`, and `require`. A helper cannot read the `ui`, `args`, `sys`, or `models` globals even when your code calls it, so those values reach a helper only as arguments. A prelude function that returns `type(ui)`, `type(args)`, `type(sys)`, `type(models)` joined with commas gives `nil,nil,nil,nil` when your block calls it, though the block itself sees all four. Global names inside prelude functions resolve through the prelude's environment, not the section entry's globals.
 
-A helper also does not see the globals another Pack's prelude defines, even one installed earlier in the same section, so it cannot call another prelude's helpers. Your code sees the globals of every prelude.
+A helper also does not see the globals another Pack's prelude defines, even one installed earlier in the same section, so it cannot call another prelude's helpers. Your code sees the globals of every prelude that its section installs.
 
 ### Calling tools and the store from a prelude
 
@@ -2716,7 +2795,7 @@ A prelude function called from a block can also use the [store operations](09-th
 
 #### Store calls while a prelude loads
 
-The `store` functions suspend the block that calls them, as `tools.call` does. A prelude's top-level code is not a block and cannot suspend, so a store call there fails the prelude's load exactly as a tool call there does (see [Calling a tool while loading](#calling-a-tool-while-loading)), and the run ends with the error code `lua_runtime` before it issues any effect. Suppose a prompt declares a Pack `seeder` whose prelude runs `store.write('seeded.txt', 'seed')` at its top level. The run fails with this message, and the Lua stack traceback follows it:
+The `store` functions suspend the block that calls them, as `tools.call` does. A prelude's top-level code is not a block and cannot suspend, so a store call there fails the prelude's load exactly as a tool call there does (see [Calling a tool while loading](#calling-a-tool-while-loading)), and a run whose own prompt declares the Pack ends with the error code `lua_runtime` before it issues any effect. Suppose a prompt declares a Pack `seeder` whose prelude runs `store.write('seeded.txt', 'seed')` at its top level. The run fails with this message, and the Lua stack traceback follows it:
 
 ````text
 Pack `seeder`: its prelude failed to load: attempt to yield from outside a coroutine. A prelude only defines functions; it must not call tools or the store while loading.
@@ -2744,7 +2823,7 @@ Nested tables and list elements inside `var` are read-only at every depth, and a
 
 ### When a prelude fails to load
 
-A prelude failure ends the run before any section code runs. A prelude that does not compile, or that raises an error while loading, fails the run with the error code `lua_runtime` before the run issues any effect. The prompt's own work never starts, so a section that would only `return 'unreachable'` still ends in a `lua_runtime` failure.
+A prelude that fails to load fails the first section entry of the prompt that installs it. For the run's own prompt, that ends the run before any section code runs: a prelude that does not compile, or that raises an error while loading, fails the run with the error code `lua_runtime` before the run issues any effect. The prompt's own work never starts, so a section that would only `return 'unreachable'` still ends in a `lua_runtime` failure. For a prompt run with `execute`, that entry is the executed prompt's first section, so the failure is raised in the caller at the `execute`, where `pcall` catches it, and uncaught it ends the run with the same code (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)).
 
 Either way, section setup fails with a message that names the Pack and the Lua message:
 
@@ -2756,7 +2835,7 @@ The Lua stack traceback follows on the next lines when there is one, and this is
 
 #### Calling a tool while loading
 
-A prelude defines functions, and its functions call tools later. A prelude that calls a tool at its top level while loading fails the install and the run with the error code `lua_runtime`, because the prelude does not run as a coroutine and the call suspends. The failure surfaces as the prelude load error, with a message that starts `` Pack `{pack}`: its prelude failed to load: `` and states the rule:
+A prelude defines functions, and its functions call tools later. A prelude that calls a tool at its top level while loading fails the install with the error code `lua_runtime`, because the prelude does not run as a coroutine and the call suspends. The failure surfaces as the prelude load error, with a message that starts `` Pack `{pack}`: its prelude failed to load: `` and states the rule:
 
 ````text
 A prelude only defines functions; it must not call tools or the store while loading.
@@ -2764,7 +2843,7 @@ A prelude only defines functions; it must not call tools or the store while load
 
 A store call at a prelude's top level fails the load the same way (see [Store calls while a prelude loads](#store-calls-while-a-prelude-loads)).
 
-`require` does not exist while preludes install, so a prelude that calls it fails the run with the code `lua_runtime` and a load-failure message that names the Pack and includes:
+`require` does not exist while preludes install, so a prelude that calls it fails to load, with the code `lua_runtime` and a load-failure message that names the Pack and includes:
 
 ````text
 attempt to call a nil value (global 'require')
@@ -2772,25 +2851,25 @@ attempt to call a nil value (global 'require')
 
 ### Global names a prelude cannot take
 
-A prelude never replaces or shadows an Engine global for your code. Before any of a prelude's globals install, the Engine checks all of them in sorted name order, so an error names the first colliding global in byte order. Each refusal fails section setup, and the run, with the error code `lua_runtime`:
+A prelude never replaces or shadows an Engine global for your code. Before any of a prelude's globals install, the Engine checks all of them in sorted name order, so an error names the first colliding global in byte order. Each refusal fails section setup with the error code `lua_runtime`, the way a prelude that fails to load does (see [When a prelude fails to load](#when-a-prelude-fails-to-load)):
 
 | The prelude defines | The message |
 |---|---|
 | a name already bound in the section entry's `_G` | `` Pack `{pack}`: its prelude defines the global `{name}`, which is already an Engine global `` |
-| a global an earlier prelude in the run already defines | `` Pack `{pack}`: its prelude defines the global `{name}`, which Pack `{owner}`'s prelude already defines `` |
+| a global an earlier prelude of the same prompt already defines | `` Pack `{pack}`: its prelude defines the global `{name}`, which Pack `{owner}`'s prelude already defines `` |
 | a reserved name | `` Pack `{pack}`: its prelude defines the global `{name}`, which is reserved as {kind} `` |
 | a global under a key that is not a valid UTF-8 string | `` Pack `{pack}`: its prelude defines a global under {key}; a global's name must be a UTF-8 string `` |
 
-A collision with another prelude fails the run even when the prompt's only section just returns a value. When two declared Packs' preludes define the same global, the message names the Pack whose prelude installs later as `{pack}` and the Pack whose prelude installed first as `{owner}`.
+A collision with another prelude fails the run even when the prompt's only section just returns a value. When the preludes of two Packs that one prompt declares define the same global, the message names the Pack whose prelude installs later as `{pack}` and the Pack whose prelude installed first as `{owner}`. Two such Packs collide only in a prompt that declares both: when a prompt declares one of them and a prompt it executes declares the other, each prompt reads the global of its own Pack (see [Packs and preludes in an executed prompt](#packs-and-preludes-in-an-executed-prompt)).
 
-In the reserved-name message, `{kind}` is `an Engine global`, `a Lua standard-library global`, or `a Lua keyword`. The 20 Engine global names a prelude global may not take are `args`, `call`, `compactors`, `item`, `json`, `jump`, `log`, `markdown`, `messages`, `models`, `prompt`, `prose`, `require`, `store`, `sys`, `tasks`, `tools`, `ui`, `untrusted`, and `var`. The sandbox's Lua standard-library globals, such as `string`, `pairs`, `_G`, and `_VERSION`, are reserved too, and so are the Lua 5.5 keywords, `global` included (see [The sandbox](05-lua-environment.md#the-sandbox)).
+In the reserved-name message, `{kind}` is `an Engine global`, `a Lua standard-library global`, or `a Lua keyword`. The 21 Engine global names a prelude global may not take are `args`, `call`, `compactors`, `execute`, `item`, `json`, `jump`, `log`, `markdown`, `messages`, `models`, `prompt`, `prose`, `require`, `store`, `sys`, `tasks`, `tools`, `ui`, `untrusted`, and `var`. The sandbox's Lua standard-library globals, such as `string`, `pairs`, `_G`, and `_VERSION`, are reserved too, and so are the Lua 5.5 keywords, `global` included (see [The sandbox](05-lua-environment.md#the-sandbox)).
 
 The reserved names hold in every section:
 
 - A prelude that defines `tools`, `store`, or `models` fails with `` Pack `{pack}`: its prelude defines the global `tools`, which is reserved as an Engine global ``, with the global it defined in place of `tools`, and the refused prelude leaves the Engine's global bound exactly as it was before the install.
-- A prelude that defines a global `require`, such as with `function require() return 'mine' end`, fails the run with the code `lua_runtime` and a message that contains `` Pack `{pack}`: its prelude defines the global `require` `` and `which is reserved as an Engine global`.
+- A prelude that defines a global `require`, such as with `function require() return 'mine' end`, fails the install with the code `lua_runtime` and a message that contains `` Pack `{pack}`: its prelude defines the global `require` `` and `which is reserved as an Engine global`.
 - A prelude that defines `args` or `prose` fails the install as reserved, even though neither is a raw global.
-- A prelude that defines `ui` or `item` fails the run as reserved, even in a section that binds neither, with a message that names the Pack and the name in backticks.
+- A prelude that defines `ui` or `item` fails the install as reserved, even in a section that binds neither, with a message that names the Pack and the name in backticks.
 
 A prelude global may share its name with a tool's wire name, such as `web_fetch`, or with the name of a model role, such as `strong`, because neither tools nor model roles are bound as globals. A prelude that runs `web_fetch = 'mine'` installs, and so does one that runs `strong = 'mine'`, so a block reads either global as `mine`.
 

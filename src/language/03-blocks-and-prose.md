@@ -1431,7 +1431,7 @@ A section that holds only a list is an ordinary section. The [section walk](04-h
 
 ### Which sections a read can name
 
-A read can name any section in the prompt. A relative path names a neighbor of the section the read is written in, and a path from the top names any section, the same one from everywhere:
+A read can name any section in the prompt it is written in, and no section of another prompt: when one prompt runs another with `execute`, each reads its own sections and none of the other's (see [Sections stay in their own prompt](08-jump-and-call.md#sections-stay-in-their-own-prompt)). A relative path names a neighbor of the section the read is written in, and a path from the top names any section, the same one from everywhere:
 
 ````markdown
 ---
@@ -2137,7 +2137,7 @@ A path names at most one section, because [sibling section names must be unique]
 
 ### Which sections `require` can name
 
-`require` can name any section in the prompt. Take this section tree:
+`require` can name any section in the prompt it is written in, and no section of another prompt: when one prompt runs another with `execute`, each loads its own libraries and none of the other's (see [Sections stay in their own prompt](08-jump-and-call.md#sections-stay-in-their-own-prompt)). Take this section tree:
 
 ````text
 ## Top

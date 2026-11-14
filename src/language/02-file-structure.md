@@ -338,7 +338,7 @@ description: d
 p
 ````
 
-Every other key, including `runvil`, `max_tool_iterations`, `uses`, `args`, and `models`, takes a default when you leave it out.
+Every other key, including `runvil`, `max_tool_iterations`, `uses`, `args`, `models`, and `prompts`, takes a default when you leave it out.
 
 A runnable prompt's frontmatter carries three keys: `name`, `description`, and `runvil: 0`. A run proceeds only when `runvil` is `0`. A prompt without `name` or `description` fails at parse time, while a prompt without `runvil` parses but stops at run time with `not a runvil prompt: no runvil version` (see [The `runvil` version key](#the-runvil-version-key)). You add optional keys next to the three when a prompt needs them, such as `uses:`:
 
@@ -471,11 +471,11 @@ description: d
 p
 ````
 
-The frontmatter recognizes exactly seven top-level keys, and only `name` and `description` are required, so this file parses. You leave out the other five when a prompt does not need them, and you add them alongside `name`, `description`, and `runvil: 0` when it does.
+The frontmatter recognizes exactly eight top-level keys, and only `name` and `description` are required, so this file parses. You leave out the other six when a prompt does not need them, and you add them alongside `name`, `description`, and `runvil: 0` when it does.
 
-### The seven keys
+### The eight keys
 
-This table lists the seven keys in the order this chapter teaches them, with what each one means when you leave it out:
+This table lists the eight keys in the order this chapter teaches them, with what each one means when you leave it out:
 
 | Key | Required | When you leave it out |
 |---|---|---|
@@ -486,12 +486,13 @@ This table lists the seven keys in the order this chapter teaches them, with wha
 | `uses` | no | no Packs |
 | `args` | no | the default declaration of one optional `string` argument named `text` |
 | `models` | no | no requirements on any model role |
+| `prompts` | no | the prompt can execute no other prompt |
 
 Because every key besides `name` and `description` has a default, a frontmatter of just those two parses, and so does a prompt with none of the contract keys. `max_tool_iterations` accepts a value from 1 to 1000, and [Tool rounds and the round cap](11-conversations.md#tool-rounds-and-the-round-cap) covers what it controls. [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key) covers the default declaration of `args`.
 
 ### Adding keys a prompt needs
 
-The `hello` prompt under [Flow style](#flow-style) shows the pattern. Its frontmatter holds only `name`, `description`, `runvil`, and `models`, and leaves out `max_tool_iterations`, `uses`, and `args` because it does not need them. Its `models:` key names a `fast: {}` role next to the usual three keys. The shipped `hello.md` prompt declares no model requirements, so it leaves out `models` too, and its frontmatter holds only `name`, `description`, and `runvil`.
+The `hello` prompt under [Flow style](#flow-style) shows the pattern. Its frontmatter holds only `name`, `description`, `runvil`, and `models`, and leaves out `max_tool_iterations`, `uses`, `args`, and `prompts` because it does not need them. Its `models:` key names a `fast: {}` role next to the usual three keys. The shipped `hello.md` prompt declares no model requirements, so it leaves out `models` too, and its frontmatter holds only `name`, `description`, and `runvil`.
 
 ### The contract keys
 
@@ -520,9 +521,70 @@ Here the `args:` value declares an object with two fields: an optional integer `
 
 A frontmatter with `uses: [web, user]`, an `args:` declaration that holds the arg `use_mcp`, and a `models:` map holding `strong` and `fast` parses and reads back the same way.
 
+### The `prompts` key
+
+The `prompts` key lists the other prompts that this prompt's Lua may run with `execute`:
+
+````markdown
+---
+name: greet
+description: Says hello.
+runvil: 0
+---
+
+## Only
+
+```lua
+return 'hello'
+```
+````
+
+````markdown
+---
+name: welcome
+description: Lists a prompt that its Lua may execute.
+runvil: 0
+prompts:
+  - greet.md
+---
+
+## Main
+
+```lua
+return execute('greet.md') .. ' and welcome'
+```
+````
+
+````text
+hello and welcome
+````
+
+`welcome.md` lists `greet.md`, so its Lua may execute it. [Executing another prompt](08-jump-and-call.md#executing-another-prompt) covers what `execute` does, and this section covers the key.
+
+The value is a YAML list of names, in block style as above or in flow style, as in `prompts: [greet.md, review.md]`. Each name is a prompt's file as the Host names it, which is the name an error's location shows. In this guide's examples a prompt's file is named after its frontmatter `name`, so the `greet` prompt is `greet.md`. `execute` takes a name exactly as the list writes it.
+
+The parser checks the list when it reads the frontmatter. A name that is listed twice fails the parse:
+
+````markdown
+---
+name: twice
+description: Lists one prompt twice.
+runvil: 0
+prompts: [greet.md, greet.md]
+---
+````
+
+````text
+invalid frontmatter: prompt greet.md is listed more than once under prompts
+````
+
+An empty entry, as in `prompts: [greet.md, ""]`, fails it with `invalid frontmatter: a prompts entry must not be empty`. Both are parse errors of kind `Frontmatter`, placed on the line of the `prompts:` key.
+
+Parsing a prompt also finds and parses every prompt it lists, then every prompt those list, each prompt once (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). So a listed prompt that the Host does not have, or one that does not parse, fails the parse of the prompt that lists it. Prompts may list each other, and a prompt may list itself. A prompt that leaves the key out, or gives it an empty list, can execute no prompt.
+
 ### Unknown keys
 
-You spell frontmatter keys exactly as the language defines them. An unknown frontmatter key is any top-level key other than the seven, and it is never ignored: it fails the whole file with parse error kind `Frontmatter`, because any other key is treated as a prompt authoring error. The `greeter` prompt above parses with `uses: [web]`, but the same file with that key misspelled fails:
+You spell frontmatter keys exactly as the language defines them. An unknown frontmatter key is any top-level key other than the eight, and it is never ignored: it fails the whole file with parse error kind `Frontmatter`, because any other key is treated as a prompt authoring error. The `greeter` prompt above parses with `uses: [web]`, but the same file with that key misspelled fails:
 
 ````markdown
 ---
@@ -534,10 +596,10 @@ usse: [web]
 ````
 
 ````text
-invalid frontmatter: unknown field `usse`, expected one of `name`, `description`, `runvil`, `max_tool_iterations`, `uses`, `args`, `models` at line 4 column 1
+invalid frontmatter: unknown field `usse`, expected one of `name`, `description`, `runvil`, `max_tool_iterations`, `uses`, `args`, `models`, `prompts` at line 4 column 1
 ````
 
-The message has the `invalid frontmatter: {message}` form, and `{message}` names the offending key, here `usse`, and lists the seven keys. It ends with the YAML reader's own position, which counts lines from the first line after the opening `---`, so its line 4 is line 5 of the file.
+The message has the `invalid frontmatter: {message}` form, and `{message}` names the offending key, here `usse`, and lists the eight keys. It ends with the YAML reader's own position, which counts lines from the first line after the opening `---`, so its line 4 is line 5 of the file.
 
 Unknown keys are rejected inside nested declarations too. An `args:` declaration accepts only the keywords of its subset of JSON Schema, both at its top level and in each arg it declares, a model role takes only `min_context` and `thinking`, and any other key inside them fails the parse with parse error kind `Frontmatter`.
 

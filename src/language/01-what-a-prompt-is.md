@@ -103,9 +103,9 @@ This preamble holds no Lua block, so it is commentary. Its line and the whole `#
 
 ### Runs and run events
 
-A run is one execution of one prompt, from its start to its run result. A run reports a run event for each thing that happens during it, so the Host can log them.
+A run is one execution of one prompt, from its start to its run result. When the prompt's Lua runs another prompt with `execute`, that prompt is part of the same run, not a run of its own (see [Executing another prompt](08-jump-and-call.md#executing-another-prompt)). A run reports a run event for each thing that happens during it, so the Host can log them.
 
-Runvil parses a prompt file into a parsed prompt before anything runs. A parsed prompt is the prompt file read into its frontmatter and its sections, and each run executes exactly one parsed prompt.
+Runvil parses a prompt file into a parsed prompt before anything runs. A parsed prompt is the prompt file read into its frontmatter and its sections, together with every prompt that its frontmatter lists under `prompts:` for `execute` to run, each parsed the same way (see [The `prompts` key](02-file-structure.md#the-prompts-key)), and each run executes exactly one parsed prompt.
 
 ### The runvil version
 
@@ -344,7 +344,7 @@ The frontmatter has no `models:` key. The `## Greet` block sends the section's p
 
 ### A prompt with no contract keys
 
-A prompt that declares none of the contract keys passes the requirements check. When its Lua also calls no model and no tool, it runs on that Lua alone:
+A prompt that declares none of the contract keys passes the requirements check, unless a prompt it lists under `prompts:` fails it (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). When its Lua also calls no model and no tool, it runs on that Lua alone:
 
 ````markdown
 ---

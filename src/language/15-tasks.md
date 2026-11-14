@@ -42,7 +42,7 @@ A task runs beside the section that spawned it instead of in its place, and that
 
 Reach for tasks when the work is not one collection run through one worker section. That shape is a [fanout](14-fanout.md#fanout-in-one-call), which runs every member of one collection through one worker section. Tasks fit the rest, such as starting two different sections, `Alpha` and `Beta`, and waiting on both.
 
-Tasks need nothing in the frontmatter and have no command-line flags. The frontmatter keys are `name`, `description`, `runvil`, `max_tool_iterations`, `uses`, `args`, and `models`, and none of them is for tasks, so every task feature is a Lua call, an options table, a returned value, or text the model reads.
+Tasks need nothing in the frontmatter and have no command-line flags. The frontmatter keys are `name`, `description`, `runvil`, `max_tool_iterations`, `uses`, `args`, `models`, and `prompts`, and none of them is for tasks, so every task feature is a Lua call, an options table, a returned value, or text the model reads.
 
 ### The `tasks` namespace
 
@@ -935,7 +935,7 @@ long draft|short draft after shorten it|returned after done
 
 ### Each task's inbox
 
-Every task has an inbox, a queue of text messages, oldest first, like the main chain's inbox that holds the operator's messages (see [Messages that arrive first](05-lua-environment.md#messages-that-arrive-first)). Only the task's owner fills it, with `tasks.send`, and only the task reads it, with `tasks.receive()` or `tasks.reply`, and a running `models.loop` also takes the task's queued messages. A section the task runs with `call` has no inbox of its own and reads the task's (see [How a called chain runs](08-jump-and-call.md#how-a-called-chain-runs)). No chain can send to the main chain, whose inbox only the Host fills.
+Every task has an inbox, a queue of text messages, oldest first, like the main chain's inbox that holds the operator's messages (see [Messages that arrive first](05-lua-environment.md#messages-that-arrive-first)). Only the task's owner fills it, with `tasks.send`, and only the task reads it, with `tasks.receive()` or `tasks.reply`, and a running `models.loop` also takes the task's queued messages. A section the task runs with `call` has no inbox of its own and reads the task's (see [How a called chain runs](08-jump-and-call.md#how-a-called-chain-runs)). A prompt the task runs with `execute` reads the task's inbox too, and a `tasks.reply` there answers for the task (see [One run, shared limits](08-jump-and-call.md#one-run-shared-limits)). No chain can send to the main chain, whose inbox only the Host fills.
 
 A message stays in the inbox until the task reads it, and a stop leaves it there (see [What a stop leaves running](16-limits-and-errors.md#what-a-stop-leaves-running)). A task that ends with messages still in its inbox drops them, and its owner sees how the task ended through a wait or `tasks.status`.
 
@@ -1548,7 +1548,7 @@ end
 | `store` | A store operation |
 | `tasks` | Other tasks, in a wait with or without a time limit |
 | `inbox` | A message to its own inbox, in `tasks.receive()` or idle after `tasks.reply` |
-| `call` | A chain it started with `call` |
+| `call` | A chain it started with `call`, or a prompt it runs with `execute` |
 | `queued` | A concurrency slot, before admission or to retake one after a wait |
 
 A task waiting on a model reply, such as a task running `return models.infer('slow please')`, reports `blocked = 'chat'`, and the field reads nil once the task finishes. A wait for a message is never a tool call: a task waiting in `tasks.receive()` reports `blocked = 'inbox'`, and gives back its concurrency slot while it waits. An [idle](#idle-tasks) task reports `blocked = 'inbox'` too, with `section` naming the section it replied from. Only the main chain reads the operator's messages (see [Asking the operator](05-lua-environment.md#asking-the-operator)), and a task's inbox holds only what its owner sends (see [Messages between tasks](#messages-between-tasks)). A task waiting in `tasks.join_any` reports `blocked = 'tasks'` whether the wait is timed or not, so a task inside `tasks.join_any({ g }, { timeout = 30 })` reads `tasks`.
@@ -1992,7 +1992,7 @@ A task's own sections read `sys.id` values that extend the task id with a sectio
 
 ### One child counter per chain
 
-A chain has one child counter shared by the chains it calls, the tasks it spawns, the fanout arms it starts, and the internal timer of each timed wait (see [The timer behind a time limit](#the-timer-behind-a-time-limit)). So a task's id is its spawner's next child index, and a `call` uses up an index the next spawn would otherwise get:
+A chain has one child counter shared by the chains it calls, the prompts it runs with `execute`, the tasks it spawns, the fanout arms it starts, and the internal timer of each timed wait (see [The timer behind a time limit](#the-timer-behind-a-time-limit)). So a task's id is its spawner's next child index, and a `call` uses up an index the next spawn would otherwise get:
 
 ````markdown
 ---
@@ -2181,7 +2181,7 @@ These rules decide who gives a slot back and how a waiting chain continues:
 
 ### The depth cap for spawned tasks
 
-Each spawned task runs one depth level deeper than the chain that spawned it, so a task spawned from the main walk runs at depth 1, and its `tasks.status` reads `depth` as 1. `tasks.spawn` shares the depth cap of 8 with `call` and `tasks.fanout` (see [The recursion depth cap](08-jump-and-call.md#the-recursion-depth-cap)), so chains at depths 1 through 8 start, and the spawn that would start depth 9 is refused:
+Each spawned task runs one depth level deeper than the chain that spawned it, so a task spawned from the main walk runs at depth 1, and its `tasks.status` reads `depth` as 1. `tasks.spawn` shares the depth cap of 8 with `call`, `execute`, and `tasks.fanout` (see [The recursion depth cap](08-jump-and-call.md#the-recursion-depth-cap)), so chains at depths 1 through 8 start, and the spawn that would start depth 9 is refused:
 
 ````markdown
 ---
@@ -2222,7 +2222,7 @@ return result
 ````
 
 ````text
-deep-spawn.md:29: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `tasks.spawn`, and `tasks.fanout` less deeply.
+deep-spawn.md:29: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `execute`, `tasks.spawn`, and `tasks.fanout` less deeply.
 ````
 
 `Odd` and `Even` spawn each other, because a section cannot spawn itself, and each task runs one level deeper than the one that spawned it. The `Even` task at depth 8 tries to spawn depth 9, and that `tasks.spawn` is refused with `recursion exceeded cap of 8`, the same words a `call` or a `tasks.fanout` past the cap gives. The refusal raises at the call site, on the line of the `tasks.spawn` that went too deep, and `pcall` catches it, as in `local ok, err = pcall(tasks.spawn, '../Odd')`. Its message adds the depth cap's prose after the refusal (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). Each task returns the result it joined, so the message travels back up to `Main` and becomes the run result.

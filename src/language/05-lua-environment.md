@@ -162,14 +162,14 @@ Every section VM, the preamble's included, starts with these Engine globals:
 - `args`, `sys`, `var`, and `prose`
 - `log`, `store`, `untrusted`, `json`, and `markdown`
 - `models`, `tools`, `messages`, and `compactors`
-- `call`, `jump`, `prompt`, and `require`
+- `call`, `execute`, `jump`, `prompt`, and `require`
 - `tasks`
 
-Two more Engine globals are installed only in some section VMs. `ui` is installed when the run has an application-state snapshot (see [Run facts in `sys` and `ui`](#run-facts-in-sys-and-ui)), and `item` is installed in a spawned chain, such as a fanout arm (see [What an arm sees](14-fanout.md#what-an-arm-sees)). That makes 20 Engine globals in all.
+Two more Engine globals are installed only in some section VMs. `ui` is installed when the run has an application-state snapshot (see [Run facts in `sys` and `ui`](#run-facts-in-sys-and-ui)), and `item` is installed in a spawned chain, such as a fanout arm (see [What an arm sees](14-fanout.md#what-an-arm-sees)). That makes 21 Engine globals in all.
 
-Together they give every section's Lua logging through `log` (see [Logging and lifecycle reports](#logging-and-lifecycle-reports)), tool scoping through `tools`, store operations through `store`, and the `var` and `args` globals, all inside the sandboxed section VM. `prose` is the global that reads pending prose (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)), `prompt` holds the section reads (see [Reading sections with `prompt.section` and `prompt.section_or`](03-blocks-and-prose.md#reading-sections-with-promptsection-and-promptsection_or)), and `models` holds the model functions: [`models.infer`](10-models.md#running-a-round-with-modelsinfer), `models.loop`, and `models.compact` run model rounds, and `models.use`, `models.get`, and `models.current` choose and read the model (see [The `models` global](10-models.md#the-models-global)). The rest are taught where they are used: `args`, the read-only table that holds the run's checked arguments, in [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args), `store` in [What the store is](09-the-store.md#what-the-store-is), `untrusted` in [Handing store text to a model with `untrusted`](09-the-store.md#handing-store-text-to-a-model-with-untrusted), `json` in [Encoding and decoding JSON with `json`](#encoding-and-decoding-json-with-json), `markdown` in [Parsing Markdown with `markdown`](#parsing-markdown-with-markdown), `messages`, the section entry's own conversation that each new section VM starts empty, in [`messages` is the section entry's conversation](11-conversations.md#messages-is-the-section-entrys-conversation), `compactors` in [Compactors and context exhaustion](11-conversations.md#compactors-and-context-exhaustion), `tools` in [The members of `tools`](12-tools.md#the-members-of-tools), and `tasks` in [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn).
+Together they give every section's Lua logging through `log` (see [Logging and lifecycle reports](#logging-and-lifecycle-reports)), tool scoping through `tools`, store operations through `store`, and the `var` and `args` globals, all inside the sandboxed section VM. `prose` is the global that reads pending prose (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)), `prompt` holds the section reads (see [Reading sections with `prompt.section` and `prompt.section_or`](03-blocks-and-prose.md#reading-sections-with-promptsection-and-promptsection_or)), and `models` holds the model functions: [`models.infer`](10-models.md#running-a-round-with-modelsinfer), `models.loop`, and `models.compact` run model rounds, and `models.use`, `models.get`, and `models.current` choose and read the model (see [The `models` global](10-models.md#the-models-global)). The rest are taught where they are used: `args`, the read-only table that holds the run's checked arguments, in [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args), `store` in [What the store is](09-the-store.md#what-the-store-is), `untrusted` in [Handing store text to a model with `untrusted`](09-the-store.md#handing-store-text-to-a-model-with-untrusted), `json` in [Encoding and decoding JSON with `json`](#encoding-and-decoding-json-with-json), `markdown` in [Parsing Markdown with `markdown`](#parsing-markdown-with-markdown), `messages`, the section entry's own conversation that each new section VM starts empty, in [`messages` is the section entry's conversation](11-conversations.md#messages-is-the-section-entrys-conversation), `compactors` in [Compactors and context exhaustion](11-conversations.md#compactors-and-context-exhaustion), `tools` in [The members of `tools`](12-tools.md#the-members-of-tools), `tasks` in [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), and `execute`, the function that runs another prompt with its own arguments and its own `var`, in [Executing another prompt](08-jump-and-call.md#executing-another-prompt).
 
-The Engine installs no global beyond these 20. Fanout is `tasks.fanout`, a function on the `tasks` table (see [Fanout in one call](14-fanout.md#fanout-in-one-call)), and reading a list kept in a section goes through `prompt.section`.
+The Engine installs no global beyond these 21. Fanout is `tasks.fanout`, a function on the `tasks` table (see [Fanout in one call](14-fanout.md#fanout-in-one-call)), and reading a list kept in a section goes through `prompt.section`.
 
 The preamble and every other section see the same set of globals, and `args` is read-only in all of them (see [`args` is read-only](06-arguments.md#args-is-read-only)).
 
@@ -183,13 +183,13 @@ Every section VM is set up in one fixed order. The same order applies to every s
 4. `ui`
 5. `item`
 6. `jump` and the `prompt` reads
-7. the suspending calls: `call`, the `tasks` table, `tools.call`, `models.infer`, `models.loop`, `models.compact`, and the `store` table
+7. the suspending calls: `call`, `execute`, the `tasks` table, `tools.call`, `models.infer`, `models.loop`, `models.compact`, and the `store` table
 8. Pack preludes
 9. `require`
 
 ### Reserved names
 
-The Engine reserves the name of every global it installs in a section VM, and its reserved-name list matches that set exactly. The list holds 62 names: the 20 Engine globals, the 19 Lua globals the sandbox keeps (listed in [The sandbox](#the-sandbox)), and the 23 Lua 5.5 keywords. It classes each name as an Engine global, a Lua global, or a Lua keyword.
+The Engine reserves the name of every global it installs in a section VM, and its reserved-name list matches that set exactly. The list holds 63 names: the 21 Engine globals, the 19 Lua globals the sandbox keeps (listed in [The sandbox](#the-sandbox)), and the 23 Lua 5.5 keywords. It classes each name as an Engine global, a Lua global, or a Lua keyword.
 
 The 23 Lua 5.5 keywords in prompt Lua are `and`, `break`, `do`, `else`, `elseif`, `end`, `false`, `for`, `function`, `global`, `goto`, `if`, `in`, `local`, `nil`, `not`, `or`, `repeat`, `return`, `then`, `true`, `until`, and `while`. A Lua keyword never reads as a global. Every Engine global and Lua global on the list reads non-nil in a section entry once its conditional bindings apply, such as `ui` with a snapshot and `item` in a spawned chain.
 
@@ -230,6 +230,7 @@ These are the suspending calls:
 - `models.loop` (see [Starting a conversation](11-conversations.md#starting-a-conversation))
 - `tools.call` (see [Calling tools from Lua and counting calls](12-tools.md#calling-tools-from-lua-and-counting-calls))
 - `call`
+- `execute` (see [Executing another prompt](08-jump-and-call.md#executing-another-prompt))
 - the `tasks` functions, [`tasks.fanout`](14-fanout.md#fanout-in-one-call), [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), and [`tasks.receive`](#asking-the-operator) included
 - the `store` calls (see [Writing and reading files](09-the-store.md#writing-and-reading-files))
 
@@ -259,7 +260,7 @@ A block has no direct route to I/O or a clock, because it never has the `io`, `o
 
 ### Pack preludes
 
-A Pack prelude is Lua source that a Pack the prompt declares contributes, and every section VM installs it after the Engine globals and before any block runs. A prelude is how a declared Pack defines Lua globals of its own. The Packs that ship with Runvil have no prelude, so this section uses a made-up third-party Pack, `acme/issue-tracker`, whose tool `issue-tracker/open` opens a ticket and whose prelude defines a `tickets` table (see [Pack preludes](12-tools.md#pack-preludes)):
+A Pack prelude is Lua source that a Pack the prompt declares contributes, and every section VM of that prompt installs it after the Engine globals and before any block runs. A prelude is how a declared Pack defines Lua globals of its own. The Packs that ship with Runvil have no prelude, so this section uses a made-up third-party Pack, `acme/issue-tracker`, whose tool `issue-tracker/open` opens a ticket and whose prelude defines a `tickets` table (see [Pack preludes](12-tools.md#pack-preludes)):
 
 ````markdown
 ---
@@ -287,7 +288,7 @@ A prelude can add any globals to a section entry's `_G` beyond the ones the Engi
 
 A prelude can also define a table global holding fields and functions. `tickets` is one: the `issue-tracker` prelude creates the `tickets` table and defines `tickets.open` as a function on it, so a block calls `tickets.open('Fix login')` like any other global function.
 
-Preludes install when each section VM is set up, before that VM runs its first block, in the preamble too. Every Lua global a prelude defines is therefore available to every block of every section entry in the run, fanout arms and spawned task chains included, and to every library a block loads with `require`. In a prompt that declares `acme/issue-tracker`, a required library, a fanout arm, and a spawned task can each call `tickets.open`.
+Preludes install when each section VM is set up, before that VM runs its first block, in the preamble too. Every Lua global a prelude defines is therefore available to every block of every section entry of the prompt, fanout arms and spawned task chains included, and to every library a block loads with `require`. In a prompt that declares `acme/issue-tracker`, a required library, a fanout arm, and a spawned task can each call `tickets.open`. A prompt run with [`execute`](08-jump-and-call.md#executing-another-prompt) installs the preludes of the Packs that it declares itself and none of its caller's, so a prelude global exists only in the prompts that declare its Pack (see [Packs and preludes in an executed prompt](12-tools.md#packs-and-preludes-in-an-executed-prompt)).
 
 Preludes install in the order the prompt's `uses:` list declares their Packs.
 
@@ -315,13 +316,13 @@ A prelude global never takes a reserved name, so no Pack global replaces an Engi
 
 #### When a prelude fails
 
-All preludes in a run share one global namespace, and a prelude that cannot install fails the run with [error code](16-limits-and-errors.md#run-error-codes) `lua_runtime`. Every such message starts with `` Pack `{pack}`: its prelude ... ``, naming the Pack that contributed the prelude. A prelude fails in these cases:
+All the preludes that one prompt installs share one global namespace, and a prelude that cannot install fails the run with [error code](16-limits-and-errors.md#run-error-codes) `lua_runtime`. Every such message starts with `` Pack `{pack}`: its prelude ... ``, naming the Pack that contributed the prelude. A prelude fails in these cases:
 
 - It defines a global an earlier prelude already defines. The message has the form `` Pack `{pack}`: its prelude defines the global `{name}`, which Pack `{owner}`'s prelude already defines ``, naming the later Pack, the global, and the Pack that defined it first.
 - It defines a global that an Engine global or another reserved name already holds. A prelude defining `ui` or `item` fails the run with a message saying the name `is reserved as an Engine global`.
 - It fails to load. The message says `its prelude failed to load`.
 
-A prelude failure happens when the first section VM is set up, before the run issues any effect. No store write, tool call, or model request from the prompt happens, and that includes a preamble block such as `store.write('first.txt', 'x')`, which would otherwise be the first thing the prompt does.
+A prelude failure happens when the first section VM is set up, before the run issues any effect. No store write, tool call, or model request from the prompt happens, and that includes a preamble block such as `store.write('first.txt', 'x')`, which would otherwise be the first thing the prompt does. In a prompt run with `execute`, the failure happens when that prompt's own first section VM is set up: it is raised at the `execute`, as an error value of kind `lua` that a `pcall` around the `execute` catches, after everything the calling prompt did before that line.
 
 ## The sandbox
 
@@ -938,7 +939,7 @@ abc
 
 A value you assign to a `var` field stays in `var` after the block that set it ends. Whenever the run needs that state, it reads `var` back as JSON data, as [When the run reads `var` back](#when-the-run-reads-var-back) explains.
 
-`var` is present in every section, the preamble included. You can read and write it in every walked section, in every [arm](14-fanout.md#what-an-arm-sees) of [`tasks.fanout`](14-fanout.md#fanout-in-one-call), and in every chain that [`call`](08-jump-and-call.md#calling-a-section) runs. A chain is a walk with its own entries (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). How a call, a fanout arm, or a task starts from its own copy of `var` is covered in [Call args and `var`](08-jump-and-call.md#call-args-and-var).
+`var` is present in every section, the preamble included. You can read and write it in every walked section, in every [arm](14-fanout.md#what-an-arm-sees) of [`tasks.fanout`](14-fanout.md#fanout-in-one-call), and in every chain that [`call`](08-jump-and-call.md#calling-a-section) runs. A chain is a walk with its own entries (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). How a call, a fanout arm, or a task starts from its own copy of `var` is covered in [Call args and `var`](08-jump-and-call.md#call-args-and-var). A prompt run with [`execute`](08-jump-and-call.md#executing-another-prompt) gets no copy: it starts with an empty `var`, and its writes end with it (see [What crosses an execute](08-jump-and-call.md#what-crosses-an-execute)).
 
 ### Starting values and computed keys
 
@@ -1020,7 +1021,7 @@ count:2
 
 ### Showing a `var` value in prose
 
-You store a value on `var` in one Lua block and read it in later prose of the same run through a [placeholder](07-substitution.md#placeholders-in-prose):
+You store a value on `var` in one Lua block and read it in later prose of the same walk through a [placeholder](07-substitution.md#placeholders-in-prose):
 
 ````markdown
 ---
@@ -2202,7 +2203,7 @@ Every assertion holds, and the run result is:
 Beta of 2
 ````
 
-`sys.section_name` is a string holding the section name of the section whose Lua is running, so it reads `'Alpha'` in section Alpha and `'Beta'` in section Beta. `sys.section_count` is a number holding the count of top-level sections in the prompt. The count reads the same in every section.
+`sys.section_name` is a string holding the section name of the section whose Lua is running, so it reads `'Alpha'` in section Alpha and `'Beta'` in section Beta. `sys.section_count` is a number holding the count of top-level sections in the prompt that the section belongs to. The count reads the same in every section of that prompt, and a prompt run with [`execute`](08-jump-and-call.md#how-an-executed-prompt-runs) reads its own count, not its caller's.
 
 A [preamble](02-file-structure.md#the-preamble) that holds Lua is a top-level section with no name, so `sys.section_name` reads the empty string there, and `sys.section_count` counts the preamble with the other top-level sections:
 
@@ -2224,7 +2225,7 @@ return '[' .. sys.section_name .. '] ' .. sys.section_count
 
 Nothing stands between the brackets, and the preamble is this prompt's only top-level section, so the count is `1`.
 
-Fanout arms, and chains that an arm starts with `call`, see the same `sys.section_count` as the run, its top-level section count, and a child worker section does not add to it. With `Parent` as the only top-level section, a `Worker` arm under it reads `sys.section_count == 1`.
+Fanout arms, and chains that an arm starts with `call`, see the same `sys.section_count` as the rest of their prompt, its top-level section count, and a child worker section does not add to it. With `Parent` as the only top-level section, a `Worker` arm under it reads `sys.section_count == 1`.
 
 ### The task id in `sys.taskid`
 
@@ -2256,7 +2257,7 @@ return sys.taskid
 
 `sys.taskid` is a string holding the id of the nearest enclosing task, the task the code runs inside (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)). It reads `'0'` on the main walk, which is why the assertion in `Parent` holds. Every section a chain enters reads the same `sys.taskid`, the chain's task id.
 
-Inside a spawned task or a fanout arm, `sys.taskid` reads that task's own id, the same value as the `task` field of the handle `tasks.spawn` returns, so the first task spawned from the main walk reads `0.0`, as the arm above does. Inside a called chain, `sys.taskid` reads the caller's task, because a `call` starts no task, while inside a fanout arm or a `tasks.spawn` chain it reads that task's own id.
+Inside a spawned task or a fanout arm, `sys.taskid` reads that task's own id, the same value as the `task` field of the handle `tasks.spawn` returns, so the first task spawned from the main walk reads `0.0`, as the arm above does. Inside a called chain, and inside a prompt run with [`execute`](08-jump-and-call.md#how-an-executed-prompt-runs), `sys.taskid` reads the caller's task, because neither a `call` nor an `execute` starts a task, while inside a fanout arm or a `tasks.spawn` chain it reads that task's own id.
 
 ### The spawn index in `sys.index`
 
@@ -2514,7 +2515,7 @@ Each `call` starts a contained child chain nested under the caller's chain. The 
 
 Each `call` starts a new child chain numbered in call order, so entering the same section through two calls gives two distinct `sys.id` values, `0.0.0` and `0.1.0`. After `call` returns, the caller's `sys.id` is unchanged, so `Main` still reads `0.0` after both calls, and the walk goes on to `Last` as `0.1`.
 
-Call chains are numbered as children of the calling chain, not of the calling section's entry. The two calls from `Main`, itself entry `0.0`, start chains `0.0` and `0.1`, so the first chain's section reads `0.0.0` and the second's reads `0.1.0`, which does not start with the calling entry's id. Child chains are numbered by the calling chain's own child counter in the order they start, and calls, tasks, fanout arms, and each [timed wait](15-tasks.md#the-timer-behind-a-time-limit)'s internal timer all share that counter no matter which section made the call, so each new call or arm takes the next child chain number.
+Call chains are numbered as children of the calling chain, not of the calling section's entry. The two calls from `Main`, itself entry `0.0`, start chains `0.0` and `0.1`, so the first chain's section reads `0.0.0` and the second's reads `0.1.0`, which does not start with the calling entry's id. Child chains are numbered by the calling chain's own child counter in the order they start, and calls, prompts run with [`execute`](#ids-inside-an-executed-prompt), tasks, fanout arms, and each [timed wait](15-tasks.md#the-timer-behind-a-time-limit)'s internal timer all share that counter no matter which section made the call, so each new call or arm takes the next child chain number.
 
 A chain started by `call` numbers its own section entries. With this `Main` and its children in place of the ones in the `called-ids` prompt, the run result is `0.0,0.0.1,0.1`:
 
@@ -2541,6 +2542,62 @@ return sys.id
 The called section reads `0.0.0`, the fall-through inside that chain takes the next entry, `0.0.1`, and after the chain ends the outer walk resumes its own sequence, so the next walked section reads `0.1` no matter how many entries the chain used.
 
 A `call` from a preamble takes the root chain's first child slot, so the called section runs as `0.0.0`. A later `call` from the section after the preamble then runs as `0.1.0`, and that calling section itself reads `sys.id == '0.1'`.
+
+### Ids inside an executed prompt
+
+````markdown
+---
+name: report-ids
+description: Returns the section entry ids of its two sections.
+runvil: 0
+---
+
+## One
+
+```lua
+var.one = sys.id
+```
+
+## Two
+
+```lua
+return var.one .. ' ' .. sys.id
+```
+````
+
+The next prompt lists `report-ids.md` and runs it twice with `execute`:
+
+````markdown
+---
+name: executed-ids
+description: Reads section entry ids inside an executed prompt.
+runvil: 0
+prompts:
+  - report-ids.md
+---
+
+## Main
+
+```lua
+local a = execute('report-ids.md')
+local b = execute('report-ids.md')
+var.ids = table.concat({ sys.id, a, b }, ' | ')
+```
+
+## Last
+
+```lua
+return var.ids .. ' | ' .. sys.id
+```
+````
+
+````text
+0.0 | 0.0.0 0.0.1 | 0.1.0 0.1.1 | 0.1
+````
+
+An executed prompt is a prompt that another prompt, its caller, runs with [`execute`](08-jump-and-call.md#executing-another-prompt). Its sections take ids the way a called chain's sections do: each `execute` starts a child chain of the calling chain, in that chain's next child slot, and the child chain counts the executed prompt's section entries from zero. The first `execute` from `Main` opens chain `0.0`, so `One` reads `0.0.0` and `Two`, the next entry of the same chain, reads `0.0.1`. The second `execute` opens chain `0.1`, where the same two sections read `0.1.0` and `0.1.1`. `Main` still reads `0.0` after both, and the walk goes on to `Last` as `0.1`.
+
+An `execute` takes its slot from the child counter that calls, tasks, and fanout arms share, so after one `call` from `Main`, the first `execute` runs as chain `0.1`. The rule is the same at every depth: the first `execute` that the task `0.2` makes runs the prompt's first section as `0.2.0.0`. An executed prompt is not a task, so `sys.taskid` in it reads the caller's task (see [How an executed prompt runs](08-jump-and-call.md#how-an-executed-prompt-runs)).
 
 ### Ids inside fanout arms
 
@@ -2887,7 +2944,7 @@ the environment cannot satisfy this prompt:
 
 The refusal is a guarantee: in a run of a prompt that declares `user`, the main chain always has an operator to answer its `tasks.receive()`, so it needs no check before it waits.
 
-A prompt that does not declare `user` is never refused for the lack of one. Its main chain can still call `tasks.receive()` in a run with no user, and the call waits all the same, because a Host can send the run messages from its own code.
+A prompt that does not declare `user` is never refused for the lack of one, unless a prompt that it lists under [`prompts:`](08-jump-and-call.md#listing-prompts-under-prompts), directly or through another listed prompt, declares it. Its main chain can still call `tasks.receive()` in a run with no user, and the call waits all the same, because a Host can send the run messages from its own code.
 
 ### Running with or without a user
 
@@ -2918,7 +2975,7 @@ local second = tasks.receive()
 return first .. '|' .. second
 ````
 
-Every part of the main chain reads that one inbox: the preamble, the sections after it, and every section the main chain runs with [`call`](08-jump-and-call.md#calling-a-section), so a `tasks.receive()` in a section run with `call` takes the operator's next message. A message one section leaves unread is still queued when the next section begins.
+Every part of the main chain reads that one inbox: the preamble, the sections after it, every section the main chain runs with [`call`](08-jump-and-call.md#calling-a-section), and every section of a prompt it runs with [`execute`](08-jump-and-call.md#executing-another-prompt), so a `tasks.receive()` in a section run with `call` takes the operator's next message. A message one section leaves unread is still queued when the next section begins.
 
 A `models.loop` on the main chain reads that inbox too. It takes every queued message before each model request, and once more before it returns unless its round cap is spent, so a message that arrives while the loop runs goes to the model rather than to the next `tasks.receive()` (see [Messages that arrive while the loop runs](11-conversations.md#messages-that-arrive-while-the-loop-runs)).
 
@@ -2975,7 +3032,7 @@ The message starts with where the failure happened, `read-error.md:10:`, the pro
 
 The error kind is the value's `kind` field, a lowercase snake_case string such as `lua`, `out_of_scope_tool`, or `empty_model_reply`. It names which failure occurred, so you read it at any call site and branch on it.
 
-The value's `code` field names the exact failure, as the stable tag of the Engine's error code: a lowercase snake_case string such as `lua_runtime`, `lua_quota`, `not_found`, or `overloaded`. One kind can hold several codes, so `code` tells apart failures that share a kind. A `lua` value's `code` is `lua_quota` for a refused `log` call, `call_depth_exceeded` for the call-depth cap, `substitution` for a failed `{{ }}` placeholder, and `lua_runtime` for a runtime, argument, or memory failure. A `canceled` value's `code` is `canceled` for a canceled run or a stopped call and `task_canceled` for a canceled task. A `model_failure` value's `code` is its [completion error kind](16-limits-and-errors.md#completion-errors-and-how-lua-sees-them) in snake_case, such as `overloaded` or `rate_limited`, and a `store` value's `code` is the same tag as its `reason`. Every error value has a `code`, including an argument error the Engine's own Lua raises, whose `code` is `lua_runtime`.
+The value's `code` field names the exact failure, as the stable tag of the Engine's error code: a lowercase snake_case string such as `lua_runtime`, `lua_quota`, `not_found`, or `overloaded`. One kind can hold several codes, so `code` tells apart failures that share a kind. A `lua` value's `code` is `lua_quota` for a refused `log` call, `call_depth_exceeded` for the call-depth cap, `substitution` for a failed `{{ }}` placeholder, `args_invalid` for the arguments of an [`execute`](08-jump-and-call.md#arguments-for-an-executed-prompt) that the executed prompt's `args:` declaration refuses, and `lua_runtime` for a runtime, argument, or memory failure. A `canceled` value's `code` is `canceled` for a canceled run or a stopped call and `task_canceled` for a canceled task. A `model_failure` value's `code` is its [completion error kind](16-limits-and-errors.md#completion-errors-and-how-lua-sees-them) in snake_case, such as `overloaded` or `rate_limited`, and a `store` value's `code` is the same tag as its `reason`. Every error value has a `code`, including an argument error the Engine's own Lua raises, whose `code` is `lua_runtime`.
 
 An Engine function can fail in its own Lua code or inside the Engine itself, and both give the same error value, with the same shape and the same metatable, so your code never needs to tell the two apart.
 
@@ -2996,7 +3053,7 @@ end
 
 The prose comes from the root cause. It names the error the Engine function itself returned, not a callback frame or added context wrapped around it, and the message never holds the stack traceback that the Lua runtime would otherwise add to an error from an Engine function. The Engine raises its errors at the call site the way `error(result, 0)` does, so Lua adds no position of its own, and the only position is the `{file}:{line}: ` in front: a model round that fails with `model is down` gives `{file}:{line}: model is down`, with the line of the [`models.infer`](10-models.md#running-a-round-with-modelsinfer) call.
 
-The prose depends on what caused the failure. A failure your prompt's own Lua caused has author prose, `{what}. {default prose}`: what failed, then the default prose for that kind of failure. That covers a Lua error, an exhausted `log` quota, the call-depth cap, a failed substitution, a misused task, and a `tasks_live` leak, and it covers the refusals of Runvil's guards, so reading `sys.nothing` gives `unknown sys field 'nothing'. The Lua code failed at runtime. Fix the code at this location.` after its location, and the refusal of `sys.extra = 1` gives `sys is read-only; cannot set 'extra'. The Lua code failed at runtime. Fix the code at this location.` A failure from a tool, the store, a model, or the context window keeps its own prose instead, as `model is down` does. The prose never names a file or a line. Where this guide quotes what a failure says, such as `unknown sys field '{field}'` or a `log` rule's refusal, that text is the `{what}` of its author prose.
+The prose depends on what caused the failure. A failure your prompt's own Lua caused has author prose, `{what}. {default prose}`: what failed, then the default prose for that kind of failure. That covers a Lua error, an exhausted `log` quota, the call-depth cap, a failed substitution, the refused arguments of an `execute`, a misused task, and a `tasks_live` leak, and it covers the refusals of Runvil's guards, so reading `sys.nothing` gives `unknown sys field 'nothing'. The Lua code failed at runtime. Fix the code at this location.` after its location, and the refusal of `sys.extra = 1` gives `sys is read-only; cannot set 'extra'. The Lua code failed at runtime. Fix the code at this location.` A failure from a tool, the store, a model, or the context window keeps its own prose instead, as `model is down` does. The prose never names a file or a line. Where this guide quotes what a failure says, such as `unknown sys field '{field}'` or a `log` rule's refusal, that text is the `{what}` of its author prose.
 
 Messages you meet through `tostring(err)` include these, shown without the `{file}:{line}: ` that a located one starts with:
 
@@ -3005,7 +3062,7 @@ Messages you meet through `tostring(err)` include these, shown without the `{fil
 - `lua log event quota exceeded. The section logged more than its budget allows. Log less.`
 - `the model replied with no text and no tool calls`
 - ``section `../Missing` not found: {where}. The Lua code failed at runtime. Fix the code at this location.``
-- ``recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `tasks.spawn`, and `tasks.fanout` less deeply.``
+- ``recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `execute`, `tasks.spawn`, and `tasks.fanout` less deeply.``
 - ``args is read-only: assign to `var` or a section global instead. The Lua code failed at runtime. Fix the code at this location.``
 
 Because `kind` is a string and `tostring` gives the message, one expression can report a failure in full:
@@ -3066,17 +3123,18 @@ A `lua` error value marks an authoring or runtime failure, and its message gives
 - a compile error (see [Compile errors](#compile-errors))
 - a runtime error in your own code, or a syntax error raised from inside an Engine function call
 - an argument or misuse error from an Engine function, including a value it cannot convert to the type it expects and a value it fails to serialize or deserialize
+- the arguments of an `execute` that the executed prompt's `args:` declaration refuses (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt))
 - an exhausted log quota, as with a refused `log` call (see [Logging and lifecycle reports](#logging-and-lifecycle-reports))
 - a placeholder or substitution in prose that fails to render (see [Placeholders in prose](07-substitution.md#placeholders-in-prose))
-- a `call`, `tasks.spawn`, or `tasks.fanout` that nests past the call-depth cap
+- a `call`, `execute`, `tasks.spawn`, or `tasks.fanout` that nests past the call-depth cap
 - running out of Lua memory
 - an Engine function failure caused by an outside error that is not one of the Engine's own errors
 
-None of these has fields of its own, so a `lua` error value holds only `kind`, `code`, and `message`. Its `code` sets a refused `log` call, the call-depth cap, and a failed substitution apart, while a runtime error, an argument error, and a memory refusal share the `code` `lua_runtime`, so only the message text tells those three apart.
+None of these has fields of its own, so a `lua` error value holds only `kind`, `code`, and `message`. Its `code` sets a refused `log` call, the call-depth cap, a failed substitution, and the refused arguments of an `execute` apart, while a runtime error, an argument error, and a memory refusal share the `code` `lua_runtime`, so only the message text tells those three apart.
 
-Nesting a [`call`](08-jump-and-call.md#calling-a-section), a `tasks.spawn`, or a [`tasks.fanout`](14-fanout.md#fanout-in-one-call) arm past the call-depth cap raises a `lua` error value on the line of the call that went too deep, and its message names the cap the same way whichever call it was: ``{file}:{line}: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `tasks.spawn`, and `tasks.fanout` less deeply.`` A `pcall(tasks.spawn, ...)` in the deepest spawner catches it, with `tostring(err)` reading that message for the line of its own `tasks.spawn` call.
+Nesting a [`call`](08-jump-and-call.md#calling-a-section), an [`execute`](08-jump-and-call.md#executing-another-prompt), a `tasks.spawn`, or a [`tasks.fanout`](14-fanout.md#fanout-in-one-call) arm past the call-depth cap raises a `lua` error value on the line of the call that went too deep, and its message names the cap the same way whichever call it was: ``{file}:{line}: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `execute`, `tasks.spawn`, and `tasks.fanout` less deeply.`` A `pcall(tasks.spawn, ...)` in the deepest spawner catches it, with `tostring(err)` reading that message for the line of its own `tasks.spawn` call.
 
-Left uncaught, a `lua` failure ends the run with its own code, one of the Lua codes (see [Run error codes](16-limits-and-errors.md#run-error-codes)). A runtime, argument, or memory failure ends it with `lua_runtime`, and a failed placeholder with `substitution`. A compile failure never reaches Lua: one in the prompt's own blocks fails the parse with `lua_compile` before the run starts, and one in a Pack prelude ends the run with `lua_runtime`. An exhausted log quota, as with a refused `log` call, ends it with `lua_quota`, and a recursion-cap refusal with `call_depth_exceeded`, so an uncaught call-depth refusal ends the run with `call_depth_exceeded` and the message `recursion exceeded cap of 8 (at {file}:{line})`, which names the line of the call that went too deep.
+Left uncaught, a `lua` failure ends the run with its own code, one of the Lua codes or, for the refused arguments of an `execute`, the run code `args_invalid` (see [Run error codes](16-limits-and-errors.md#run-error-codes)). A runtime, argument, or memory failure ends it with `lua_runtime`, and a failed placeholder with `substitution`. A compile failure in the prompt's own blocks never reaches Lua: it fails the parse with `lua_compile` before the run starts. One in a Pack prelude ends the run with `lua_runtime`. An exhausted log quota, as with a refused `log` call, ends it with `lua_quota`, and a recursion-cap refusal with `call_depth_exceeded`, so an uncaught call-depth refusal ends the run with `call_depth_exceeded` and the message `recursion exceeded cap of 8 (at {file}:{line})`, which names the line of the call that went too deep.
 
 ### Argument errors
 
@@ -3102,6 +3160,8 @@ A string argument has three messages:
 | A string argument holds bytes that are not valid UTF-8 | `{name} must be a valid UTF-8 string` |
 
 `{name}` is the argument's name, such as `prompt`, `path`, `contents`, `old`, `new`, `pattern`, or `text` for a task's note. `{type}` tells integers from floats, so `3` reports `got integer` and `2.5` reports `got number`, and a `prompt` given as `42` reports `prompt must be a string, got integer`. The wording is the same whichever part of the Engine raises the error. An optional string argument accepts a string, `nil`, or nothing at all, and any other type fails with `{name} must be a string, got {type}`.
+
+An [`execute`](08-jump-and-call.md#executing-another-prompt) that the Engine refuses at the call raises a `lua` error value too, and its `code` tells the refusals apart: `lua_runtime` for a name that the calling prompt does not list under `prompts:`, `args_invalid` for arguments that the executed prompt's `args:` declaration refuses, and `call_depth_exceeded` at the call-depth cap. The declaration checks the arguments before the executed prompt starts, so none of its sections runs, and `tostring(err)` gives the mismatch as author prose after the line of the `execute`, as in ``{file}:{line}: argument `query` must be a string, got integer. The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.`` (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
 ### Engine errors keep their own kind
 
@@ -3200,6 +3260,7 @@ A failed Engine call raises the Engine's error value right at the call site, so 
 - `pcall(models.loop)` catches an error the loop raises, and `err.kind` names it, such as `empty_model_reply`, `canceled`, `out_of_scope_tool`, or `unbound_tool`. With a compactor, as in `pcall(models.loop, f)`, it catches the loop's failures the same way, and the model rounds inside still suspend and resume normally.
 - `pcall(call, '../Missing')` catches a failed call, such as one whose path names no section, and returns `false` and the error value instead of failing the run. A target that is not a string, as in `pcall(call, 42)`, comes back with a message containing `section target must be a string`.
 - `pcall(jump, '../Other')` catches a failed [`jump`](08-jump-and-call.md#jumping-to-a-section).
+- `pcall(execute, 'search.md', { query = 5 })` catches a failed [`execute`](08-jump-and-call.md#catching-a-failed-execute), whether the Engine refuses the call or the executed prompt itself fails.
 - `pcall(tasks.fanout, 'Worker', 5)` returns `false` and an error value whose message is about the collection, and `pcall(tasks.spawn, ...)` catches a failed spawn.
 - `pcall(tools.call, 'web/fetch', { url = url })` returns `false` and the raised value when the tool call fails.
 - `pcall(store.append, 'notes.md', line)` takes a store function directly.
@@ -3212,11 +3273,11 @@ Reading or assigning `prose` can fail with the read-only, recursive, and missing
 
 Every failure the Engine raises into Lua reaches `pcall` as an error value, Engine-raised kinds such as `tool_loop_exhausted` included, so `type(err)` is `'table'` and you decide what to do by branching on `err.kind`. Three routes lead there:
 
-- An argument error from an Engine call, such as a badly shaped argument to `models.infer`, `models.loop`, `call`, `tasks.fanout`, `tasks.spawn`, `tools.call`, or a `store` function, is raised at the calling line as a `lua` error value rather than failing the whole block, so a `pcall` around the call catches it.
+- An argument error from an Engine call, such as a badly shaped argument to `models.infer`, `models.loop`, `call`, `execute`, `tasks.fanout`, `tasks.spawn`, `tools.call`, or a `store` function, is raised at the calling line as a `lua` error value rather than failing the whole block, so a `pcall` around the call catches it.
 - A failed Harness request, such as a model round, arrives as an error value whose `kind` names the failure, such as `context_exhausted`, with the kind's own fields beside it and `tostring` giving the failure's own prose after the line that made the call. A chat call wrapped in `pcall` that a stop drops likewise comes back as `false` and an error value carrying both `kind` and `message`.
 - An Engine function that fails on the spot, such as a failing [`tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer), a read of an unknown `sys` field such as `sys.nothing`, or the `var` guard, gives the same indexable error value. `err.kind` and `err.message` work on it at the call site, and `tostring(err)` is the message, author prose after the line that was running when it failed, with no traceback appended. A refused `var` write gives a message containing `must be JSON data` (see [When a value is not JSON data](#when-a-value-is-not-json-data)), and a runtime error raised inside a built-in call is kind `lua`.
 
-Apart from an argument error the Engine's own Lua raises, which has no location, each of these is placed on your own line: a suspending call on the line that made the call, an Engine function that fails on the spot, such as [`jump`](08-jump-and-call.md#jumping-to-a-section), on the line running when it failed, and a failure inside a function you pass to `pcall` or `xpcall` on the line of the failing call in that function, not the `pcall` line. [Where an error points](16-limits-and-errors.md#where-an-error-points) gives the full rules, tail calls included.
+Apart from an argument error the Engine's own Lua raises, which has no location, each of these is placed on your own line: a suspending call on the line that made the call, an Engine function that fails on the spot, such as [`jump`](08-jump-and-call.md#jumping-to-a-section), on the line running when it failed, and a failure inside a function you pass to `pcall` or `xpcall` on the line of the failing call in that function, not the `pcall` line. A `call` or an `execute` can raise a failure placed elsewhere: when the chain or the prompt it ran fails, it raises that failure's own error value, which keeps the line where it happened, in the executed prompt's file for an `execute` (see [Errors that pass through several blocks](#errors-that-pass-through-several-blocks)). [Where an error points](16-limits-and-errors.md#where-an-error-points) gives the full rules, tail calls included.
 
 The `pcall` and `xpcall` globals you call are the Engine's own versions, which make this conversion, and they replace the standard library's.
 
@@ -3262,7 +3323,7 @@ Rebinding `error` or `math` in your code does not change how Engine functions ra
 
 ### What an uncaught error ends
 
-An uncaught Lua runtime error ends the block with an error instead of a return value. An uncaught Lua failure, a runtime error in your code or an error you raise on purpose, then ends the run with code `lua_runtime`, holding the failure's message, wherever it happens: the preamble, any other walked section, a `call` [chain](04-how-a-prompt-runs.md#the-section-walk), a task, a fanout arm, or a library's load. The run's message is the failure's text, its causes included, followed by where it happened: ` (at {file}:{line})` for a failure on a line of the prompt file, after the stack traceback when the failure has one (see [Where an error points](16-limits-and-errors.md#where-an-error-points)).
+An uncaught Lua runtime error ends the block with an error instead of a return value. An uncaught Lua failure, a runtime error in your code or an error you raise on purpose, then ends the run with code `lua_runtime`, holding the failure's message, wherever it happens: the preamble, any other walked section, a `call` [chain](04-how-a-prompt-runs.md#the-section-walk), a prompt run with `execute`, a task, a fanout arm, or a library's load. The run's message is the failure's text, its causes included, followed by where it happened: ` (at {file}:{line})` for a failure on a line of the prompt file, after the stack traceback when the failure has one (see [Where an error points](16-limits-and-errors.md#where-an-error-points)).
 
 When an Engine operation fails and the block does not catch the failure, the block fails with the error the operation returned. The run ends with that call's own specific error, placed on the line of the call, such as a `context_exhausted` failure from `models.infer`, rather than a plain string or a generic Lua runtime error. An uncaught error from a built-in Lua function ends the run with code `lua_runtime`, and its message names the calling function, as in `tools.offer: ...`. The exception is a `context_exhausted` raise: an uncaught `compactors.fail` call ends the run with code `context_exhausted`. An uncaught `models.loop` error ends the run with its own code: `tool_loop_exhausted`, `context_exhausted`, or, for an `empty_model_reply` error, `empty_reply`. A `lua`-kind loop error, such as a call with the wrong arguments or a loop started while another runs, fails the run as a Lua runtime error with code `lua_runtime`, and its message keeps the loop's own text.
 
@@ -3429,7 +3490,7 @@ The compiler's diagnostic is never rewritten to file lines, so the `{k}` in its 
 
 Every block compiles this way, whether it sits in a library, in the preamble, or in any other section, the last block of the last section included: an unclosed `return (` in a final epilog fails the parse as ``section `Transform` epilog``. A syntax error in a section's prologue fence is located as ``section `{name}` prologue``, such as ``section `Private section` prologue``, and one in its epilog fence as ``section `{name}` epilog``. The compile error does not include the block's source: it holds the block's location label, its first line, and the compiler's diagnostic, which quotes at most the token where compiling stopped, such as `near <eof>`, or an unclosed string up to the end of its line.
 
-The compile error's text is the parse error's whole message, with nothing added in front. The parse error itself points at the faulting file line, the one the diagnostic's `{k}` names, in its own location fields, which a Host such as Workshop reads. The Harness finds the error before the run starts, and the failed run's code is `lua_compile`. Its message is the located message every failed run has: that text followed by ` (at {file}:{line})` for the faulting line (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). A compile error in a prompt's own blocks always fails the parse, so no run starts. A compile error during a run, such as one in a [Pack prelude](12-tools.md#pack-preludes), ends the run with code `lua_runtime` (see [When a prelude fails](#when-a-prelude-fails)).
+The compile error's text is the parse error's whole message, with nothing added in front. The parse error itself points at the faulting file line, the one the diagnostic's `{k}` names, in its own location fields, which a Host such as Workshop reads. The Harness finds the error before the run starts, and the failed run's code is `lua_compile`. Its message is the located message every failed run has: that text followed by ` (at {file}:{line})` for the faulting line (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). A compile error in a prompt's own blocks, or in the blocks of a prompt it lists under [`prompts:`](08-jump-and-call.md#listing-prompts-under-prompts), always fails the parse, so no run starts. A compile error during a run, such as one in a [Pack prelude](12-tools.md#pack-preludes), ends the run with code `lua_runtime` (see [When a prelude fails](#when-a-prelude-fails)).
 
 ### Runtime error messages and tracebacks
 
@@ -3445,7 +3506,7 @@ The mapping leaves error text that names no Lua block unchanged, adding no locat
 
 An error from one Lua block is never mapped onto the lines of another block in the same section. When an error passes through several blocks, each frame maps using the starting line of the block it came from, so the calling section's frame reports its own prompt line, as when a `boom()` call on prompt line 11 appears as ``section `Main` prologue:11:``.
 
-An error that surfaces through a parent block keeps the child's already absolute line, while the parent's own frames map to the parent's lines, so a message can start with ``section `Main` prologue:24: `` and still hold the child's line 51 intact. An error raised in a fanout arm or a called section traces back through its caller the same way, with each frame's line pointing at its own block's prompt line, so a child's ``section `lib` prologue:51: deep fault`` raised again in the parent stays at line 51. An error value that a called or spawned chain hands back keeps the line where it happened in that chain the same way, so its `{file}:{line}: ` names the child's line, not the parent's `call`, `tasks.fanout`, or wait.
+An error that surfaces through a parent block keeps the child's already absolute line, while the parent's own frames map to the parent's lines, so a message can start with ``section `Main` prologue:24: `` and still hold the child's line 51 intact. An error raised in a fanout arm or a called section traces back through its caller the same way, with each frame's line pointing at its own block's prompt line, so a child's ``section `lib` prologue:51: deep fault`` raised again in the parent stays at line 51. An error value that a called or spawned chain hands back keeps the line where it happened in that chain the same way, so its `{file}:{line}: ` names the child's line, not the parent's `call`, `tasks.fanout`, or wait. A failure inside a prompt run with [`execute`](08-jump-and-call.md#catching-a-failed-execute) keeps its file as well as its line: the message of the error value raised at the `execute` starts with the executed prompt's file and the failing line of that file, and left uncaught, the run's message ends with ` (at {file}:{line})` for that file and line, not for the line of the `execute`. A location label in that message names a block of the executed prompt, and its absolute line counts from the top of the executed prompt's file.
 
 In a traceback that passes through an Engine function, your own frames still map to absolute prompt lines, as in ``section `Test` prologue:41: in``. The frames of Engine functions written in Lua, such as `tasks.fanout`, the other `tasks` functions, the `store` functions, and the Lua code behind other Engine calls, appear as bare `file:line:` references to the built-in helper's own file. Those frames are never rewritten.
 

@@ -44,7 +44,7 @@ The `args:` key declares one object with three fields. `query` is a required str
 
 ### The arguments are one JSON object
 
-The arguments of a run are one JSON object. The [Host](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host), the application that runs prompts, starts a run with the text of that object, such as `{"query":"papers"}`, and each field of the object is one argument. A Host with nothing to pass sends `{}`, the empty object. This chapter calls whoever supplies the arguments the caller.
+The arguments of a run are one JSON object. The [Host](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host), the application that runs prompts, starts a run with the text of that object, such as `{"query":"papers"}`, and each field of the object is one argument. A Host with nothing to pass sends `{}`, the empty object. This chapter calls whoever supplies the arguments the caller. A Host that starts a run is a caller, and so is a prompt that runs another prompt with `execute`, because it supplies that prompt's arguments (see [`args` in an executed prompt](#args-in-an-executed-prompt)).
 
 ### The `args:` declaration
 
@@ -61,6 +61,8 @@ argument `limit` must be an integer, got string
 ````
 
 Text that is not JSON, JSON that is not an object, a missing required argument, a value of the wrong type, a value outside its `enum`, and a field the declaration does not list all end the run the same way, with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. So a run's arguments reach its sections only when they match the declaration, and the prompt needs no checks of its own for anything the declaration says. [Argument errors](#argument-errors) gives each message.
+
+The same check, with the same messages, runs on the arguments that a prompt passes when it runs another prompt with `execute`, against the declaration of the prompt it runs. It happens at the `execute`, before that prompt starts, and a mismatch is raised there as an error in the caller's Lua (see [`args` in an executed prompt](#args-in-an-executed-prompt)).
 
 ### The `args` global
 
@@ -368,6 +370,8 @@ The largest value that passes is `9223372036854775807`, and the smallest is `-92
 | `1e3` | `1000.0` | `float` |
 
 The two forms compare equal, so `args.weight == 5` holds for both `5` and `5.0`. They differ as text: `'weight ' .. args.weight` gives `weight 5` for the first and `weight 5.0` for the second. Declare the node `integer` when the prompt needs a whole number. A whole number too large for 64 bits, which an `integer` node refuses, reads here as a float.
+
+The table shows JSON as a Host writes it. In the arguments of an [`execute`](#args-in-an-executed-prompt) a number is a Lua number, and a float with no fractional part that fits in 64 bits arrives as an integer, so `weight = 5.0` passed that way reads `5`.
 
 ### Allowed values with `enum`
 
@@ -1058,7 +1062,7 @@ These arguments hold three mismatches: `query` is missing, `limit` is not an int
 
 ### What every argument error shares
 
-Arguments that do not match the declaration end the run with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. The argument check is one of the start checks that the run's first step makes before any section runs, in this order: the `runvil` version, the arguments, and the requirements (see [What the start checks look at](04-how-a-prompt-runs.md#what-the-start-checks-look-at)). Four things follow from that:
+Arguments that do not match the declaration end the run with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. The argument check is one of the start checks that the run's first step makes before any section runs, in this order: the `runvil` version, the arguments, and the requirements (see [What the start checks look at](04-how-a-prompt-runs.md#what-the-start-checks-look-at)). Four things follow from that for the arguments of a run:
 
 - No Lua has run when the check fails, so nothing in the prompt can catch the failure. A `pcall` in the preamble never gets its turn.
 - The run reports no [run events](04-how-a-prompt-runs.md#run-events-and-records), not even `run_started`.
@@ -1066,6 +1070,8 @@ Arguments that do not match the declaration end the run with the [error code](16
 - A prompt whose `runvil` version is refused fails with the version error whatever its arguments are, because the version is checked first.
 
 Beside its code and its message, the error holds two facts, named values that a Host can read. `Reason` is one of `not_json`, `not_an_object`, `required`, `type`, `enum`, or `undeclared`, and when one argument is at fault, `Name` is that argument's path. The error's prose, the text a model reads for the failure, is the message, a period, and then `The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.` For text that is not JSON, the prose leaves off the JSON parser's reason.
+
+The same check, with the same messages, also runs on the arguments of an `execute`, against the declaration of the prompt it runs. That failure reaches Lua and has a location: it is an [error value](05-lua-environment.md#error-values) of kind `lua` whose `code` is `args_invalid`, raised in the caller at the line of the `execute`, before any section of that prompt runs, so a `pcall` in the caller catches it, and uncaught it ends the run with code `args_invalid` and a message that points at that line (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
 ### The order of the check
 
@@ -1079,6 +1085,8 @@ The check reports the first mismatch only, so a caller who fixes it may then mee
 Each declared field is checked for a missing required value, then for its type, then for its `enum`, and then for its own contents: the fields of an object by steps 3 and 4, and the items of a list in index order. The contents of one field are checked before the next field, so a mismatch deep inside one argument is reported ahead of any mismatch in an argument whose name sorts after it.
 
 In name order, the declared fields of the search prompt are `depth`, `limit`, and `query`. So the run at the top of this section reports `limit`, the first declared field at fault. With that fixed, the arguments `{"limit":5,"n":1}` fail with ``argument `query` is required``, and only with `query` sent does the run report the undeclared `n`.
+
+The arguments of an `execute` are never JSON text. The Engine builds the object from the Lua value that the `execute` passes, so steps 1 and 2 do not apply, and the check starts at step 3 in the same order.
 
 ### Text that is not JSON
 
@@ -1341,6 +1349,66 @@ The first `call` and the task read the run's `query`, the second `call` reads th
 
 The Engine does not check the arguments a `call` or a spawn passes against the `args:` declaration, and it fills in no defaults for them: the declaration describes what a caller passes the prompt, not what one section passes another. [`args` in a called chain](08-jump-and-call.md#args-in-a-called-chain) covers the rule in full.
 
+### `args` in an executed prompt
+
+A prompt can run another prompt with [`execute`](08-jump-and-call.md#executing-another-prompt). Here the caller is the prompt that runs `execute`, and the executed prompt is the prompt it runs. The executed prompt reads the arguments of the `execute` as its `args`, and it reads nothing of the caller's `args`. The Engine checks those arguments against the executed prompt's own `args:` declaration and fills in its defaults, as it does for the arguments of a run. This prompt requires a `query` and gives `limit` a default:
+
+````markdown
+---
+name: search
+description: Reports the query and the limit it reads
+runvil: 0
+args:
+  type: object
+  properties:
+    query: { type: string }
+    limit: { type: integer, default: 3 }
+  required: [query]
+---
+
+## Search
+
+```lua
+return args.query .. ', limit ' .. args.limit
+```
+````
+
+The next prompt lists the `search` prompt by its file name, `search.md`, under the [`prompts:` key](02-file-structure.md#the-prompts-key) of its frontmatter and executes it twice:
+
+````markdown
+---
+name: compare
+description: Executes the search prompt with a query of its own and with its own arguments
+runvil: 0
+prompts:
+  - search.md
+args:
+  type: object
+  properties:
+    query: { type: string }
+    limit: { type: integer }
+  required: [query]
+---
+
+## Main
+
+```lua
+local own = execute('search.md', { query = 'tea' })
+local passed = execute('search.md', args)
+return own .. ' | ' .. passed
+```
+````
+
+Run it with the arguments `{"query":"run","limit":9}`:
+
+````text
+tea, limit 3 | run, limit 9
+````
+
+The first `execute` passes a `query` and no `limit`, so `search.md` reads `tea` beside the `3` that its own declaration defaults to, and not the `9` in the caller's `args`. The second passes the caller's `args`, which reach an executed prompt only when the caller passes them and are checked like any others, and `search.md` reads `run` and `9`. An `execute` with no second argument passes the empty object and never the caller's `args`, so `execute('search.md')` is refused here with ``argument `query` is required``.
+
+This is where an executed prompt differs from a called chain, a task, and a fanout arm. Those run sections of their caller's own prompt: a chain or a task that is given no arguments reads its caller's `args`, as every arm does, and the arguments that a `call` or a spawn passes are not checked and get no defaults. An executed prompt is another prompt with a declaration of its own, and the prompt that executes it is a caller of it, so the Engine checks what the `execute` passes against that declaration and fills in its defaults. Arguments that do not match are refused at the `execute`, with the messages that [Argument errors](#argument-errors) lists, and [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt) covers those refusals and each form the second argument takes.
+
 ### Arguments in prose
 
 A [placeholder](07-substitution.md#placeholders-in-prose) inserts an argument into prose by its path, as `{{ args.query }}` and `{{ args.limit }}` do here:
@@ -1377,7 +1445,7 @@ Find 3 papers on rust.
 
 ### Handing `args` tables to other calls
 
-You can hand an `args` table to `json.encode`, to `tasks.fanout`, and to `var`, and each receives the data the table stands for. `json.encode` writes it, `tasks.fanout` takes a list from `args` as its collection, as the `relay` prompt does with `args.files`, and `var` stores it:
+You can hand an `args` table to `json.encode`, to `tasks.fanout`, to `execute`, and to `var`, and each receives the data the table stands for. `json.encode` writes it, `tasks.fanout` takes a list from `args` as its collection, as the `relay` prompt does with `args.files`, `execute` takes `args`, or an object inside it such as `args.opts`, as the arguments of the prompt it runs, as `call` takes one as the arguments of a chain, and `var` stores it:
 
 ````lua
 var.files = args.files
@@ -1518,6 +1586,8 @@ The default declaration has one field, `text`, a string with the description `Fr
 ### Sending text
 
 A Host with plain text for such a prompt sends the text as the `text` field, as in `{"text":"hello there"}`, and the prompt reads `args.text`. The text alone is not the arguments. The argument text `hello there` fails with `the arguments are not valid JSON: expected value at line 1 column 1`, and `"hello there"`, a JSON string, fails with `the arguments must be a JSON object, got string`.
+
+A prompt that runs such a prompt with `execute` can pass the text as a Lua string, which becomes the `text` field: `execute('echo.md', 'hello')` starts the `echo` prompt with `hello` as its `args.text`, `execute('echo.md')` starts it with no `text`, and a table with any other field is refused (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
 ### Runs with no text
 

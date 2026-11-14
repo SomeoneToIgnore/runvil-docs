@@ -1,6 +1,6 @@
 # Jump and call
 
-`jump` and `call` are the control functions, the two Lua globals that let a block decide which section runs next. `jump` moves the walk to another section and never comes back, while `call` runs a section like a subroutine and hands its value back to the block that called it. Both name their target with a section path such as `'../Help'`, and this chapter covers how that path resolves, which sections it can name, and what each function does in every place a section can run.
+`jump` and `call` are the control functions, the two Lua globals that let a block decide which section runs next. `jump` moves the walk to another section and never comes back, while `call` runs a section like a subroutine and hands its value back to the block that called it. Both name their target with a section path such as `'../Help'`, and this chapter covers how that path resolves, which sections it can name, and what each function does in every place a section can run. A third global, `execute`, runs another prompt file the way `call` runs a section, and [Executing another prompt](#executing-another-prompt) covers it.
 
 ## Jump and call at a glance
 
@@ -1021,7 +1021,7 @@ nil|fallback|loud
 - Do not concatenate it as it is. `'got: ' .. call('Quiet')` raises the Lua error `attempt to concatenate a nil value` at that line, which fails the run unless something catches it. Write `'got: ' .. (call('Quiet') or '')` where the called chain may end with no text.
 - `return call('Quiet')` still ends the calling section, as every `return` does. The calling section then ends with no text itself, so its own caller gets `nil`, and on the main walk the run result is `done`.
 
-Each kind of chain reports an ending with no text in its own way. The main walk gives the run result `done` (see [The run result](04-how-a-prompt-runs.md#the-run-result)), a called chain gives `call` `nil`, and a [task](15-tasks.md#what-a-task-section-returns) or a [fanout arm](14-fanout.md#what-an-arm-returns) gives its owner the empty string.
+Each kind of chain reports an ending with no text in its own way. The main walk gives the run result `done` (see [The run result](04-how-a-prompt-runs.md#the-run-result)), a called chain gives `call` `nil`, an [executed prompt](#an-execute-that-gets-no-text) gives `execute` `nil`, and a [task](15-tasks.md#what-a-task-section-returns) or a [fanout arm](14-fanout.md#what-an-arm-returns) gives its owner the empty string.
 
 ### Calling a child section
 
@@ -1251,7 +1251,7 @@ Inside `Sub`, `args.query` reads `chain` from the call, not `run` from the run's
 | A table of named fields | the fields of that table |
 | A string | one field, `text`, that holds the string |
 
-The Engine does not check a call's arguments against the prompt's `args:` declaration, and it fills no defaults in them, because the declaration describes what a caller passes the prompt, not what one section passes another. Under the declaration above, `call('../Sub', { query = 5, extra = true })` starts the chain all the same, and there `args.query` is the integer `5` and `args.extra` is `true`. A string arrives as `args.text` under that declaration too, though it declares no `text`. Sent as the arguments of the run, the same fields end the run at its first step (see [Argument errors](06-arguments.md#argument-errors)).
+The Engine does not check a call's arguments against the prompt's `args:` declaration, and it fills no defaults in them, because the declaration describes what a caller passes the prompt, not what one section passes another. Under the declaration above, `call('../Sub', { query = 5, extra = true })` starts the chain all the same, and there `args.query` is the integer `5` and `args.extra` is `true`. A string arrives as `args.text` under that declaration too, though it declares no `text`. Sent as the arguments of the run, the same fields end the run at its first step (see [Argument errors](06-arguments.md#argument-errors)). An `execute` is checked too, against the declaration of the prompt it runs, because there the caller passes arguments to another prompt (see [Arguments for an executed prompt](#arguments-for-an-executed-prompt)).
 
 Every section of the chain reads the same `args`: the target, each section the chain falls through to, and the target of a `jump` inside the chain, because a jump stays in its chain. When the chain ends, the caller's `args` are what they were before the call. Here a call gives `Sub` a `query` of its own, `Sub` jumps to `Peer`, and each of the three sections reports the `query` and the `limit` it reads:
 
@@ -1295,7 +1295,7 @@ Run it with the arguments `{"query":"run"}`:
 Sub:chain,nil | Peer:chain,nil | Main:run,10
 ````
 
-`Sub` and `Peer` read the same `chain`, before the jump and after it. Neither reads a `limit`, because the call passed none, and the Engine fills the default of `10` only in the arguments of the run. After the chain ends, `Main` reads its own `run` and `10`.
+`Sub` and `Peer` read the same `chain`, before the jump and after it. Neither reads a `limit`, because the call passed none, and the Engine fills the default of `10` in the arguments of the run and never in the arguments of a `call`. After the chain ends, `Main` reads its own `run` and `10`.
 
 ### Call args errors
 
@@ -1418,7 +1418,7 @@ A determinism violation inside a called chain (see [Races, claims, and determini
 
 ## The recursion depth cap
 
-After this section you can predict how deep calls nest, how call depth counts across `call`, tasks, and fanout arms, and what the `CallDepthExceeded` failure looks like.
+After this section you can predict how deep calls nest, how call depth counts across `call`, `execute`, tasks, and fanout arms, and what the `CallDepthExceeded` failure looks like.
 
 ````markdown
 ---
@@ -1484,7 +1484,7 @@ caught lua
 
 ### How call depth counts
 
-Call depth is how many nested calls deep a section runs. A top-level section runs at call depth 0, which is why `Alpha` first runs at depth 0. Call depth accumulates through nested calls: each `call` runs the called section at its caller's depth plus one, and that called section keeps its depth, while the main walk of top-level sections always starts at depth 0. The [main walk](04-how-a-prompt-runs.md#the-section-walk) runs every top-level section, the preamble included, at the root call depth of 0, so `call` nesting and its cap count from there.
+Call depth is how many nested calls deep a section runs. A top-level section runs at call depth 0, which is why `Alpha` first runs at depth 0. Call depth accumulates through nested calls: each `call` runs the called section at its caller's depth plus one, and that called section keeps its depth, while the main walk of top-level sections always starts at depth 0. An [`execute`](#executing-another-prompt) counts the same way: every section of the executed prompt runs at the caller's depth plus one. The [main walk](04-how-a-prompt-runs.md#the-section-walk) runs every top-level section, the preamble included, at the root call depth of 0, so `call` nesting and its cap count from there.
 
 The cap is 8. A section or fanout arm may run at depth 8, but nothing it starts may run at depth 9, so an arm already running at depth 8 cannot `call`. The cap is fixed and cannot be configured.
 
@@ -1492,11 +1492,12 @@ A `jump` never adds a level of call depth. A descent into a child level is not a
 
 ### Depth across tasks and fanout arms
 
-Each `call`, each task started by `tasks.spawn`, and each [fanout arm](14-fanout.md#what-an-arm-sees) adds one level toward a single recursion depth cap of 8 levels, first call included. Depth adds up across all three, task boundaries included, so sections that call each other in turn add one level per call.
+Each `call`, each `execute`, each task started by `tasks.spawn`, and each [fanout arm](14-fanout.md#what-an-arm-sees) adds one level toward a single recursion depth cap of 8 levels, first call included. Depth adds up across all four, task boundaries and prompt boundaries included, so sections that call each other in turn add one level per call.
 
 | Started by | Adds a level | Message at the cap |
 | --- | --- | --- |
 | `call` | yes | `recursion exceeded cap of 8` |
+| `execute` | yes | `recursion exceeded cap of 8` |
 | `tasks.spawn` | yes | `recursion exceeded cap of 8` |
 | A `tasks.fanout` arm | yes | `recursion exceeded cap of 8` |
 | `jump` | no | none |
@@ -1510,7 +1511,7 @@ A fanout whose arms would pass the cap starts no arm. Every arm would run at the
 Tasks started by `tasks.spawn` run one call level deeper than the section that spawned them, count toward the same cap as `call`, and share `call`'s target resolution too. A task refused at the cap reads `recursion exceeded cap of 8`, the same text as for `call`, whether `tasks.spawn` started it or it is a fanout arm. A `tasks.spawn` refused at the cap is the spawn's own answer, so `pcall(tasks.spawn, ...)` catches it in the spawning block instead of ending the run. With `local ok, err = pcall(tasks.spawn, '../Beta')` followed by `log(tostring(err))`, the deepest section logs this message, whose line is that of the refused `tasks.spawn`:
 
 ````text
-{file}:{line}: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `tasks.spawn`, and `tasks.fanout` less deeply.
+{file}:{line}: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `execute`, `tasks.spawn`, and `tasks.fanout` less deeply.
 ````
 
 The run then ends with the `done` fallback or a `tasks_live` error rather than with the cap error. When nothing catches the refusal and it ends the run, it is a `call_depth_exceeded` error.
@@ -1519,9 +1520,9 @@ The `depth` field of [`tasks.status`](15-tasks.md#checking-on-a-task-with-taskss
 
 ### The `CallDepthExceeded` failure
 
-`CallDepthExceeded` is the dedicated depth cap error. Its text holds the cap and nothing else, in the form `recursion exceeded cap of {cap}`, so it reads `recursion exceeded cap of 8` whether a `call`, a `tasks.spawn`, or a `tasks.fanout` arm went too deep. The error points at the line of the `call`, `tasks.spawn`, or `tasks.fanout` that would have started a chain past the cap.
+`CallDepthExceeded` is the dedicated depth cap error. Its text holds the cap and nothing else, in the form `recursion exceeded cap of {cap}`, so it reads `recursion exceeded cap of 8` whether a `call`, an `execute`, a `tasks.spawn`, or a `tasks.fanout` arm went too deep. The error points at the line of the `call`, `execute`, `tasks.spawn`, or `tasks.fanout` that would have started a chain past the cap.
 
-Going past the cap fails with the text `recursion exceeded cap of 8`, exactly, whichever of the three went too deep.
+Going past the cap fails with the text `recursion exceeded cap of 8`, exactly, whichever of the four went too deep.
 
 Caught with `pcall`, the depth cap error is an error value of kind `lua`, the same kind as any Lua-phase failure, with no dedicated kind of its own, so a `pcall` handler that already branches on the `lua` kind keeps working, and its `code` is `call_depth_exceeded`. Its message is the file and line of the call that went too deep, then the text, then the fixed prose for the cap, as the logged message above shows, and the error value has no field for the depth reached or for the cap.
 
@@ -1824,10 +1825,431 @@ A section run with `call` runs as a chain inside the calling task, not as a new 
 
 A section run with `call` starts with the same [concurrency limit](14-fanout.md#concurrency-and-the-admission-window) as the section that called it, so the tasks it spawns run within the caller's share. It takes no concurrency slot of its own, and while it waits on tasks it spawned, it gives back the slot of the task it runs inside. So a section called from an arm can still fan out after the section that started the fanout set `tasks.concurrency(1)`. When `Parent` runs `tasks.concurrency(1)` and fans out to `Worker`, the worker section runs `call('../Sub')`, and `Sub` fans out over its own child `Leaf`, the run completes, with `worker:tail-reply:x!y!:alpha` as its text.
 
-A `call` made after a fanout takes the caller's next child number after the arms, because called sections, spawned tasks, and each timed wait's internal timer share one child counter. In the main walk after a two-arm fanout, the arms are children 0 and 1, the called section is child 2, and a `Sub` that returns `sys.id` returns `0.2.0`.
+A `call` made after a fanout takes the caller's next child number after the arms, because called sections, executed prompts, spawned tasks, and each timed wait's internal timer share one child counter. In the main walk after a two-arm fanout, the arms are children 0 and 1, the called section is child 2, and a `Sub` that returns `sys.id` returns `0.2.0`.
 
 ### Calling from tasks and adhoc tool handlers
 
 A section running as a spawned task can use `call` to run its own subsection, as when `Caller`, which runs only as a task started with [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), runs `call('Leaf')` on its own `Leaf` child. A section can also pass its own child section to `tasks.spawn`, as when `Main` runs `tasks.spawn('Caller')` on its own `Caller` child, and both spawned tasks complete with `r(a)|r(b)`.
 
 You can use `call` inside an [adhoc tool](12-tools.md#how-adhoc-tool-handlers-run) handler, and it works there exactly as it does in a block. `jump` is the one control function a handler cannot use, as [The adhoc tool handler refusal](#the-adhoc-tool-handler-refusal) describes.
+
+## Executing another prompt
+
+After this section you can list other prompts in a prompt's frontmatter, run one of them with `execute`, and know what the executed prompt shares with the prompt that runs it.
+
+````markdown
+---
+name: greet
+description: Greets the person named in its arguments.
+runvil: 0
+args:
+  type: object
+  properties:
+    name: { type: string }
+  required: [name]
+---
+
+## Greet
+
+```lua
+return 'Hello, ' .. args.name .. '!'
+```
+````
+
+The next prompt lists `greet.md` and executes it:
+
+````markdown
+---
+name: welcome
+description: Executes another prompt and uses its text.
+runvil: 0
+prompts:
+  - greet.md
+---
+
+## Main
+
+```lua
+local greeting = execute('greet.md', { name = 'Ada' })
+return greeting .. ' Welcome aboard.'
+```
+````
+
+````text
+Hello, Ada! Welcome aboard.
+````
+
+`execute(name, args?)` runs another prompt from its first section to its end and hands that prompt's final text back to the calling block, as [`call`](#calling-a-section) does for a section. The two files here are `greet.md` and `welcome.md`. `welcome.md` lists `greet.md` under the `prompts:` key of its frontmatter, and that entry is what lets its Lua execute `greet.md`. `execute('greet.md', { name = 'Ada' })` starts `greet.md` with those arguments and waits for it, `greet.md` returns `Hello, Ada!`, and `Main` finishes its block with that text. In this section the caller is the prompt whose Lua runs `execute`, and the executed prompt is the prompt it runs.
+
+`execute` is a Lua global in every section, as `jump` and `call` are. Its first argument is a name from the caller's `prompts:` list, written as a Lua string, and its optional second argument holds the executed prompt's arguments (see [Arguments for an executed prompt](#arguments-for-an-executed-prompt)).
+
+### Listing prompts under `prompts:`
+
+The `prompts:` key of the frontmatter lists the prompts that this prompt's Lua may execute (see [The `prompts` key](02-file-structure.md#the-prompts-key)). Each entry is a prompt's file as the Host names it, which is the name an error's location shows (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). In this guide's examples a prompt's file is named after its frontmatter `name`, so the `greet` prompt is `greet.md`.
+
+Listed prompts are found and parsed together with the prompt that lists them, before any run starts. Parsing `welcome.md` also parses `greet.md`, then every prompt that `greet.md` lists, and so on, each prompt once. So a run never looks a prompt up, and a problem with a listed prompt shows when the prompt loads, whether or not a run would reach the `execute`:
+
+- A listed prompt that the Host does not have fails the parse with the Host's not-found failure, such as `no prompt named farewell.md`, placed on the `prompts:` line of the prompt that lists the name.
+- A listed prompt that does not parse fails the parse with its own parse error, placed in its own file.
+- A name that is listed twice fails the parse with `invalid frontmatter: prompt greet.md is listed more than once under prompts`, and an empty entry fails it with `invalid frontmatter: a prompts entry must not be empty`.
+
+The run's first step checks every prompt the parse read, not only the one the run starts in. A listed prompt with an unsupported [`runvil` version](02-file-structure.md#the-runvil-version-key), a declared Pack that the run cannot give it, or a model role that falls short of its `models:` requirements refuses the run before any section runs, and the failure names the listed prompt (see [Packs and preludes in an executed prompt](12-tools.md#packs-and-preludes-in-an-executed-prompt)).
+
+A list covers only the prompt it is written in. When `plan.md` lists `draft.md` and `draft.md` lists `polish.md`, `draft.md` may execute `polish.md` and `plan.md` may not, although the parse of `plan.md` reads all three. A name that the caller does not list raises an error at the `execute`. Change the block of `welcome.md` to `return execute('farewell.md')` and the run fails with code `lua_runtime` and this message:
+
+````text
+prompt `farewell.md` is not listed: `welcome.md` lists `greet.md` under `prompts:` (at welcome.md:12)
+````
+
+The message names every prompt the caller lists, and for a caller with no `prompts:` key it reads `lists no prompt`. It is raised at the call site, so `pcall(execute, 'farewell.md')` catches it. A first argument that is not a string is refused there too, as in `name must be a string, got integer`.
+
+### How an executed prompt runs
+
+An executed prompt runs the way a prompt runs on its own: it starts at its first top-level section, which is the [preamble](02-file-structure.md#the-preamble) when it has one, and [falls through](04-how-a-prompt-runs.md#the-section-walk) its top-level sections in file order until a section returns or the last one ends.
+
+````markdown
+---
+name: steps
+description: Runs its preamble and then its sections.
+runvil: 0
+---
+
+```lua
+var.trail = 'preamble'
+```
+
+## First
+
+```lua
+var.trail = var.trail .. ' > First'
+```
+
+## Second
+
+```lua
+return var.trail .. ' > Second'
+```
+
+## Never
+
+```lua
+error('the return in Second ends this prompt')
+```
+````
+
+````markdown
+---
+name: runner
+description: Executes a prompt that has a preamble and three sections.
+runvil: 0
+prompts:
+  - steps.md
+---
+
+## Main
+
+```lua
+var.got = execute('steps.md')
+```
+
+## Report
+
+```lua
+return 'steps gave: ' .. var.got
+```
+````
+
+````text
+steps gave: preamble > First > Second
+````
+
+`execute('steps.md')` runs the preamble of `steps.md`, then `First`, then `Second`, whose `return` ends the executed prompt, so `Never` does not run. A `return` in an executed prompt ends that prompt and not the run: the caller's block goes on with the returned text, and here the walk of `runner.md` continues to `Report`. `execute` suspends its caller as `call` does, so the caller and the executed prompt never interleave.
+
+Every `execute` runs the prompt again from its first section. The executed prompt runs as a child chain of the caller, one call level deeper (see [How call depth counts](#how-call-depth-counts)) and with the caller's next child [`sys.id`](05-lua-environment.md#section-entry-ids). The first `execute` on the main walk runs the executed prompt's first section as entry `0.0.0` and its second as `0.0.1`, and a second `execute` starts at `0.1.0`. The executed prompt is not a task: its sections report under the caller's task, so `sys.taskid` reads `0` there when the main walk made the `execute`. `sys.section_count` counts the executed prompt's own top-level sections.
+
+### An execute that gets no text
+
+`execute` returns the executed prompt's final text as a Lua string, or `nil` when that prompt ends with no text:
+
+````markdown
+---
+name: quiet
+description: Keeps a note and returns nothing.
+runvil: 0
+---
+
+## Only
+
+```lua
+var.note = 'ran'
+```
+````
+
+Run on its own, `quiet.md` ends with:
+
+````text
+done
+````
+
+````markdown
+---
+name: ask-quiet
+description: Executes a prompt that ends with no text.
+runvil: 0
+prompts:
+  - quiet.md
+---
+
+## Main
+
+```lua
+local quiet = execute('quiet.md')
+return type(quiet) .. '|' .. (quiet or 'fallback')
+```
+````
+
+````text
+nil|fallback
+````
+
+A main walk that ends with no text gives the run result `done` (see [The run result](04-how-a-prompt-runs.md#the-run-result)). The same prompt gives an `execute` `nil`, as a called chain with no text gives `call` `nil`, and so does a prompt with no sections. Treat the `nil` as [A call that gets no text](#a-call-that-gets-no-text) describes: test the value or give it a fallback with `or` before you concatenate it.
+
+### What crosses an execute
+
+Only the arguments go into an executed prompt, and only its final text comes back:
+
+````markdown
+---
+name: reader
+description: Reports what it starts with.
+runvil: 0
+args:
+  type: object
+  properties:
+    topic: { type: string }
+---
+
+## Only
+
+```lua
+local note = tostring(var.note)
+var.note = 'changed by reader'
+var.extra = 'set by reader'
+return 'reader saw note=' .. note .. ' topic=' .. args.topic
+```
+````
+
+````markdown
+---
+name: handoff
+description: Shows what an executed prompt gets from its caller.
+runvil: 0
+prompts:
+  - reader.md
+---
+
+## Main
+
+```lua
+var.note = 'kept by handoff'
+local seen = execute('reader.md', { topic = 'tea' })
+return seen .. ' | ' .. var.note .. ' | ' .. tostring(var.extra)
+```
+````
+
+````text
+reader saw note=nil topic=tea | kept by handoff | nil
+````
+
+`reader.md` reads `nil` for `var.note`, and after it ends `handoff.md` still reads its own `var.note` and no `var.extra`. This is where `execute` differs most from `call`:
+
+| | A called chain | An executed prompt |
+| --- | --- | --- |
+| `var` at its start | a copy of the caller's `var` | empty |
+| `args` with no second argument | the caller's `args` | the empty object, with the prompt's declared defaults |
+| The model at its start | the caller's current model | the `default` role |
+| The store | the caller's store | an empty store of its own |
+| Section paths | the caller's prompt | its own prompt |
+
+The executed prompt's writes to `var` end with it, and the caller's `var`, `args`, and current model are the same after the `execute` as before it. A [`models.use`](10-models.md#children-and-fanout-arms) inside the executed prompt never reaches the caller. The executed prompt's store is empty when it starts and is gone when it ends (see [The store of an executed prompt](09-the-store.md#the-store-of-an-executed-prompt)). So an executed prompt has the one way in and the one way out that a run has: its arguments and its final text.
+
+Each prompt also keeps its own frontmatter. The executed prompt's `uses:` decides which Packs are required in its sections and whose preludes install there (see [Packs and preludes in an executed prompt](12-tools.md#packs-and-preludes-in-an-executed-prompt)), a role's thinking switch there is the one its own `models:` declares, and its own `max_tool_iterations` caps its tool loops.
+
+### Arguments for an executed prompt
+
+The second argument of `execute` takes the forms the second argument of `call` takes: a table of named fields, or a string. What differs is the check. The executed prompt's own `args:` declaration checks the arguments and fills its defaults, as it does for the arguments of a run (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)):
+
+````markdown
+---
+name: search
+description: Reports the query and the limit it was given.
+runvil: 0
+args:
+  type: object
+  properties:
+    query: { type: string }
+    limit: { type: integer, default: 3 }
+  required: [query]
+---
+
+## Only
+
+```lua
+return args.query .. ' x' .. args.limit
+```
+````
+
+````markdown
+---
+name: lookup
+description: Executes a prompt with good arguments and then with bad ones.
+runvil: 0
+prompts:
+  - search.md
+---
+
+## Main
+
+```lua
+local first = execute('search.md', { query = 'tea' })
+local ok, err = pcall(execute, 'search.md', { query = 5 })
+return first .. ' | ' .. tostring(ok) .. ' ' .. err.kind .. ' ' .. err.code
+```
+````
+
+````text
+tea x3 | false lua args_invalid
+````
+
+The first `execute` passes a `query` and no `limit`, and `search.md` reads the `limit` of `3` that its declaration defaults to. The second passes an integer where the declaration wants a string. The Engine refuses it at the `execute`, before `search.md` starts, so no section of `search.md` runs. The refusal is an [error value](05-lua-environment.md#error-values) of kind `lua` whose `code` is `args_invalid`, and `tostring(err)` gives:
+
+````text
+lookup.md:13: argument `query` must be a string, got integer. The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.
+````
+
+The message is the one [Argument errors](06-arguments.md#argument-errors) lists for the same mismatch in the arguments of a run, and it points at the line of the `execute`, because the caller built the arguments. Uncaught, it ends the run with code `args_invalid`. What the executed prompt reads as `args` depends on the second argument:
+
+| Second argument | `args` in the executed prompt |
+| --- | --- |
+| Left out or `nil` | the empty object, with each declared default filled in |
+| A table of named fields | the fields of that table, with each declared default filled in |
+| A string | one field, `text`, that holds the string |
+
+Each row is checked against the declaration. So `execute('search.md')` is refused with ``argument `query` is required``, because the empty object lacks the required field, and `execute('search.md', 'tea')` is refused with the same message, because a string fills only `text` and leaves `query` out. A prompt with no `args:` key takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)), so it starts with a string, or with no second argument at all, and refuses any other field.
+
+An `execute` never hands on the caller's arguments by itself. To give the executed prompt the caller's own arguments, pass them, as in `execute('search.md', args)` or `execute('search.md', { query = args.query })`. The refusals that [Call args errors](#call-args-errors) lists for the second argument of `call` apply to `execute` unchanged, so a list fails with `args must be a table of named fields or a string, got a list`.
+
+Because the arguments are checked, an empty list needs its marker. A plain `{}` is the empty object, so for a field that the executed prompt declares as an array, `{ tags = {} }` is refused with ``argument `tags` must be an array, got object``, and `{ tags = json.array() }` passes an empty list (see [Keeping empty lists with `json.array`](05-lua-environment.md#keeping-empty-lists-with-jsonarray)).
+
+### Sections stay in their own prompt
+
+A section path names a section of the prompt it is written in:
+
+````markdown
+---
+name: inner
+description: Calls its own Helper section.
+runvil: 0
+---
+
+## Main
+
+```lua
+return call('../Helper')
+```
+
+## Helper
+
+```lua
+return 'inner helper'
+```
+````
+
+````markdown
+---
+name: outer
+description: Has a Helper section, and executes a prompt that has one too.
+runvil: 0
+prompts:
+  - inner.md
+---
+
+## Main
+
+```lua
+return call('../Helper') .. ' | ' .. execute('inner.md') .. ' | ' .. call('../Helper')
+```
+
+## Helper
+
+```lua
+return 'outer helper'
+```
+````
+
+````text
+outer helper | inner helper | outer helper
+````
+
+Both prompts have a `Main` and a `Helper`, and each `call('../Helper')` runs the `Helper` of its own file. Nothing in a prompt can name a section of another prompt: `call`, `jump`, `require`, `tasks.spawn`, `tasks.fanout`, and the `prompt` reads all look a path up in the prompt whose file holds the code. An executed prompt that runs `call('../Notes')` for a `Notes` section that only its caller has misses in its own sections, with the usual [not-found error](#the-not-found-error):
+
+````text
+section `../Notes` not found: `/Main` has no sibling `Notes`
+````
+
+So two prompts never have to agree on section names, and `execute` is the only way for one prompt to run any part of another.
+
+### Catching a failed execute
+
+A failure inside an executed prompt reaches the caller as that prompt's own error value, raised at the `execute`, with its `kind`, its `code`, and its message intact, as a failure inside a called chain does (see [What the caught error value holds](#what-the-caught-error-value-holds)). Its message keeps the file and line where the failure happened, and that file is the executed prompt's. When `reach.md` fails at its line 10 with the not-found error above, `pcall(execute, 'reach.md')` in its caller returns `false` and an error value whose `kind` is `lua`, whose `code` is `lua_runtime`, and whose message starts with `reach.md:10:`. Uncaught, the failure ends the run with that code, and the run's message ends with ` (at reach.md:10)`.
+
+A `pcall` around an `execute` also catches the three refusals raised at the call site: a name the caller does not list, arguments the executed prompt's declaration refuses, and the recursion depth cap. It does not catch a determinism violation inside the executed prompt, which ends the run on the spot (see [What `pcall` cannot catch](#what-pcall-cannot-catch)).
+
+### Prompts that execute each other
+
+Prompts may list each other, and a prompt may list itself, so one prompt can execute another that executes the first again. Each `execute` adds one level of call depth, the count that `call`, `tasks.spawn`, and fanout arms add to, and the cap of 8 ends a recursion that no Lua condition ends (see [The recursion depth cap](#the-recursion-depth-cap)):
+
+````markdown
+---
+name: countdown
+description: Executes itself until its count reaches zero.
+runvil: 0
+prompts:
+  - countdown.md
+args:
+  type: object
+  properties:
+    count: { type: integer, default: 3 }
+---
+
+## Main
+
+```lua
+if args.count == 0 then
+  return 'liftoff'
+end
+return args.count .. ' ' .. execute('countdown.md', { count = args.count - 1 })
+```
+````
+
+````text
+3 2 1 liftoff
+````
+
+`countdown.md` lists itself and executes itself with a smaller `count` each time, three levels deep. Started with the arguments `{"count":9}`, it reaches the cap first: the ninth nested `execute` is refused, and the run fails with code `call_depth_exceeded` and the message `recursion exceeded cap of 8 (at countdown.md:19)`. Two prompts that execute each other with no condition end the same way. When `ping.md` runs `return execute('pong.md')` and `pong.md` runs `return execute('ping.md')`, a run of `ping.md` fails with `recursion exceeded cap of 8 (at ping.md:12)`.
+
+### One run, shared limits
+
+An executed prompt is part of its caller's run, not a run of its own. It runs under the same cancel, its events and effects report in the same run under the caller's task, its tools are the run's Packs working in the run's files, and it counts against the same limits:
+
+- Call depth has one cap of 8 for the whole run, whichever prompt a level runs in.
+- A task that the executed prompt spawns runs within the caller's [concurrency limit](14-fanout.md#concurrency-and-the-admission-window), and it counts toward the run's [idle cap](15-tasks.md#the-idle-cap).
+- Tool calls made in the executed prompt count toward the one number of tool calls that the Harness runs at once across the run (see [The five run limits](16-limits-and-errors.md#the-five-run-limits)).
+
+While the executed prompt runs, its caller waits as it waits on a `call`. For a task that waits on an `execute`, the `blocked` field of [`tasks.status`](15-tasks.md#checking-on-a-task-with-tasksstatus-tasksready-and-tasksnote) reads `call`. A cancel of the run ends the executed prompt with it, and so does a cancel of the task that made the `execute`.
+
+An executed prompt has no inbox of its own, as a called chain has none (see [How a called chain runs](#how-a-called-chain-runs)). It runs inside the task that made the `execute`, so a `tasks.receive()` there takes that task's next message, and a `tasks.reply` there replies for that task.
+
+### Where `execute` works
+
+`execute` works wherever `call` works: in the [preamble](#jump-and-call-from-the-preamble), in every section, in a task, in a fanout arm, and in an [adhoc tool](12-tools.md#how-adhoc-tool-handlers-run) handler. A `require`d library can execute too, while it loads and from the functions it returns, and it executes from the `prompts:` list of the prompt it is written in. Executed from a task, a prompt runs inside that task: with the task `0.2` running `execute`, the executed prompt's first section is entry `0.2.0.0` and `sys.taskid` there reads `0.2`.

@@ -157,6 +157,8 @@ Declaring a role does not select it. The run still starts on the `default` role,
 | `min_context` | a whole number of tokens from 1 to 4294967295 | no context minimum |
 | `thinking` | `true` or `false` | no thinking requirement and no thinking switch |
 
+Each prompt's `models:` key applies to its own sections. That matters when a prompt runs another prompt with [`execute`](08-jump-and-call.md#executing-another-prompt), where the first is the caller and the second is the executed prompt: a role's thinking switch in a section is the one that the section's own prompt declares (see [The thinking switch](#the-thinking-switch)), and the requirements of both prompts are checked at the run's first step (see [What the run checks](#what-the-run-checks)).
+
 ### Empty roles and no roles
 
 A role written as an empty map, such as `strong: {}` or `fast: {}`, is valid. It declares no requirement, so it places none on the model that fills the role, and it changes nothing about the run.
@@ -257,6 +259,8 @@ A model in thinking mode `never` always runs with thinking off, so a role with `
 A role's `thinking` value sets its thinking switch, the thinking setting that every request on the role sends. `thinking: true` asks for thinking on in every request, and `thinking: false` asks for thinking off. A role that leaves `thinking` out leaves the switch unset, so its requests send no thinking setting at all, and the model's own thinking default stays in place.
 
 The switch is fixed once per run from the role's declaration, when the run fills its roles. Every round on the role sends that same switch, even when `models.use` sets sampling options, which change only `temperature` and `max_tokens` (see [Sampling options on `models.use`](#sampling-options-on-modelsuse)). A handle for the role reads the switch back as its `thinking` field (see [The nine handle fields](#the-nine-handle-fields)).
+
+The declaration that sets the switch is the one in the prompt whose section makes the round. In an executed prompt, a role has the switch that the prompt's own `models:` declares, whatever its caller declares for that role. When the caller declares `strong` with `thinking: false` and the executed prompt declares no `strong`, `models.get('strong').thinking` reads `false` in the caller's sections and `nil` in the executed prompt's, and the caller reads `false` again after the `execute` (see [What crosses an execute](08-jump-and-call.md#what-crosses-an-execute)).
 
 The switch takes effect on a model that can switch thinking per request. A fixed-mode model only ever runs with a matching switch, because `thinking: true` on a `never` model and `thinking: false` on an `always` model refuse the run on its first step.
 
@@ -376,6 +380,8 @@ the environment cannot satisfy this prompt:
 
 The notice opens with the line `the environment cannot satisfy this prompt:`, followed by one `- ` line per unmet check (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). Each unmet line names the role by its role name, shown as `role '{role}'` in every line form. The model lines come after any lines about Packs, in role order, `default`, `strong`, `small`, `fast`, `creative`, and for one role the context line comes before the thinking line.
 
+The check covers every prompt the parse read: the run's own prompt, and each prompt that it lists under `prompts:` or that one of those lists (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). A listed prompt's `models:` requirements are checked against the same models, whether or not the run ever executes that prompt, and a line about a listed prompt's role starts with that prompt's name. When `plan.md` lists a prompt `review.md` that declares `strong` with `min_context: 200000`, a run of `plan.md` on a Host whose model has an 8192-token context window is refused with the line `- review.md: role 'strong': requires a context of at least 200000 tokens; the model filling it provides 8192`, and the message ends with the location of the `models:` line of `review.md`. The role lines of the run's own prompt come first, then those of each listed prompt, in the order of the prompts' names (see [How the gaps are gathered](04-how-a-prompt-runs.md#how-the-gaps-are-gathered)).
+
 ### The context check
 
 At the run's first step, after the version check and the argument check, a role's `min_context` is read as a token count and compared with the context window of the model that fills the role. The minimum is inclusive: a model whose window is at least the minimum, including exactly equal to it, meets the requirement. So `min_context: 200000` passes on a 200000-token model, `min_context: 100000` passes on a 200000-token model, and only a smaller window leaves the requirement unmet.
@@ -442,7 +448,7 @@ the caller supplied no model
 
 ## The current model
 
-After this section you can say which model a round runs on, read it back, and tell which model a section started by `call`, a spawned task, or a fanout arm starts on.
+After this section you can say which model a round runs on, read it back, and tell which model a section started by `call`, a spawned task, a fanout arm, or a prompt run with `execute` starts on.
 
 ````markdown
 ---
@@ -468,7 +474,7 @@ strong
 
 The current model is the model a round runs on when the call names none, such as `models.infer(prose)`. `models.use` sets it and `models.current()` reads it. It belongs to a chain, not to a section: the preamble's `models.use('strong')` set it, and `Check`, a different section, still sees it.
 
-A chain is a walk with its own entries (see [The main walk as a chain](04-how-a-prompt-runs.md#the-main-walk-as-a-chain)). The main walk is one chain, a section run through `call` begins another, and each spawned task is a chain of its own.
+A chain is a walk with its own entries (see [The main walk as a chain](04-how-a-prompt-runs.md#the-main-walk-as-a-chain)). The main walk is one chain, a section run through `call` begins another, a prompt run with `execute` begins another, and each spawned task is a chain of its own.
 
 ### Where a chain starts
 
@@ -477,6 +483,7 @@ Each chain starts on a model the run decides when it begins:
 - The main walk, which is the root chain, starts on the `default` role's model, or on no model when the Host gave none. A `models.use` lasts for the rest of its chain, so one in the preamble chooses the model for every section the walk enters after it, as `current` shows, because the preamble and those sections are entries of the same chain. A `jump` between sections stays in one chain too, so it keeps the current model.
 - A section run through `call` starts on a copy of its caller's current model, taken when the `call` is dispatched.
 - A spawned task starts on a copy of its spawner's current model, taken when the spawn is dispatched. Every fanout arm is a spawned task, so arms start the same way.
+- A prompt run with `execute` starts on the `default` role's model, whatever model its caller is on (see [Children and fanout arms](#children-and-fanout-arms)).
 
 Every section a chain enters runs on whatever model the chain is on, so the first section of a prompt that never calls `models.use` runs on `default`. Because the selection lasts across sections, a `models.use('strong')` in one section leaves every later section of the chain on `strong`. To limit a switch to one section, switch back at the end of the section with a handle you saved from `models.current()`.
 
@@ -545,6 +552,48 @@ strong|strong>fast
 A task that waits in the queue under a concurrency limit (see [Concurrency slots](15-tasks.md#concurrency-slots)) starts on the model its parent had when the task was spawned, not on the model the parent has when the scheduler admits it. If a parent spawns two tasks on `strong` and then switches to `fast`, the task still queued runs on `strong`. All the arms of one fanout start on the same model as one another.
 
 To run every arm of a fanout on a model you choose, without switching the parent, give `tasks.fanout` the model first. The form is covered with fanout in [the model-first form of `tasks.fanout`](14-fanout.md#running-arms-on-a-model).
+
+A prompt run with `execute` starts differently. It gets no copy of its caller's current model: it starts on the `default` role, whatever model the caller is on, and a `models.use` inside it never reaches the caller (see [What crosses an execute](08-jump-and-call.md#what-crosses-an-execute)):
+
+````markdown
+---
+name: helper
+description: Reports the model it starts on and then switches.
+runvil: 0
+---
+
+## Only
+
+```lua
+local start = models.current().name
+models.use('fast')
+return start .. '>' .. models.current().name
+```
+````
+
+````markdown
+---
+name: delegate
+description: Shows that an executed prompt starts on the default role.
+runvil: 0
+prompts:
+  - helper.md
+---
+
+## Main
+
+```lua
+models.use('strong')
+local report = execute('helper.md')
+return models.current().name .. '|' .. report
+```
+````
+
+````text
+strong|default>fast
+````
+
+`helper.md` starts on `default` although `Main` executes it from `strong`, and its switch to `fast` ends with it. The caller's current model is the same after the `execute` as before, so `Main` still reads `strong`.
 
 ## Selecting a role with `models.use`
 
@@ -655,7 +704,7 @@ A role name starts from the role's own binding, which has no sampling options, s
 A round that names no model runs on the chain's current model, which is picked in a fixed order:
 
 1. The chain's latest `models.use`.
-2. Otherwise, the model the chain started on (see [Where a chain starts](#where-a-chain-starts)): the `default` role's model for the main walk, and a copy of the parent's current model for a `call` child, a spawned task, or a fanout arm.
+2. Otherwise, the model the chain started on (see [Where a chain starts](#where-a-chain-starts)): the `default` role's model for the main walk and for a prompt run with `execute`, and a copy of the parent's current model for a `call` child, a spawned task, or a fanout arm.
 3. Otherwise, no model at all, which happens only when the Host gave the run none.
 
 A round that names a model with a handle, as in `models.infer(handle, prompt)`, runs on that handle and leaves the current model alone.
@@ -786,7 +835,7 @@ The second `models.use` call selects `default` again with no options, so the cha
 
 Sampling options follow these rules:
 
-- The options stay on the chain's selection. They apply to every following model round in the chain that names no model, in this section and in the sections after it, such as `models.infer(prose)` and each round of a `models.loop` conversation (see [Starting a conversation](11-conversations.md#starting-a-conversation)), until the next `models.use` call replaces the selection. A `call` child, a spawned task, and a fanout arm start on a copy of the parent's selection with its options, and their own `models.use` calls never reach the parent (see [Children and fanout arms](#children-and-fanout-arms)).
+- The options stay on the chain's selection. They apply to every following model round in the chain that names no model, in this section and in the sections after it, such as `models.infer(prose)` and each round of a `models.loop` conversation (see [Starting a conversation](11-conversations.md#starting-a-conversation)), until the next `models.use` call replaces the selection. A `call` child, a spawned task, and a fanout arm start on a copy of the parent's selection with its options, and their own `models.use` calls never reach the parent (see [Children and fanout arms](#children-and-fanout-arms)). A prompt run with `execute` starts on the `default` role with no options.
 - A later plain `models.use(role)` with no options clears the options an earlier call set. The handle from `models.use('default')` reads `nil` for both `temperature` and `max_tokens`, and the chain's following rounds send neither.
 - The handle a `models.use` call returns keeps that call's options for every round on it, `models.infer(h, prompt)` and each round of `models.loop(h)`, even after a later `models.use` changes the chain's selection.
 - The options do not apply to a handle from `models.get`, because it describes the role's own settings, and they shape only the chain's effective model (see [The effective model](#the-effective-model)). A round on `models.get('strong')` sends no temperature and no token cap, only the role's thinking switch (see [The thinking switch](#the-thinking-switch)).
