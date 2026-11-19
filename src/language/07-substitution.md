@@ -383,7 +383,7 @@ Once the section entry has made its first tool call (see [Calling tools from Lua
 
 ### The moment `var` and `sys` are read
 
-When a block reads `prose`, each `var` placeholder renders from the section entry's own `var` table as it stands at the first read, so later reads return the same text even after a change such as `var.word = 'changed'`. `sys` is read as it stands at that same moment, and the read sees the live `sys`, so a `sys` field the run adds after the Lua block starts but before that first read, such as `sys.model` after a tool call, is visible in the rendered text. [When substitution happens](#when-substitution-happens) covers this timing in full.
+When a block reads `prose`, each `var` placeholder renders from the section entry's own `var` table as it stands at the first read that succeeds, so later reads return the same text even after a change such as `var.word = 'changed'`. `sys` is read as it stands at that same moment, and the read sees the live `sys`, so a `sys` field the run adds after the Lua block starts but before that first read, such as `sys.model` after a tool call, is visible in the rendered text. [When substitution happens](#when-substitution-happens) covers this timing in full.
 
 ### `var` in preamble prose
 
@@ -819,7 +819,7 @@ A bare global that holds data, meaning a string, number, boolean, or table, is c
 
 ### When the global is set
 
-The global a bare name reads can be set in an earlier Lua block of the same section entry, as in the `globals` prompt, earlier in the block that reads `prose`, or by a library that block loads with `require` before the read. A bare name reads the section entry's global of that name as it stands at the moment of the `prose` read. The first read of `prose` renders the text, and later reads reuse that rendering.
+The global a bare name reads can be set in an earlier Lua block of the same section entry, as in the `globals` prompt, earlier in the block that reads `prose`, or by a library that block loads with `require` before the read. A bare name reads the section entry's global of that name as it stands at the moment of the `prose` read. The first read of `prose` that succeeds renders the text, and later reads reuse that rendering.
 
 ### Bare names in library prose
 
@@ -1007,7 +1007,7 @@ A block can read `prose` any number of times, and from the first read that succe
 
 ### Each prose and Lua pair renders on its own
 
-Each prose-and-Lua pair in a section renders once, against its own first read, so a later Lua block's `prose` renders fresh from the prose above that block:
+Each prose-and-Lua pair in a section renders once, against its own first read that succeeds, so a later Lua block's `prose` renders fresh from the prose above that block:
 
 ````markdown
 ---
