@@ -1779,7 +1779,7 @@ Globs race with the writes they would see. A store write and a sibling task's `s
 
 ### Claims stay inside one run
 
-A store's claims belong to one run. Two runs never share a store, so two runs of one prompt going at the same time cannot conflict in it. Inside a run, each store keeps its own claims, so a claim in a caller's store and a claim in the store of a prompt it executes never conflict, even on one path (see [The store of an executed prompt](#the-store-of-an-executed-prompt)). Every claim lasts as long as its store, so a race is caught no matter how long ago the earlier unordered access happened. Tools keep separate claims on separate files: a tool's file operation in the run's files and a store call are never checked against each other (see [Tools and the store](#tools-and-the-store)).
+A store's claims belong to one run. Two runs never share a store, so two runs of one prompt going at the same time cannot conflict in it. Inside a run, each store keeps its own claims, so a claim in a caller's store and a claim in the store of a prompt it executes never conflict, even on one path (see [The store of an executed prompt](#the-store-of-an-executed-prompt)). Every claim lasts as long as its store, so a race is caught no matter how long ago the earlier unordered access happened. A tool's file operation in the run's files makes no claim and checks none, so it never conflicts with a store call or with another tool's file operation: when the tools of two tasks change one file, both changes succeed, and the file holds the later one (see [Tools and the store](#tools-and-the-store)).
 
 ### Reading a task's files too early
 

@@ -437,7 +437,7 @@ A Pack is a bundle of tools, such as the web tools, that can also bring a Lua pr
 
 ### Seed, start time, and repeatable runs
 
-The Host's record of runs gives each run an id of its own. The Harness draws the run's seed, a random value, from a secure random source, and takes the run's start time from the clock. A run given the same seed, the same start time, the same outside answers, and the same messages, each reaching the run at the same point, repeats exactly.
+The Host's record of runs gives each run an id of its own. The Harness draws the run's seed, a random value, from a secure random source, and takes the run's start time from the clock. A run given the same seed, the same start time, the same outside answers, the same messages, and the same file operations asked for by its tools, each reaching the run at the same point, repeats exactly.
 
 ### Run inputs a prompt can read
 
@@ -557,7 +557,7 @@ There are exactly five kinds of Harness work:
 - A model round.
 - A render of the tools a section entry offers, which comes before the entry's first loop round when its offers name a catalog tool.
 - A call to a Pack's tool.
-- A store operation.
+- A file operation, which a `store` call or a Pack's tool asks for.
 - The timer behind a timed wait on tasks (see [Time limits on waits](15-tasks.md#time-limits-on-waits)).
 
 A model round is one request to a model and its reply. The Harness answers it with the model's reply or with the reason the round failed.
@@ -566,7 +566,7 @@ A render asks the Harness how each Pack the entry offered tools from shows those
 
 Waiting for the operator is not Harness work. The operator is the person who answers a run while it runs, and the run's main chain reads the operator's messages with `tasks.receive()` (see [Asking the operator](05-lua-environment.md#asking-the-operator)). The Host hands the run each message the operator sends, a message that arrives first waits in the main chain's inbox, and the wait issues no effect.
 
-Every store call a block makes, even a read, is a store operation that the Harness performs. That covers all eight `store.*` calls a prompt can make (see [Writing and reading files](09-the-store.md#writing-and-reading-files)), and the block that made the call waits for its answer.
+Every store call a block makes, even a read, is a file operation that the Harness performs. That covers all eight `store.*` calls a prompt can make (see [Writing and reading files](09-the-store.md#writing-and-reading-files)), and the block that made the call waits for its answer. A file operation that a Pack's tool asks for while its call runs is the other case. The Harness performs it in the run's files, the filesystem the Host gives a run for its tool calls, and never in the store (see [Tools and the store](09-the-store.md#tools-and-the-store)). The run's record holds it, and it reports no run event of its own.
 
 ### Every effect gets one answer
 

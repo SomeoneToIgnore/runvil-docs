@@ -1444,7 +1444,7 @@ The Host can cancel a run from any thread by setting the cancel flag it gave the
 
 A run the Host cancels, before it starts or while it runs, ends with the canceled error, the error whose code is `canceled`, and its message is `canceled: the run was canceled or this call was stopped`. A canceled run is not a failed run: Workshop records its status as `canceled` and reports it as `the agent run was canceled` rather than with a failure message. Inside the run, a cancel surfaces as the canceled error, whose kind and code in Lua are both `canceled`, and that error ends the run.
 
-Once a run is canceled, it issues no further model rounds or tool calls. Its result is decided at the next step and reported once the Host answers every request still out, whether a model reply, a [render](01-what-a-prompt-is.md#the-five-kinds-of-harness-work), a tool call, or a timer, as dropped.
+Once a run is canceled, it issues no further model rounds or tool calls. Its result is decided at the next step and reported once the Host answers every request still out, whether a model reply, a [render](01-what-a-prompt-is.md#the-five-kinds-of-harness-work), a tool call, a file operation that a tool asked for, or a timer, as dropped.
 
 ### The cancel flag
 

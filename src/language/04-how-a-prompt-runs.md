@@ -105,7 +105,7 @@ Some calls in your Lua need something outside the prompt, and the Harness perfor
 - a model round
 - a render of the tools a section entry offers, in which each offered Pack decides how its tools reach the model, which comes before the entry's first loop round when its offers name a catalog tool, and shows in the run's record as one more step ahead of that round (see [The five kinds of Harness work](01-what-a-prompt-is.md#the-five-kinds-of-harness-work))
 - a tool call
-- a store operation
+- a file operation, which a `store` call or a tool asks for
 - the timer behind a timed wait on a task started with `tasks.spawn` (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn))
 
 While one chain waits for Harness work, only that chain waits, and every other chain keeps running. A chain is a walk with its own entries, defined in [The section walk](#the-section-walk). So the three arms of one `tasks.fanout` call (see [Fanout in one call](14-fanout.md#fanout-in-one-call)) all send their model rounds together, without any arm waiting for another.
@@ -1694,4 +1694,4 @@ Two runs of the same prompt running at the same time stay separate. Each returns
 
 ### Repeating a run exactly
 
-Two runs with the same seed, the same start instant, the same Harness answers, and the same messages, each reaching the run at the same point, produce byte-identical text, including the same `sys.when`, the same seeded values, and the same untrusted envelope nonce. A replay runs the same prompt under the same seed, start instant, answers, and messages, so it also issues the same [Harness work](01-what-a-prompt-is.md#effects-and-harness-work) as the original run and reports the same events, in the same order.
+Two runs with the same seed, the same start instant, the same Harness answers, and the same messages, each reaching the run at the same point, produce byte-identical text, including the same `sys.when`, the same seeded values, and the same untrusted envelope nonce. A replay runs the same prompt under the same seed, start instant, answers, and messages, and repeats each file operation that a tool asked for at the same point, so it also issues the same [Harness work](01-what-a-prompt-is.md#effects-and-harness-work) as the original run and reports the same events, in the same order.

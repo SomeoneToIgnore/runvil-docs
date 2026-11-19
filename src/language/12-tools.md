@@ -1913,7 +1913,7 @@ A call to an adhoc tool reaches the handler that `tools.adhoc` was given for tha
 
 A model call reaches the tool by its wire name and a script `tools.call` by its id or its Tool object, and either way the handler runs the same way. The Engine answers the call itself, inside the calling chain (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)): the handler runs inline, inside the coroutine of the block that made the call, and the handler's return value is the call's result.
 
-The call itself is no [Harness work](01-what-a-prompt-is.md#effects-and-harness-work). An adhoc tool call from a block sends no request outside the run, and an adhoc tool call the model issues sends none either. Only the calls the handler makes, such as store operations or bound tool calls, go to the Harness. A handler that calls one bound tool therefore costs exactly one outside request, and the adhoc call around it adds none.
+The call itself is no [Harness work](01-what-a-prompt-is.md#effects-and-harness-work). An adhoc tool call from a block sends no request outside the run, and an adhoc tool call the model issues sends none either. Only the calls the handler makes, such as store operations or bound tool calls, go to the Harness. A handler that calls one bound tool therefore costs only that one tool call, and the adhoc call around it adds none.
 
 ### What a handler can call
 
@@ -2369,7 +2369,7 @@ An out-of-scope call ends the loop in the round where it happens, and the model 
 
 When the model requests tool calls, the loop sends all of the round's unanswered calls together, in the order the model listed them. That group is a tool-call batch: the calls of one round that go out as one unit, tagged with the round's number, each identified by its tool name and call id. Two calls go out as `c1,c2`, and four go out as `c1,c2,c3,c4`. A round with only one call still sends it as a batch, and only the loop itself sends batches.
 
-The catalog calls in a batch are started together instead of one at a time, and they run concurrently, each under its own identity. Both calls of a two-call batch start in the same step, in the order the model listed them, so the call with `one` starts before the call with `two`. The loop then waits for every started call to return before it starts the next model round, even when a later call finishes first. The Harness runs at most 10 tool calls at once across the whole run unless the Host sets another number, and the calls past that wait and start oldest first.
+The catalog calls in a batch are started together instead of one at a time, and they run concurrently, each under its own identity. The exception is a call to a tool that its Pack marks as one that changes files, which runs alone (see [Calls that run alone](#calls-that-run-alone)). Both calls of a two-call batch start in the same step, in the order the model listed them, so the call with `one` starts before the call with `two`. The loop then waits for every started call to return before it starts the next model round, even when a later call finishes first. The Harness runs at most 10 tool calls at once across the whole run unless the Host sets another number, and the calls past that wait and start oldest first.
 
 The model gets one result text per call it made, in the order it made the calls. When the second call of a batch finishes first, the next round still receives the results in call order, `first` then `second`. Once every call has landed, the round is answered with every result text in call order, or with the first failure in call order. The `tool` records also append in the model's call order, so after a four-call batch, `messages[3]` through `messages[6]` have the `tool_call_id` values `c1`, `c2`, `c3`, and `c4`.
 
@@ -2377,7 +2377,7 @@ A call that fails to route or to prepare takes its place in the batch as that er
 
 #### Calls that run alone
 
-The run decides which of a round's calls run together, so how a call runs never depends on how many other calls share its round. A batch stops at the first call to an adhoc tool, and in the same way at a call to a discovery tool or a direct call to a Dynamic Set tool (see [Calling with `CallDynamicTool`](#calling-with-calldynamictool)). The catalog calls before that call start first, the call itself runs alone once they have landed, as an ordinary single tool call, and the calls after it go out together as a new batch:
+The run decides which of a round's calls run together, so how a call runs never depends on how many other calls share its round. A batch stops at the first call to an adhoc tool, and in the same way at a call to a discovery tool or a direct call to a Dynamic Set tool (see [Calling with `CallDynamicTool`](#calling-with-calldynamictool)), and at a call to a Pack's tool that changes files. The catalog calls before that call start first, the call itself runs alone once they have landed, as an ordinary single tool call, and the calls after it go out together as a new batch:
 
 ````markdown
 ---
@@ -2408,6 +2408,8 @@ Suppose the model's one reply calls `web_search` for `a`, `grab` with `b`, and `
 ````
 
 The adhoc tool calls in one round run one at a time, in the model's order, so a handler can keep state across them through its closure. When one reply calls an adhoc `grab` twice, a handler that does `count = count + 1` on an upvalue `local count = 0` sees `count` at 1 for the first call and 2 for the second, and a section that then returns `count` returns 2.
+
+The calls of one round to tools that change files run one at a time too, in the model's order, so each change is finished before the next one starts, and a call listed before a change reads the files as they were.
 
 When a batch comes back with only some of its calls answered, the loop sends the next unanswered call on its own, then the remaining calls together as a new batch, keeping the model's order. A batch `c1,c2,c3,c4` answered only for `c1` sends `c2` alone, then `c3,c4` as a batch, and the records end with the results for `c3` and `c4`. Either way the loop feeds each result back to the conversation as text: a reply's calls go out as one batch, and any call where the batch stopped goes out alone.
 
