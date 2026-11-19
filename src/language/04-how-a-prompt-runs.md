@@ -1142,11 +1142,11 @@ The block ends with `return 'hello'`, so the string `hello` becomes the section'
 
 ### How a block ends
 
-A Lua block ends in exactly one of four ways: it runs to its last line, it executes a `return`, it jumps, or it fails with an error. A block that runs to its last line lets the section go on to its next block, and each of the other three ends the section. When a block calls `jump` and then raises an error, the jump wins:
+A Lua block ends in exactly one of four ways: it runs to its last line, it executes a `return`, it jumps, or it fails with an error. A block that runs to its last line lets the section go on to its next block, and each of the other three ends the section. When a block calls `jump` inside `pcall` and then raises an error, the jump wins:
 
 ````lua
-jump('../Target')
-error('unreachable')
+pcall(jump, '../Target')
+error('raised after the jump')
 ````
 
 This block ends as a jump to `Target`, not as a failure.
