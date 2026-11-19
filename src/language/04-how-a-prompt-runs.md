@@ -24,19 +24,19 @@ return 'hello'
 hello
 ````
 
-This run is as short as a run gets. The start checks find nothing missing, because the frontmatter declares no Packs and no model requirements. The walk enters `Main`, the prompt's only section, the block returns `hello`, and the run ends in success with `hello` as its run result. A block that only returns a literal value asks the Harness for no work at all, so this run finishes without waiting on anything outside the prompt.
+This run is as short as a run gets. The start checks pass, because the frontmatter leaves Packs and model requirements undeclared. The walk enters `Main`, the prompt's only section, the block returns `hello`, and the run ends in success with `hello` as its run result. A block that only returns a literal value asks the Harness for no work at all, so this run finishes without waiting on anything outside the prompt.
 
 ### The stages in order
 
 Every run goes through these stages, in this order:
 
-1. Parse. The whole file is parsed and every Lua block in it is compiled, and nothing runs yet. See [Parsing comes first](#parsing-comes-first).
+1. Parse. The whole file is parsed and every Lua block in it is compiled, all before any of it runs. See [Parsing comes first](#parsing-comes-first).
 2. Prepare. The Harness readies the run's Packs and builds the run. See [Preparing the run](#preparing-the-run).
 3. The start checks. The run's first step checks the `runvil` version, the arguments, and the requirements, and refuses a run that fails one of them. See [Preparing the run](#preparing-the-run).
 4. The section walk. The top-level sections run in file order, starting at the first one. See [The section walk](#the-section-walk).
 5. The result. The run ends with its text or with the error that ended it. See [The run result](#the-run-result).
 
-The Harness parses the prompt before the run exists, so a file that does not parse starts no run and never reaches the checks of Packs and model roles. Once the prompt parses, the Harness draws the run's seed and start time, begins the run's record, and looks up the Host's current model. A run that completes ends with its final text, and any other run ends with the error that ended it. A cancel is one of those errors: a run the Host cancels ends with the error whose code is `canceled`.
+The Harness parses the prompt before the run exists, so a file that does not parse stops there, ahead of any run and ahead of the checks of Packs and model roles. Once the prompt parses, the Harness draws the run's seed and start time, begins the run's record, and looks up the Host's current model. A run that completes ends with its final text, and any other run ends with the error that ended it. A cancel is one of those errors: a run the Host cancels ends with the error whose code is `canceled`.
 
 ### A run can be refused before it starts
 
@@ -59,7 +59,7 @@ return 'done'
 ```
 ````
 
-Run on a Host whose model for the `strong` role has a 32000-token context window, this prompt never returns `done`. The run fails with error code `requirements_unmet`, and its message is this requirements notice, which ends by pointing at the `models:` line:
+Run on a Host whose model for the `strong` role has a 32000-token context window, this prompt is refused before its block can return `done`. The run fails with error code `requirements_unmet`, and its message is this requirements notice, which ends by pointing at the `models:` line:
 
 ````text
 the environment cannot satisfy this prompt:
@@ -70,7 +70,7 @@ The `strong` role is one of the five model roles every prompt has (see [Model ro
 
 ### What a run starts with
 
-Prepare also sets up the run so your Lua needs no setup of its own. Every run starts with its own store, separate from every other run's store (see [What the store is](09-the-store.md#what-the-store-is)):
+Prepare also sets up the run, so your Lua starts with the setup already done. Every run starts with its own store, separate from every other run's store (see [What the store is](09-the-store.md#what-the-store-is)):
 
 ````markdown
 ---
@@ -112,7 +112,7 @@ While one chain waits for Harness work, only that chain waits, and every other c
 
 A wait for the operator is not Harness work. The main chain reads the operator's messages with `tasks.receive()`, which waits on the chain's inbox and asks the Harness for nothing, and while it waits, every other chain keeps running too (see [Asking the operator](05-lua-environment.md#asking-the-operator)).
 
-A call that needs Harness work looks synchronous to you: the block pauses at the call and continues with the call's answer, as if the call had returned it directly. Each Lua block runs as its own Lua coroutine, which is what lets it pause at the call and resume later. A block that asks for no Harness work, such as `return 'hello'`, never pauses.
+A call that needs Harness work looks synchronous to you: the block pauses at the call and continues with the call's answer, as if the call had returned it directly. Each Lua block runs as its own Lua coroutine, which is what lets it pause at the call and resume later. A block such as `return 'hello'` runs straight to its end.
 
 ## Parsing comes first
 
@@ -134,13 +134,13 @@ local secret = 42
 p
 ````
 
-Parsing this prompt compiles one Lua block, `local secret = 42`, and runs none of it. That block sits in the preamble, the text between the frontmatter and the first heading, which is a section of its own when it holds Lua (see [The preamble](02-file-structure.md#the-preamble)). Parsing builds the prompt's tree of sections and blocks without running any of its Lua or prose. Section `S` holds only prose, so it gives the parse nothing to compile.
+Parsing this prompt compiles one Lua block, `local secret = 42`, without running it. That block sits in the preamble, the text between the frontmatter and the first heading, which is a section of its own when it holds Lua (see [The preamble](02-file-structure.md#the-preamble)). Parsing builds the prompt's tree of sections and blocks without running any of its Lua or prose. Section `S` holds only prose, so the parse skips it when compiling.
 
 ### The whole file parses before anything runs
 
-The whole prompt file is parsed, and every Lua block in it compiled, before any part of the prompt runs. A prompt with a parse error never starts. An invalid prompt file is rejected as a whole, never accepted in part, so none of its sections run. Parsing needs no network access and no connection to a model, so you can check a prompt's structure offline.
+The whole prompt file is parsed, and every Lua block in it compiled, before any part of the prompt runs. A prompt with a parse error stops at the parse. An invalid prompt file is rejected as a whole, so one error in it keeps every section from running. Parsing needs no network access and no connection to a model, so you can check a prompt's structure offline.
 
-Parsing a prompt also finds and parses every prompt it lists under the `prompts:` key of its frontmatter, which are the prompts its Lua may run with [`execute`](08-jump-and-call.md#executing-another-prompt), then every prompt those list, each prompt once. This chapter calls them the listed prompts. They are all parsed before any run starts. A listed prompt that the Host does not have fails the parse with the Host's not-found failure, and one that does not parse fails it with its own parse error, so in both cases no run starts (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)).
+Parsing a prompt also finds and parses every prompt it lists under the `prompts:` key of its frontmatter, which are the prompts its Lua may run with [`execute`](08-jump-and-call.md#executing-another-prompt), then every prompt those list, each prompt once. This chapter calls them the listed prompts. They are all parsed before any run starts. A listed prompt that the Host lacks fails the parse with the Host's not-found failure, and one that does not parse fails it with its own parse error, so in both cases no run starts (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)).
 
 In each file, parsing checks only the shape of the frontmatter's contract keys and what the file's text shows: keys, names, duplicates, ranges, and default types. A prompt whose contract has a valid shape parses even when the environment that runs it cannot satisfy it. Matching the Packs under `uses:` and the requirements under `models:` against the environment happens on the run's first step, and the tool catalog and the model reach the prompt only when the Harness prepares the run. The tool catalog holds the tools of the run's Packs that can serve it, and the run's Packs are every Pack the Host has, whether the prompt declares it or not (see [The Engine, the Harness, and the Host](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host)). A prompt that declares Pack `web` in an environment without it parses first, and then the requirements notice reports the gap:
 
@@ -179,7 +179,7 @@ A prompt that breaks a Lua fence rule (see [Exact fence rules and fence errors](
 
 Parsing happens before the run exists. A prompt that does not parse starts no run: none of its Lua or prose runs, no model is asked for anything, and no run record is made. The Host gets the parse error and reports it. Its code is a parse code such as `fence_invalid`, or `lua_compile` when a Lua block does not compile. Its message is the parse error's full cause chain, followed by where the parse failed (see [Where a run error's message points](16-limits-and-errors.md#where-a-run-errors-message-points)).
 
-Parsing reports no run events. A run's events begin with `run_started`, which the run reports once it passes its start checks (see [Run events and records](#run-events-and-records)). A run that stops before then reports no events, so its record holds none, only the run's own values and the error that ended it. That is the case when a cancel comes before the run or during the model lookup, when the model lookup fails, and when a start check fails on the run's first step.
+Parsing reports no run events. A run's events begin with `run_started`, which the run reports once it passes its start checks (see [Run events and records](#run-events-and-records)). A run that stops before then reports no events, so its record holds only the run's own values and the error that ended it. That is the case when a cancel comes before the run or during the model lookup, when the model lookup fails, and when a start check fails on the run's first step.
 
 ## Preparing the run
 
@@ -203,13 +203,13 @@ return 'no Packs'
 no Packs
 ````
 
-Prepare is the stage before a run starts in which the Harness sets up everything the frontmatter asks for and builds the run. The run's first step then makes the start checks, which make sure the arguments match what the prompt declares and the environment provides what the prompt needs. This prompt declares no Packs under `uses:` and has no `models:` key, so the requirements check finds no gaps and never refuses it. A prompt like this one, which also calls no model, runs to completion on a Host with no Packs and no model configured.
+Prepare is the stage before a run starts in which the Harness sets up everything the frontmatter asks for and builds the run. The run's first step then makes the start checks, which make sure the arguments match what the prompt declares and the environment provides what the prompt needs. This prompt declares no Packs under `uses:` and has no `models:` key, so it passes the requirements check. A prompt like this one, which also calls no model, runs to completion on a Host with no Packs and no model configured.
 
 ### What the start checks look at
 
-The run's first step makes three start checks before any section runs, in this order: the `runvil` version, the arguments, and the requirements. The argument check compares the run's arguments with the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). The requirements check compares the Packs the prompt declares with the Packs the Harness took for the run, and compares the requirements the prompt declares for its model roles with the models that fill those roles. A start check that fails ends the run on that first step, and the run reports no run events.
+The run's first step makes three start checks before any section runs, in this order: the `runvil` version, the arguments, and the requirements. The argument check compares the run's arguments with the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). The requirements check compares the Packs the prompt declares with the Packs the Harness took for the run, and compares the requirements the prompt declares for its model roles with the models that fill those roles. A start check that fails ends the run on that first step, before it reports any run event.
 
-The version check and the requirements check cover every prompt the parse read, not only the one the run starts in. A listed prompt with an unsupported or missing `runvil` version, a declared Pack that the run cannot give, or a model role that falls short of its `models:` requirements refuses the run on its first step, even when the run would never execute that prompt (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). The argument check covers only the run's own prompt, because a listed prompt gets its arguments from the `execute` that runs it, and they are checked there (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
+The version check and the requirements check cover every prompt the parse read: the one the run starts in and each listed prompt. A listed prompt with an unsupported or missing `runvil` version, a declared Pack that the run cannot give, or a model role that falls short of its `models:` requirements refuses the run on its first step, even when the run would never execute that prompt (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). The argument check covers only the run's own prompt, because a listed prompt gets its arguments from the `execute` that runs it, and they are checked there (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
 A prompt the environment cannot satisfy is refused before any of its blocks run. `requirements_unmet` is the error code of that refusal: the run fails with that error, and its message is the requirements notice, which lists what is missing, one line per gap, and which ends by pointing at a frontmatter line when a gap is one the prompt caused. The requirements check refuses the run with `requirements_unmet` when any of these holds:
 
@@ -217,11 +217,11 @@ A prompt the environment cannot satisfy is refused before any of its blocks run.
 - a declared Pack is unavailable, because the Host has it but it cannot serve, for example because it failed to build or because it is the `user` Pack in a run with no user, or because the Host lacks a declared `vendor/name` entry, or has a bare entry's Pack id from another vendor
 - a tool in the run's catalog or a Pack in its roster has a Pack id the Engine reserves, `adhoc` or `dynamic`
 - the model that fills a role falls short of that role's declared context minimum or `thinking` requirement
-- the run's role map has entries but none for the `default` role
+- the run's role map has entries but lacks one for the `default` role
 
-An unavailable Pack is one the Host has that cannot serve the run, a declared `vendor/name` entry the Host lacks, or a bare entry whose reason names the one Pack to write instead. The run proceeds only when every model role requirement is met, the Host has every required Pack, each one can serve, and nothing in the run takes a reserved Pack id. [Packs at prepare](#packs-at-prepare) shows each Pack case.
+An unavailable Pack is one the Host has that cannot serve the run, a declared `vendor/name` entry the Host lacks, or a bare entry whose reason names the one Pack to write instead. The run proceeds only when every model role requirement is met, the Host has every required Pack, each one can serve, and the run's catalog and roster keep clear of the reserved Pack ids. [Packs at prepare](#packs-at-prepare) shows each Pack case.
 
-The refusal comes on the run's first step, after the version and argument checks pass. So when the environment cannot provide what the prompt requires, such as a model with a large enough context window for one of its roles, no section runs, no Lua runs, and nothing in the prompt can catch the refusal. The refusal's message is the notice text, line for line, followed by ` (at {file}:{line})` when a gap is one the prompt caused (see [The requirements notice](#the-requirements-notice)). The notice opens with the line `the environment cannot satisfy this prompt:` and then gives one `- ` line per gap, in this order, with each `{...}` standing for the value the line names:
+The refusal comes on the run's first step, after the version and argument checks pass. So when the environment cannot provide what the prompt requires, such as a model with a large enough context window for one of its roles, the run ends before any section or Lua runs, and the prompt cannot catch the refusal. The refusal's message is the notice text, line for line, followed by ` (at {file}:{line})` when a gap is one the prompt caused (see [The requirements notice](#the-requirements-notice)). The notice opens with the line `the environment cannot satisfy this prompt:` and then gives one `- ` line per gap, in this order, with each `{...}` standing for the value the line names:
 
 ````text
 the environment cannot satisfy this prompt:
@@ -239,7 +239,7 @@ A real notice holds a line only for each gap the run has. [The requirements noti
 
 Before any section runs, the Harness and the run work in a fixed order:
 
-1. The Harness parses the prompt. A prompt that does not parse starts no run.
+1. The Harness parses the prompt. A prompt that does not parse stops here, before a run exists.
 2. It draws the run's seed and start time and begins the run's record (see [The Engine, the Harness, and the Host](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host)).
 3. It looks up the Host's current model.
 4. It picks the run's Packs, which are every Pack the Host has.
@@ -248,9 +248,9 @@ Before any section runs, the Harness and the run work in a fixed order:
 7. It builds the run with a role map that holds the Host's current model under `default`, which fills the five model roles.
 8. The run's first step checks the `runvil` version, then the arguments, then the requirements, and refuses the run when one of them fails.
 
-The model lookup lists the Host's models and finds the one the Host selected, or takes the first model listed when the Host selected none. When the list cannot be fetched, the run fails with the model code the listing failed with, such as `transport`, and when the list does not hold the selected model, the run fails with `requirements_unmet`. The message is the lookup error with its chain of causes, such as ``the selected model `{id}` is absent from the fetched catalog``. A cancel that comes before the run or during the lookup ends the run with the canceled error. A run that ends here never started, so its record holds no events.
+The model lookup lists the Host's models and finds the one the Host selected, or takes the first model listed when the Host left the choice open. When the listing fails, the run fails with the model code of that failure, such as `transport`, and when the selected model is absent from the list, the run fails with `requirements_unmet`. The message is the lookup error with its chain of causes, such as ``the selected model `{id}` is absent from the fetched catalog``. A cancel that comes before the run or during the lookup ends the run with the canceled error. A run that ends here never started, so its record holds no events.
 
-The version check is the first start check (see [The `runvil` version key](02-file-structure.md#the-runvil-version-key)). Version `0` proceeds, and any other version is refused as unsupported, with a message that ends with ` (at {file}:{line})`, the line of the `runvil:` key. A missing version fails with the message `not a runvil prompt: no runvil version (prompt {name})`, where `{name}` is the prompt's frontmatter `name`. Either way, a prompt with an unsupported or missing version produces no section result. The check reads the run's own prompt first and then each listed prompt, so when `careful.md` lists a prompt `other.md` that declares `runvil: 2`, a run of `careful.md` is refused with `unsupported runvil version: 2 (this build supports major 0) (at other.md:4)`, which points at the `runvil:` line of `other.md`.
+The version check is the first start check (see [The `runvil` version key](02-file-structure.md#the-runvil-version-key)). Version `0` proceeds, and any other version is refused as unsupported, with a message that ends with ` (at {file}:{line})`, the line of the `runvil:` key. A missing version fails with the message `not a runvil prompt: no runvil version (prompt {name})`, where `{name}` is the prompt's frontmatter `name`. Either way, a prompt with an unsupported or missing version stops before its first section runs. The check reads the run's own prompt first and then each listed prompt, so when `careful.md` lists a prompt `other.md` that declares `runvil: 2`, a run of `careful.md` is refused with `unsupported runvil version: 2 (this build supports major 0) (at other.md:4)`, which points at the `runvil:` line of `other.md`.
 
 The argument check is the second start check. The arguments of a run are one JSON object, which the caller, whoever starts the run, passes as text. The check reads that argument text as one JSON object and checks the object against the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). A prompt with no `args:` key takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)). This prompt declares one argument, `query`, and requires it:
 
@@ -279,9 +279,9 @@ Run it with the arguments `{}`, and the run is refused on its first step, before
 argument `query` is required
 ````
 
-The message names the first mismatch the check finds. It names no file and no line, because the arguments come from the caller, so no line of the prompt is at fault. Argument text that is not one JSON object ends the run the same way, and [Argument errors](06-arguments.md#argument-errors) has the full list of messages. With the arguments `{"query":"papers"}`, the check passes and the run returns `query: papers`.
+The message names the first mismatch the check finds. It leaves out the file and the line, because the arguments come from the caller, so the fault lies outside the prompt's lines. Argument text that is not one JSON object ends the run the same way, and [Argument errors](06-arguments.md#argument-errors) has the full list of messages. With the arguments `{"query":"papers"}`, the check passes and the run returns `query: papers`.
 
-The requirements check is the third start check and the last. A run that a start check refuses reports no run events, so its record holds no events. When the run's cancel flag is set as a start check fails, the run ends with the canceled error instead of the check's own error.
+The requirements check is the third start check and the last. A run that a start check refuses ends before it reports any run event, so its record holds no events. When the run's cancel flag is set as a start check fails, the run ends with the canceled error instead of the check's own error.
 
 ### Waiting for Packs and taking the snapshot
 
@@ -291,7 +291,7 @@ After the wait, each run takes one snapshot of its Packs. That snapshot supplies
 
 ### Binding model roles
 
-Every prompt has five model roles: `default`, `strong`, `small`, `fast`, and `creative`. When the Harness builds the run in prepare, it gives the run a role map from roles to models, and that map holds the Host's current model under `default`. A role with no entry of its own uses the `default` entry, so that one model fills all five roles. The `models:` key only attaches requirements to the roles, and the run's first step checks each declared context minimum and `thinking` requirement against the model that fills the role. A role requiring `thinking: true` fails on a model whose thinking capability is `Never`, and a role requiring `thinking: false` fails on a model whose thinking capability is `Always` (see [The thinking requirement](10-models.md#the-thinking-requirement)). When the Host has no current model, the map is empty, no role is filled, and nothing is checked. [Model roles at prepare](#model-roles-at-prepare) shows each case.
+Every prompt has five model roles: `default`, `strong`, `small`, `fast`, and `creative`. When the Harness builds the run in prepare, it gives the run a role map from roles to models, and that map holds the Host's current model under `default`. A role with no entry of its own uses the `default` entry, so that one model fills all five roles. The `models:` key only attaches requirements to the roles, and the run's first step checks each declared context minimum and `thinking` requirement against the model that fills the role. A role requiring `thinking: true` fails on a model whose thinking capability is `Never`, and a role requiring `thinking: false` fails on a model whose thinking capability is `Always` (see [The thinking requirement](10-models.md#the-thinking-requirement)). When the Host has no current model, the map is empty, every role stays unfilled, and the run skips the role checks. [Model roles at prepare](#model-roles-at-prepare) shows each case.
 
 ## Packs at prepare
 
@@ -323,9 +323,9 @@ The refused run's record holds no events, because the run was refused before it 
 
 ### Declared Packs are required Packs
 
-Every Pack a prompt lists under the `uses:` key (see [Tools, Packs, and the `uses:` key](12-tools.md#tools-packs-and-the-uses-key)) is a required Pack: the run does not start unless the Host can provide it. Each one is named by its Pack id and kept in declaration order. Before any Lua runs, the run's first step checks each declared Pack and refuses the run unless the Host has that Pack and it can serve. The step checks the declared Packs of every listed prompt in the same way, so a Pack that only a listed prompt declares is required too, whether or not the run executes that prompt (see [Packs and preludes in an executed prompt](12-tools.md#packs-and-preludes-in-an-executed-prompt)).
+Every Pack a prompt lists under the `uses:` key (see [Tools, Packs, and the `uses:` key](12-tools.md#tools-packs-and-the-uses-key)) is a required Pack: the run starts only when the Host can provide it. Each one is named by its Pack id and kept in declaration order. Before any Lua runs, the run's first step checks each declared Pack and refuses the run unless the Host has that Pack and it can serve. The step checks the declared Packs of every listed prompt in the same way, so a Pack that only a listed prompt declares is required too, whether or not the run executes that prompt (see [Packs and preludes in an executed prompt](12-tools.md#packs-and-preludes-in-an-executed-prompt)).
 
-A declared Pack counts as present when the Host has it and it can serve, even if it offers no tools, so declaring a Pack that has no tools never refuses the run. A Pack the frontmatter declares, and any Pack listed as able to serve, still has a Pack object in Lua when it offers no tool. The Harness's part is the run's roster, its list of Packs, which marks each Pack as usable or as unavailable with a reason. The Engine checks each declared Pack against that roster, not against the tool catalog, so it finds nothing missing in `uses: [web]` even when the catalog holds no `web` tool.
+A declared Pack counts as present when the Host has it and it can serve, even if it offers no tools, so the requirements check accepts a declared Pack whose tool list is empty. A Pack the frontmatter declares, and any Pack listed as able to serve, still has a Pack object in Lua when its tool list is empty. The Harness's part is the run's roster, its list of Packs, which marks each Pack as usable or as unavailable with a reason. The Engine checks each declared Pack against that roster, not against the tool catalog, so it accepts `uses: [web]` even when the catalog holds no `web` tool.
 
 Each declared Pack's prelude runs in the VM of every section entry of the prompt that declares it, in the order the prompt declares the Packs, after the Engine globals are installed and before any block runs. In a prompt that does not declare a Pack, that Pack's prelude never runs, even when the prompt calls the Pack's tools.
 
@@ -333,7 +333,7 @@ A prompt that declares no Packs has no Pack requirements, so it prepares and run
 
 ### The tool catalog
 
-The run's tool catalog holds the tools of each of the run's Packs that can serve it, and the run's Packs are every Pack the Host has, from any vendor, whether the prompt declares it or not. A Host has at most one Pack per Pack id, `runvil/web` or `acme/web` but never both, so a tool id such as `web/fetch`, which names no vendor, names one tool on that Host. A Pack that cannot serve adds no tools. Each usable Pack's tool list is read once, after every Pack is ready, so the catalog and the tools a call can reach stay fixed for the whole run.
+The run's tool catalog holds the tools of each of the run's Packs that can serve it, and the run's Packs are every Pack the Host has, from any vendor, whether the prompt declares it or not. A Host has at most one Pack per Pack id, `runvil/web` or `acme/web` but never both, so a tool id such as `web/fetch`, which leaves the vendor out, names one tool on that Host. The tools of a Pack that cannot serve stay out of the catalog. Each usable Pack's tool list is read once, after every Pack is ready, so the catalog and the tools a call can reach stay fixed for the whole run.
 
 A section can call an undeclared Pack's tool by its full tool id. On a Host that has `runvil/web`, a prompt with no `uses:` key can run this block:
 
@@ -343,13 +343,13 @@ local page = tools.call('web/fetch', { url = 'https://example.com' })
 
 The call reaches `web/fetch` even though the frontmatter declares no Pack (see [Calling tools from Lua and counting calls](12-tools.md#calling-tools-from-lua-and-counting-calls)). The prelude of an undeclared Pack never installs, even though the Pack is in the run, so only a Pack the prompt declares can add globals to its Lua (see [Pack preludes](12-tools.md#pack-preludes)).
 
-In Lua, `tools.packs.get(id).required` is `true` for a Pack the frontmatter declares, and `tools.packs.extras()` lists the Pack objects of every other usable Pack in the run, each listing its Tool objects in `tools` (see [Tool objects, Pack objects, and `tools.packs`](12-tools.md#tool-objects-pack-objects-and-toolspacks)). With `uses: [web]`, in a run with a user, on a Host whose only Pack besides the built-ins is `runvil/web`, `tools.packs.get('web').required` is `true` and that Pack's `tools` holds the Tool objects for `web/fetch` and `web/search`, while `tools.packs.extras()` holds the `subagents` and `user` Pack objects, in that order, and neither object's `tools` holds any Tool object. In a run with no user, `tools.packs.extras()` holds only the `subagents` object, because the `user` Pack is unavailable there and an unavailable Pack has no Pack object.
+In Lua, `tools.packs.get(id).required` is `true` for a Pack the frontmatter declares, and `tools.packs.extras()` lists the Pack objects of every other usable Pack in the run, each listing its Tool objects in `tools` (see [Tool objects, Pack objects, and `tools.packs`](12-tools.md#tool-objects-pack-objects-and-toolspacks)). With `uses: [web]`, in a run with a user, on a Host whose only Pack besides the built-ins is `runvil/web`, `tools.packs.get('web').required` is `true` and that Pack's `tools` holds the Tool objects for `web/fetch` and `web/search`, while `tools.packs.extras()` holds the `subagents` and `user` Pack objects, in that order, and each object's `tools` is empty. In a run with no user, `tools.packs.extras()` holds only the `subagents` object, because the `user` Pack is unavailable there and an unavailable Pack has no Pack object.
 
 A section can offer only the tools in the run's catalog and the adhoc tools it defines, and offering an id the run cannot offer is a hard error (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)). Calling `tools.offer` with a tool id the run lacks raises `tools.offer: "{name}" is not a tool in this run`, with the id in place of `{name}`.
 
 ### Runs with no user
 
-The built-in Pack `runvil/user`, whose Pack id is `user`, marks a prompt that needs a person to answer it (see [Asking the operator](05-lua-environment.md#asking-the-operator)). Every Host has it, and it offers no tools, but it can serve a run only when the run has a user, someone the Host lets answer the run's main chain. The Host decides that for each run it launches.
+The built-in Pack `runvil/user`, whose Pack id is `user`, marks a prompt that needs a person to answer it (see [Asking the operator](05-lua-environment.md#asking-the-operator)). Every Host has it, and its tool list is empty, but it can serve a run only when the run has a user, someone the Host lets answer the run's main chain. The Host decides that for each run it launches.
 
 In a run with no user, the `user` Pack is unavailable, with the reason `this run has no user`. A prompt that declares it is refused on the run's first step with error code `requirements_unmet`, and the notice names the Pack and the reason:
 
@@ -358,7 +358,7 @@ the environment cannot satisfy this prompt:
 - user is unavailable: this run has no user
 ````
 
-That notice does not contain `missing required Pack: user`, because every Host has the Pack. A run refused this way runs none of the prompt's Lua and records zero effects.
+That notice leaves out `missing required Pack: user`, because every Host has the Pack. A run refused this way ends before any of the prompt's Lua runs and records zero effects.
 
 Whether a declared `user` is met depends only on the run. The same prompt text runs to completion when the Host launches it with a user and is refused in a run without one. A prompt that leaves `user` undeclared is never refused for it, and it can check `tools.packs.get('user')`, which reads `nil` in a run with no user, before it waits for the operator.
 
@@ -371,19 +371,19 @@ A declared Pack that the Host has but that cannot serve refuses the run with err
 - Its readiness check fails before the run.
 - It is the built-in `user` Pack, and the run has no user (see [Runs with no user](#runs-with-no-user)).
 
-The `web` Pack cannot be built on a Host that supplies no search provider, so a prompt that declares `web` there is refused with the notice line `- web is unavailable: web needs runvil/search-provider, and this host provides none`. A prompt that declares `user` in a run with no user is refused with this notice line:
+The `web` Pack fails to build on a Host that supplies no search provider, so a prompt that declares `web` there is refused with the notice line `- web is unavailable: web needs runvil/search-provider, and this host provides none`. A prompt that declares `user` in a run with no user is refused with this notice line:
 
 ````text
 - user is unavailable: this run has no user
 ````
 
-Two declared entries the Host has no Pack for are reported as unavailable too, because their reason tells you what to write. A bare Pack id the Host has from another vendor gets a line such as `- poop is unavailable: poop means runvil/poop, which is not installed; write acme/poop to use that Pack`, which names exactly one Pack to write instead, because a Host has at most one Pack per Pack id. A `vendor/name` the Host does not have gets a line such as `- poop is unavailable: acme/poop is not installed`.
+Two declared entries whose Pack the Host lacks are reported as unavailable too, because their reason tells you what to write. A bare Pack id the Host has from another vendor gets a line such as `- poop is unavailable: poop means runvil/poop, which is not installed; write acme/poop to use that Pack`, which names exactly one Pack to write instead, because a Host has at most one Pack per Pack id. A `vendor/name` the Host lacks gets a line such as `- poop is unavailable: acme/poop is not installed`.
 
 When one of the Host's Packs cannot serve because building it failed when the Host set up, its factory refused or panicked, or its readiness check failed, the Harness writes a line naming the Pack to the Harness's own log, which is separate from the run's events. A Pack the Host set up as unavailable logs the warning `Pack was inserted unavailable` once, when the Host sets up. A factory that refuses a run logs `Pack factory refused this run; the Pack is unavailable to it` at debug level, a factory that panics logs the error `Pack factory panicked; the Pack is unavailable to this run`, and a readiness failure logs the warning `Pack will not be ready; this run treats it as unavailable`.
 
 ### Only declared Packs can refuse a run
 
-The requirements check looks only at the Packs that the run's prompt and its listed prompts declare, so only declared Packs can refuse a run. A Pack that none of them declares is in the run all the same, whatever its vendor. When it fails to start, it just has no tools in the run, and the run goes on. While it is still starting, the run waits for it, so an undeclared Pack can delay a run, though it cannot refuse one. The check looks up each declared Pack, while the run's roster, its list of Packs, holds every Pack in the run, declared or not. An undeclared `user` Pack in a run with no user joins the roster as unavailable, with the reason `this run has no user`, and the run goes on.
+The requirements check looks only at the Packs that the run's prompt and its listed prompts declare, so only declared Packs can refuse a run. An undeclared Pack is in the run all the same, whatever its vendor. When it fails to start, the run goes on with that Pack's tools left out. While it is still starting, the run waits for it, so an undeclared Pack can delay a run, though it cannot refuse one. The check looks up each declared Pack, while the run's roster, its list of Packs, holds every Pack in the run, declared or not. An undeclared `user` Pack in a run with no user joins the roster as unavailable, with the reason `this run has no user`, and the run goes on.
 
 Offering an unavailable Pack with `tools.offer` raises `tools.offer: the {pack} Pack is unavailable in this run: {reason}`. So an undeclared Pack whose readiness check fails offers no tools, and a section that offers it with `tools.offer` fails the run with that text in its message.
 
@@ -415,11 +415,11 @@ On a Host whose only model has a context window of exactly 200000 tokens, the ru
 done
 ````
 
-When prepare builds the run, the Engine fills the five model roles from the role map the run is given, one binding per role, so each role is ready the first time Lua uses it. A role with an entry of its own in the map uses that entry's model, and a role with no entry uses the `default` entry, so a map that holds only a `default` entry fills all five roles with that one model. The Harness gives the run a map with only a `default` entry, the Host's current model, or an empty map when the Host has no model. Every prompt gets all five roles, whether or not it declares them, and `models:` only attaches requirements to them. This prompt attaches requirements to two roles. The `fast` role, declared as `fast: {}`, adds no requirement. The `strong` role needs a window of at least 200000 tokens, and a model whose context window equals a role's `min_context` meets it; only a smaller window falls short. A role with `min_context: 200000` therefore runs on a model whose window is exactly 200000 tokens.
+When prepare builds the run, the Engine fills the five model roles from the role map the run is given, one binding per role, so each role is ready the first time Lua uses it. A role with an entry of its own in the map uses that entry's model, and a role with no entry uses the `default` entry, so a map that holds only a `default` entry fills all five roles with that one model. The Harness gives the run a map with only a `default` entry, the Host's current model, or an empty map when the Host has no model. Every prompt gets all five roles, whether or not it declares them, and `models:` only attaches requirements to them. This prompt attaches requirements to two roles. The `fast` role, declared as `fast: {}`, has an empty set of requirements. The `strong` role needs a window of at least 200000 tokens, and a model whose context window equals a role's `min_context` meets it; only a smaller window falls short. A role with `min_context: 200000` therefore runs on a model whose window is exactly 200000 tokens.
 
 The run checks a role's requirements against the model that fills that role. With a one-model map, every role is filled by that model, so `fast` and `strong` both read the same model here. A map that gives `strong` an entry of its own, which only a caller that drives the Engine directly passes, checks the `strong` requirement against that model and checks the other roles against the `default` entry's model. A name other than the five roles, or a key other than `min_context` and `thinking`, fails the parse (see [Mistakes inside `models:`](10-models.md#mistakes-inside-models)).
 
-A prompt whose only declaration is a role with no requirements, `models: { fast: {} }`, passes the requirements check when the Host supplies a model. A prompt with no `models:` key declares no requirements, so no model requirement can stop it; a prompt whose frontmatter declares only `uses: [web]` starts with no model requirement to meet. When the Host gives no model, the map is empty and no role is filled, so the run checks no role requirement and reports no model requirement. A prompt that never calls a model still runs to completion on such a Host, and a model round fails with `model binding required for section {section}` (see [When the Host gives no model](10-models.md#when-the-host-gives-no-model)).
+A prompt whose only declaration is a role with no requirements, `models: { fast: {} }`, passes the requirements check when the Host supplies a model. A prompt with no `models:` key declares no requirements, so no model requirement can stop it; a prompt whose frontmatter declares only `uses: [web]` starts with no model requirement to meet. When the Host gives no model, the map is empty and every role stays unfilled, so the run skips the role checks and reports no model requirement. A prompt that never calls a model still runs to completion on such a Host, and a model round fails with `model binding required for section {section}` (see [When the Host gives no model](10-models.md#when-the-host-gives-no-model)).
 
 ### The model role check
 
@@ -462,7 +462,7 @@ Whether a `thinking` requirement is met depends on the thinking capability of th
 
 `thinking: true` fails only on a model that never thinks, and `thinking: false` fails only on a model that always thinks, so a model whose thinking is switchable meets both. A `thinking: false` role on a switchable model prepares and runs, with thinking turned off on its requests, and a `thinking: true` role turns thinking on for its requests (see [The thinking switch](10-models.md#the-thinking-switch)).
 
-The run checks only `min_context` and `thinking`, the two keys a role can declare. A role that declares neither, such as `fast: {}`, never causes a shortfall, even on a 32000-token model that never thinks.
+The run checks only `min_context` and `thinking`, the two keys a role can declare. A role that leaves both undeclared, such as `fast: {}`, passes the check on every model, even a 32000-token model that never thinks.
 
 The check covers the `models:` requirements of every listed prompt as well as those of the run's own prompt, each against the model that fills the role in this run. A shortfall in a listed prompt refuses the run in the same way, and its notice lines start with that prompt's name (see [How the gaps are gathered](#how-the-gaps-are-gathered)).
 
@@ -484,14 +484,14 @@ So a `small` role with `thinking: false` on a model that always thinks gives `- 
 
 ### A role map without a default entry
 
-A role map with entries but none for `default` leaves the run no model to fall back on. The run is refused on its first step, no declared role requirement is checked, and the notice holds one model line, whatever role requirements the prompt declares:
+A role map that has entries but lacks one for `default` is missing the model the run falls back on. The run is refused on its first step, the declared role requirements go unchecked, and the notice holds one model line, whatever role requirements the prompt declares:
 
 ````text
 the environment cannot satisfy this prompt:
 - role 'default': requires a model; the caller's role map has no 'default' entry
 ````
 
-An empty map is not this case. It means the Host has no model, and the run checks nothing. The Harness never passes a map without `default`, because its map holds the Host's one model under `default` or nothing at all, so only a caller that drives the Engine directly meets this refusal.
+An empty map is a different case. It means the Host has no model, and the run skips the role checks. A map from the Harness is empty or holds the Host's one model under `default`, so only a caller that drives the Engine directly, with a map whose entries leave `default` out, meets this refusal.
 
 ### Unmet requirements are recorded, not raised
 
@@ -532,13 +532,13 @@ the environment cannot satisfy this prompt:
 - role 'strong': requires 'thinking: true'; the thinking capability of the model filling it is Never (at deep-analysis.md:5)
 ````
 
-The requirements notice is the text the run's first step reports when the requirements check refuses the run. When a prompt's requirements are unmet, the run is refused before any section or Lua runs, so nothing in the prompt can catch the refusal. Any unmet requirement, including an unmet model role requirement, makes the refusal a run error with code `requirements_unmet` whose message is the notice, word for word, followed by ` (at {file}:{line})` when a gap is one the prompt caused. When nothing blocks the run, there is no refusal.
+The requirements notice is the text the run's first step reports when the requirements check refuses the run. When a prompt's requirements are unmet, the run is refused before any section or Lua runs, so the prompt cannot catch the refusal. Any unmet requirement, including an unmet model role requirement, makes the refusal a run error with code `requirements_unmet` whose message is the notice, word for word, followed by ` (at {file}:{line})` when a gap is one the prompt caused. When every requirement is met, the run proceeds.
 
-The location names the frontmatter key of the first gap the prompt caused: the `uses:` line when a declared Pack is missing or unavailable, as here, and otherwise the `models:` line when a declared role requirement falls short. A reserved Pack id and a role map with no `default` entry are the caller's gaps, so a refusal made only of those points at no line (see [Where a run error's message points](16-limits-and-errors.md#where-a-run-errors-message-points)).
+The location names the frontmatter key of the first gap the prompt caused: the `uses:` line when a declared Pack is missing or unavailable, as here, and otherwise the `models:` line when a declared role requirement falls short. A reserved Pack id and a role map with no `default` entry are the caller's gaps, so a refusal made only of those leaves the location out (see [Where a run error's message points](16-limits-and-errors.md#where-a-run-errors-message-points)).
 
 ### The notice's fixed layout
 
-The notice has a fixed layout: the opening line `the environment cannot satisfy this prompt:`, then one line starting with `- ` for each unmet requirement. The check does not stop at the first gap, so when several requirements are unmet you see all of them together in one notice, not only the first. Each line names what is missing or falls short, such as each unavailable Pack and the reason it cannot serve, and states the required value against the actual value where that applies.
+The notice has a fixed layout: the opening line `the environment cannot satisfy this prompt:`, then one line starting with `- ` for each unmet requirement. The check goes on past the first gap, so when several requirements are unmet you see all of them together in one notice. Each line names what is missing or falls short, such as each unavailable Pack and the reason it cannot serve, and states the required value against the actual value where that applies.
 
 The notice is written for a model to read: concise, factual, and self-contained. It names only the gaps that block the run, because the check records only what needs a person's attention. Each kind of line comes from one kind of gap:
 
@@ -549,7 +549,7 @@ The notice is written for a model to read: concise, factual, and self-contained.
 | `- the run's tool catalog or Pack roster names the Pack id {id}, which the Engine reserves` | a catalog tool or a roster Pack under a reserved Pack id, `adhoc` or `dynamic` |
 | `- role '{role}': requires a context of at least {required} tokens; the model filling it provides {actual}` | a role whose `min_context` is above the window of the model filling it |
 | `- role '{role}': requires '{required}'; the thinking capability of the model filling it is {actual}` | a role whose `thinking` requirement the model filling it fails |
-| `- role 'default': requires a model; the caller's role map has no 'default' entry` | a role map that has entries but none for `default` |
+| `- role 'default': requires a model; the caller's role map has no 'default' entry` | a role map that has entries but lacks one for `default` |
 
 ### Pack lines in the notice
 
@@ -583,7 +583,7 @@ When the notice holds lines about listed prompts (see [How the gaps are gathered
 
 ### How the gaps are gathered
 
-The requirements are gathered once, when the run is built, and the run's first step reports them after the version and argument checks pass. The check looks at every Pack the prompt declares, every reserved Pack id in the run's catalog and roster, and every requirement a declared model role has, so one refusal names every gap. Unmet requirements never make prepare fail: the run is built all the same, and its first step fails with the notice. When the notice would have no lines, nothing blocks the run.
+The requirements are gathered once, when the run is built, and the run's first step reports them after the version and argument checks pass. The check looks at every Pack the prompt declares, every reserved Pack id in the run's catalog and roster, and every requirement a declared model role has, so one refusal names every gap. Prepare builds the run even when requirements are unmet, and the run's first step then fails with the notice. When the list of gaps is empty, the run proceeds.
 
 The check gathers the gaps of every prompt the parse read, the run's own prompt and each listed prompt, whether or not the run would execute it. A line about a listed prompt's gap starts with that prompt's name:
 
@@ -620,7 +620,7 @@ return 'planned'
 ```
 ````
 
-On a Host whose model has an 8192-token context window, a run of `plan.md` never returns `planned`. It is refused on its first step with this notice:
+On a Host whose model has an 8192-token context window, a run of `plan.md` ends before it can return `planned`. It is refused on its first step with this notice:
 
 ````text
 the environment cannot satisfy this prompt:
@@ -631,7 +631,7 @@ the environment cannot satisfy this prompt:
 
 ### When a cancel comes first
 
-When the run's cancel flag is set by the time a start check fails, for example because a cancel cut short the wait while a declared Pack was still starting, no notice is reported: the cancel decides the run's result, which is the canceled error rather than `requirements_unmet`, as [Waiting for Packs and taking the snapshot](#waiting-for-packs-and-taking-the-snapshot) explains. A failed version or argument check that meets a cancel ends the run with the canceled error in the same way.
+When the run's cancel flag is set by the time a start check fails, for example because a cancel cut short the wait while a declared Pack was still starting, the notice goes unreported: the cancel decides the run's result, which is the canceled error rather than `requirements_unmet`, as [Waiting for Packs and taking the snapshot](#waiting-for-packs-and-taking-the-snapshot) explains. A failed version or argument check that meets a cancel ends the run with the canceled error in the same way.
 
 ## The section walk
 
@@ -698,13 +698,13 @@ return 'main'
 zebra
 ````
 
-You choose the starting section by placing it first. With `Zebra` written before `Main`, the walk starts at `Zebra`, and because `Zebra` returns, `Main` never runs. Naming a section `Main` gives it no special role, so a `Main` written after another top-level section is not the entry section.
+You choose the starting section by placing it first. With `Zebra` written before `Main`, the walk starts at `Zebra`, and because `Zebra` returns, `Main` never runs. The walk treats a section named `Main` like any other section, so a `Main` written after another top-level section is not the entry section.
 
-The top-level sections are the sections at the shallowest heading level in the file (see [Section headings and nesting](02-file-structure.md#section-headings-and-nesting)), which the examples in this guide write as `##` headings. Lua written before the first heading adds one more top-level section ahead of them, the preamble, and the preamble is then the entry section. Text before the first heading that holds no `lua` fence is commentary and no section: with a line of plain text above `## Zebra`, the entry section of `entry` is still `Zebra`. The entry section runs under the same rules as every section after it.
+The top-level sections are the sections at the shallowest heading level in the file (see [Section headings and nesting](02-file-structure.md#section-headings-and-nesting)), which the examples in this guide write as `##` headings. Lua written before the first heading adds one more top-level section ahead of them, the preamble, and the preamble is then the entry section. Text before the first heading is a section only when it holds a `lua` fence, and otherwise it is commentary: with a line of plain text above `## Zebra`, the entry section of `entry` is still `Zebra`. The entry section runs under the same rules as every section after it.
 
 ### A preamble runs first
 
-The preamble is the text between the frontmatter and the first heading, and when it holds a `lua` fence it is a section: the first top-level section, which has no name (see [The preamble](02-file-structure.md#the-preamble)). A prompt with such a preamble starts its walk there:
+The preamble is the text between the frontmatter and the first heading, and when it holds a `lua` fence it is a section: the first top-level section, whose name is empty (see [The preamble](02-file-structure.md#the-preamble)). A prompt with such a preamble starts its walk there:
 
 ````markdown
 ---
@@ -766,7 +766,7 @@ Lua in the preamble makes the same Engine calls as Lua in any section, including
 
 ### Falling through to the next section
 
-Fall-through is what happens when a section's Lua finishes without `return`: the walk or chain the section belongs to continues with the next sibling section in file order. Inside a section, the blocks run top to bottom. A section can hold several prose and Lua block pairs (see [Lua fences and prose blocks](03-blocks-and-prose.md#lua-fences-and-prose-blocks)), and a block that ends without `return` lets the section continue to its next prose block and Lua block. After the last block, the section falls through with no result, and the walk moves on to whatever follows. A section that holds only prose and no Lua fence produces no result, and the walk continues to the next section.
+Fall-through is what happens when a section's Lua finishes without `return`: the walk or chain the section belongs to continues with the next sibling section in file order. Inside a section, the blocks run top to bottom. A section can hold several prose and Lua block pairs (see [Lua fences and prose blocks](03-blocks-and-prose.md#lua-fences-and-prose-blocks)), and a block that ends without `return` lets the section continue to its next prose block and Lua block. After the last block, the section falls through with no result, and the walk moves on to whatever follows. A section that holds only prose falls through in the same way, and the walk continues to the next section.
 
 Fall-through hands no result value to the next section, and each section entry starts fresh:
 
@@ -857,11 +857,11 @@ return var.seen .. 'B'
 AB
 ````
 
-The walk goes from `A` straight to `B` and passes over `Child`, so its `error` never runs and the run succeeds. The walk never enters a child section on its own: it skips the subsections nested under a section it enters and moves on to the next sibling at the same heading level. A child section runs only when something names it with a section path, such as `jump` (see [Jumping to a section](08-jump-and-call.md#jumping-to-a-section)), `call` (see [Calling a section](08-jump-and-call.md#calling-a-section)), or a task started with `tasks.spawn('Arm')` (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)). A child section that holds only prose, such as `Author note`, works as a note for people reading the file, because the walk never enters it.
+The walk goes from `A` straight to `B` and passes over `Child`, so its `error` never runs and the run succeeds. The walk never enters a child section on its own: it skips the subsections nested under a section it enters and moves on to the next sibling at the same heading level. A child section runs only when something names it with a section path, such as `jump` (see [Jumping to a section](08-jump-and-call.md#jumping-to-a-section)), `call` (see [Calling a section](08-jump-and-call.md#calling-a-section)), or a task started with `tasks.spawn('Arm')` (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)). A child section that holds only prose, such as `Author note`, works as a note for people reading the file, because the walk skips it.
 
 ### Every top-level section is on the main walk
 
-Every top-level section is on the main walk, and no syntax takes a section out of it. The walk runs each top-level section it reaches, unless the run has already ended or a `jump` such as `jump('../C')` has moved the walk past it. A top-level section the walk reaches runs under the section rules, even when you meant it only as a library for `require`, so a top-level `lib` that returns a table and that the walk reaches fails the run with `cannot return a table as a result`.
+Every top-level section is on the main walk, and the language has no syntax that takes a section out of it. The walk runs each top-level section it reaches, unless the run has already ended or a `jump` such as `jump('../C')` has moved the walk past it. A top-level section the walk reaches runs under the section rules, even when you meant it only as a library for `require`, so a top-level `lib` that returns a table and that the walk reaches fails the run with `cannot return a table as a result`.
 
 A section that should run only when something names it, such as a helper library, stays off the walk in either of two placements: nested under the section that uses it, or placed after a section that returns. Here `lib` is nested under `Main`:
 
@@ -895,7 +895,7 @@ return var.name
 nested
 ````
 
-`Main` loads the library and falls through, and the walk goes from `Main` straight to `Last`. It never reaches `lib`, so its table return never meets the section rules, and the run succeeds with `nested`. Placing a `lib` after a `Main` whose block returns keeps it off the walk the same way, because the walk ends before it gets there.
+`Main` loads the library and falls through, and the walk goes from `Main` straight to `Last`. It passes over `lib`, so its table return never meets the section rules, and the run succeeds with `nested`. Placing a `lib` after a `Main` whose block returns keeps it off the walk the same way, because the walk ends before it gets there.
 
 ### Jumping from the preamble
 
@@ -957,13 +957,13 @@ error('no section runs after the preamble returns')
 early
 ````
 
-The preamble is a section of the main walk, and a `return` in any section of the main walk ends the chain and the run with it (see [A return ends the chain](#a-return-ends-the-chain)). The returned value becomes the run result, no later section runs, and the `error` inside `Never` never fires. Returning `models.infer(prose)` from the preamble works the same way: the model's reply becomes the run result. A `return` that gives [no value](#returning-no-value) ends the run too: with a bare `return` in place of `return 'early'`, `Never` still never runs, and the run result is `done`.
+The preamble is a section of the main walk, and a `return` in any section of the main walk ends the chain and the run with it (see [A return ends the chain](#a-return-ends-the-chain)). The returned value becomes the run result, every later section is skipped, and the `error` inside `Never` never fires. Returning `models.infer(prose)` from the preamble works the same way: the model's reply becomes the run result. A `return` that gives [no value](#returning-no-value) ends the run too: with a bare `return` in place of `return 'early'`, `Never` is still skipped, and the run result is `done`.
 
 The preamble finishes normally on that exit, like any section that returns: it reports `section_finished`, and then the run reports `run_succeeded` (see [Section boundaries](#section-boundaries)).
 
 ### Prompts with no heading
 
-A prompt needs no heading. Without one, the whole body is the preamble, and a Lua block in it makes the preamble the prompt's one section:
+A heading is optional in a prompt. Without one, the whole body is the preamble, and a Lua block in it makes the preamble the prompt's one section:
 
 ````markdown
 ---
@@ -981,9 +981,9 @@ return 'hello'
 hello
 ````
 
-The preamble is the [entry section](#the-main-walk-and-the-entry-section) and the only section on the walk, so the scalar its block returns becomes the run result. With `local x = 1` in place of the return, the preamble ends without a result, the walk has no section left to enter, and the result text is `done`, the same [`done` fallback](#the-done-fallback) that ends any run that produces nothing.
+The preamble is the [entry section](#the-main-walk-and-the-entry-section) and the only section on the walk, so the scalar its block returns becomes the run result. With `local x = 1` in place of the return, the preamble falls through, the walk runs past its last section, and the result text is `done`, the same [`done` fallback](#the-done-fallback) that ends any run that produces nothing.
 
-A prompt with no section at all, one with no heading and no Lua in its body, is valid too. Its walk has nothing to enter, so the run ends at once with the result `done`.
+A prompt with no section at all, one with no heading and no Lua in its body, is valid too. Its walk is empty, so the run ends at once with the result `done`.
 
 ### The main walk as a chain
 
@@ -1023,7 +1023,7 @@ after-reply
 
 An `execute` begins a chain too: the prompt it runs, called the executed prompt, runs a walk of its own over its own top-level sections, starting at its preamble or its first section, while the block that made the `execute` waits (see [How an executed prompt runs](08-jump-and-call.md#how-an-executed-prompt-runs)).
 
-When a walk runs past the last section at its level with no outer level waiting to resume, the chain finishes with no result value. A main walk that ends this way gives the run the generic completion text `done`:
+When a walk runs past the last section of the level its chain started at, the chain finishes with no result value. A main walk that ends this way gives the run the generic completion text `done`:
 
 ````markdown
 ---
@@ -1229,9 +1229,9 @@ return var.greeting .. ' world'
 hello world
 ````
 
-`First` stores a value in [`var`](05-lua-environment.md#keeping-state-in-var) and ends with no `return`, so it produces no result and ends nothing. A block that runs to its last line lets the section go on to the prose and blocks that follow it. When the section has nothing left, the run keeps going with the next section, where a later `return` can set the result. Here `Second` returns, and its value is the run result.
+`First` stores a value in [`var`](05-lua-environment.md#keeping-state-in-var) and ends with no `return`, so it produces no result and the walk goes on. A block that runs to its last line lets the section go on to the prose and blocks that follow it. Once the section reaches its end, the run keeps going with the next section, where a later `return` can set the result. Here `Second` returns, and its value is the run result.
 
-Only a `return` that the block executes ends the section. A `return` the block never reaches, such as the one in `if false then return end`, ends nothing, and neither does a `return` inside a function:
+Only a `return` that the block executes ends the section. A `return` the block never reaches, such as the one in `if false then return end`, leaves the section running, and so does a `return` inside a function:
 
 ````lua
 local function size(n)
@@ -1245,7 +1245,7 @@ The `return` inside `size` ends the call to `size`, the block stores `big`, and 
 
 ### Returning no value
 
-A `return` ends the section whatever it returns. A `return` with no value, `return nil`, and a `return` of an expression that turns out to be `nil` all end it the way `return 'text'` does, with no result:
+A `return` ends the section whatever it returns. A bare `return`, `return nil`, and a `return` of an expression that turns out to be `nil` all end it the way `return 'text'` does, with no result:
 
 ````markdown
 ---
@@ -1277,9 +1277,9 @@ error('a later section never runs')
 done
 ````
 
-The `return` in `First` ends the block, the section, and the main walk, so neither the second block nor `Second` runs. The walk ends with no result, and the run result is the [`done` fallback](#the-done-fallback), the same as when the walk runs past its last section. In a section reached through `call`, the same `return` ends that chain, and `call` returns `nil` (see [A call that gets no text](08-jump-and-call.md#a-call-that-gets-no-text)). In a prompt run with `execute`, it ends that prompt, and `execute` returns `nil` (see [An execute that gets no text](08-jump-and-call.md#an-execute-that-gets-no-text)). In a section that runs as a task or a fanout arm, it ends the task or the arm, whose result is the empty string.
+The `return` in `First` ends the block, the section, and the main walk, so the second block and `Second` are both skipped. The walk ends with no result, and the run result is the [`done` fallback](#the-done-fallback), the same as when the walk runs past its last section. In a section reached through `call`, the same `return` ends that chain, and `call` returns `nil` (see [A call that gets no text](08-jump-and-call.md#a-call-that-gets-no-text)). In a prompt run with `execute`, it ends that prompt, and `execute` returns `nil` (see [An execute that gets no text](08-jump-and-call.md#an-execute-that-gets-no-text)). In a section that runs as a task or a fanout arm, it ends the task or the arm, whose result is the empty string.
 
-So a `return` you write always ends the section, and it never depends on what the returned expression holds. `return var.answer` ends it even when `var.answer` was never set, `return models.loop()` ends it even though [`models.loop`](11-conversations.md#starting-a-conversation) returns `nil`, and `return call('../Sub')` ends it even when `Sub` gave no text. To skip the rest of a block and let the section continue, put the rest inside an `if` in place of an early `return`:
+So a `return` you write always ends the section, whatever the returned expression holds. `return var.answer` ends it even when `var.answer` was never set, `return models.loop()` ends it even though [`models.loop`](11-conversations.md#starting-a-conversation) returns `nil`, and `return call('../Sub')` ends it even when `Sub` gave no text. To skip the rest of a block and let the section continue, put the rest inside an `if` in place of an early `return`:
 
 ````lua
 local ready = false
@@ -1348,7 +1348,7 @@ return 'c-ran'
 b-ran
 ````
 
-`B` returns, so its value becomes the run result, and the later section `C` never runs, so its return value never replaces it.
+`B` returns, so its value becomes the run result, and the later section `C` never runs, so that result stands.
 
 A section reached through [`call`](08-jump-and-call.md#calling-a-section) runs in a chain of its own, so its return ends only that chain and hands the value back to the caller as the value of `call`:
 
@@ -1379,7 +1379,7 @@ got: research-reply
 
 `Research` runs once, when `Main` calls it. `Main` then returns, which ends the run, so the walk never falls through into `Research` a second time. A section after the one that returns runs only when something targets it: `require` (see [Sharing code with `require`](03-blocks-and-prose.md#sharing-code-with-require)), `call`, and [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) can still reach it, but fall-through never does. This holds for any returning section, such as one that ends with `return 'done'` or one that returns after waiting on the tasks it started.
 
-A prompt run with `execute` runs in a chain of its own too. A `return` in one of its top-level sections, its preamble included, ends the executed prompt and not the run: the block that made the `execute` goes on with the returned value, as a caller goes on after a `call` (see [How an executed prompt runs](08-jump-and-call.md#how-an-executed-prompt-runs)).
+A prompt run with `execute` runs in a chain of its own too. A `return` in one of its top-level sections, its preamble included, ends the executed prompt, and the run goes on: the block that made the `execute` continues with the returned value, as a caller goes on after a `call` (see [How an executed prompt runs](08-jump-and-call.md#how-an-executed-prompt-runs)).
 
 ### Returning from the prologue or the epilog
 
@@ -1448,9 +1448,9 @@ return 'plain'
 plain
 ````
 
-The run result is what a run ends with: its final text when it completes, or the error that ended it when it does not. A completed run gives back its result as a single text string. Here the section on the main walk returns the scalar `'plain'` from its Lua block, so the run completes with the final text `plain`.
+The run result is what a run ends with: its final text when it completes, and otherwise the error that ended it. A completed run gives back its result as a single text string. Here the section on the main walk returns the scalar `'plain'` from its Lua block, so the run completes with the final text `plain`.
 
-When nothing returns, the run still has a result:
+When the walk runs past its last section, the run still has a result:
 
 ````markdown
 ---
@@ -1470,7 +1470,7 @@ local x = 1
 done
 ````
 
-No block returns, the walk runs past the end of the last top-level section, and the run's result is the fixed fallback text `done`. This is the `done` fallback.
+The block runs to its last line, the walk runs past the end of the last top-level section, and the run's result is the fixed fallback text `done`. This is the `done` fallback.
 
 ### Where the run result comes from
 
@@ -1490,7 +1490,7 @@ Returns from other chains go back to the code that started them instead. A value
 
 ### The `done` fallback
 
-When no block returns a scalar and nothing else produces a result, the run's result is `done`. A walk whose last section falls through without returning still ends the run as completed, and so does a `return` on the main walk that gives [no value](#returning-no-value). A prompt with no section at all finishes at once with the result `done` (see [Prompts with no heading](#prompts-with-no-heading)). A prompt with no Lua at all ends the same way:
+When the main walk ends with no result, the run's result is `done`. A walk whose last section falls through still ends the run as completed, and so does a `return` on the main walk that gives [no value](#returning-no-value). A prompt with no section at all finishes at once with the result `done` (see [Prompts with no heading](#prompts-with-no-heading)). A prompt whose sections hold only prose ends the same way:
 
 ````markdown
 ---
@@ -1508,7 +1508,7 @@ This prose is never sent to a model.
 done
 ````
 
-This prompt has one prose-only section and no Lua anywhere, so it declares nothing the Harness has to provide. A prose-only section with no Lua fence runs without calling a model and falls through to the next section, and here there is no next section, so the run ends with `done`.
+This prompt has one prose-only section and no Lua anywhere, so it declares nothing the Harness has to provide. A prose-only section runs without calling a model and falls through to the next section, and here it is the last section, so the run ends with `done`.
 
 ### How a run ends
 
@@ -1517,7 +1517,7 @@ Every run ends with exactly one result, which is one of two things:
 - Its final text, when the run completes. A run that finishes gives back its final text, and that text is recorded as the run's result.
 - The error that ended it, when the run does not complete. The error has a code that names the cause, such as `lua_runtime` for an uncaught Lua error, together with a self-contained message for people to read. A cancel is one of these errors: the one whose code is `canceled`.
 
-Whatever ends a run first decides its result, and a later error or cancel never replaces it. A cancel that lands after the run's first step has refused the run leaves the run with the refusal's own error code, such as `requirements_unmet`.
+Whatever ends a run first decides its result, and the result stands when a later error or cancel arrives. A cancel that lands after the run's first step has refused the run leaves the run with the refusal's own error code, such as `requirements_unmet`.
 
 ### Canceling a run
 
@@ -1534,7 +1534,7 @@ A failed run ends with an error, the same error that a caught [error value](05-l
 - `lua_runtime`, for an uncaught Lua error in a section.
 - `requirements_unmet`, when the Harness cannot satisfy the prompt, such as when a required Pack is missing.
 
-Any uncaught Lua error in a section, the preamble included, fails the run with error code `lua_runtime`. That includes `assert(false, 'message')`, a call to a function that does not exist, and a library section that the walk reaches and that returns a table, which fails with `cannot return a table as a result`. Calling `error('message')` in a section's Lua block stops the run on purpose, and the rest of the prompt never runs:
+Any uncaught Lua error in a section, the preamble included, fails the run with error code `lua_runtime`. That includes `assert(false, 'message')`, a call to an undefined function, and a library section that the walk reaches and that returns a table, which fails with `cannot return a table as a result`. Calling `error('message')` in a section's Lua block stops the run on purpose, and the rest of the prompt never runs:
 
 ````markdown
 ---
@@ -1582,13 +1582,13 @@ return 'never reached'
 preamble prologue:8: runtime error: preamble prologue:8: the run is not ready
 ````
 
-The run fails with error code `lua_runtime`, as `second_fails` does, and its message opens with this line, which names the failing block and its line in the prompt file and then gives the `assert` message `the run is not ready`. A Lua stack traceback follows on the next lines, and after it the message ends with ` (at not_ready.md:8)`, the line of the failed `assert`. `Work` never runs. So an `assert` in the preamble is a check made ahead of every other section, on the prompt's arguments or on a prompt-wide setting: when it fails, the later blocks of the preamble and every section after it never run, and their effects, such as a `store.write`, never happen.
+The run fails with error code `lua_runtime`, as `second_fails` does, and its message opens with this line, which names the failing block and its line in the prompt file and then gives the `assert` message `the run is not ready`. A Lua stack traceback follows on the next lines, and after it the message ends with ` (at not_ready.md:8)`, the line of the failed `assert`. `Work` never runs. So an `assert` in the preamble is a check made ahead of every other section, on the prompt's arguments or on a prompt-wide setting: when it fails, the run ends before the later blocks of the preamble and every section after it, and before their effects, such as a `store.write`.
 
 ### Runs that end before the walk
 
-A run that ends before the walk still has a record, because the Harness begins the record before anything else in the run. The run's record ends with the error that ended it, its code and its located message, and the recorded code tells you why a run that never reached its sections failed:
+A run that ends before the walk still has a record, because the Harness begins the record before anything else in the run. The run's record ends with the error that ended it, its code and its located message, and the recorded code tells you why a run that ended before the walk failed:
 
-- The model code the listing failed with, such as `transport`, when the Harness cannot fetch the Host's list of models, and `requirements_unmet` when that list does not hold the selected model.
+- The model code the listing failed with, such as `transport`, when the Harness fails to fetch the Host's list of models, and `requirements_unmet` when that list lacks the selected model.
 - `structure_invalid` when the prompt's `runvil:` version is missing, and `unsupported_version` when the version is unsupported.
 - `args_invalid` when the run's arguments are not one JSON object, or do not match the prompt's `args:` declaration.
 - `requirements_unmet` when the environment falls short of the prompt's requirements.
@@ -1597,7 +1597,7 @@ The version and the requirements are those of every prompt the parse read, so a 
 
 A run whose cancel fires first ends with the canceled error instead, even when the cancel comes before the run starts.
 
-A prompt that does not parse is not one of these runs. It starts no run and has no record, and its parse error goes to the Host (see [A prompt that does not parse starts no run](#a-prompt-that-does-not-parse-starts-no-run)).
+A prompt that does not parse is a different case. It starts no run and has no record, and its parse error goes to the Host (see [A prompt that does not parse starts no run](#a-prompt-that-does-not-parse-starts-no-run)).
 
 ## Run events and records
 
@@ -1640,23 +1640,23 @@ A run reports its progress as ordered [run events](01-what-a-prompt-is.md#a-mark
 2. For each section the walk enters, the preamble included: `section_started`; `lua_chunk_started` and then `lua_chunk_succeeded` around each Lua block it runs, with that block's model and tool events, such as `model_turn_completed`, between them; one `lua_teardown_started` and `lua_teardown_succeeded` pair after its last block; and `section_finished`.
 3. `run_succeeded`.
 
-The first section's `section_started` follows `run_started` directly, as in `loop`. A block that is waiting reports neither succeeded nor failed until it finally returns or fails.
+The first section's `section_started` follows `run_started` directly, as in `loop`. A block that is waiting reports its succeeded or failed event only when it finally returns or fails.
 
-A prompt run with `execute` is part of the run that executes it, so its sections report in the same run, under the task whose block made the `execute`. Each section the executed prompt enters reports the events that step 2 lists, between the `lua_chunk_started` and the `lua_chunk_succeeded` of that block. No event of its own reports the `execute`, and no task event does either, because the executed prompt is a chain and not a task (see [One run, shared limits](08-jump-and-call.md#one-run-shared-limits)). The run still reports one `run_started` and one `run_succeeded`, both under the name of the run's own prompt.
+A prompt run with `execute` is part of the run that executes it, so its sections report in the same run, under the task whose block made the `execute`. Each section the executed prompt enters reports the events that step 2 lists, between the `lua_chunk_started` and the `lua_chunk_succeeded` of that block. The `execute` has no event of its own and no task event, because the executed prompt is a chain and not a task (see [One run, shared limits](08-jump-and-call.md#one-run-shared-limits)). The run still reports one `run_started` and one `run_succeeded`, both under the name of the run's own prompt.
 
-A run that started and does not succeed ends its events with `run_failed` under the prompt's `name` in place of `run_succeeded`. The only run-level events are `run_started`, `run_succeeded`, and `run_failed`, and there is no run-level cancel event, so a canceled run also ends with `run_failed`, even though a canceled run is not a failed run.
+A run that started and does not succeed ends its events with `run_failed` under the prompt's `name` in place of `run_succeeded`. The only run-level events are `run_started`, `run_succeeded`, and `run_failed`, so a canceled run also ends with `run_failed`, even though a canceled run is not a failed run.
 
 ### Which name an event carries
 
 Every run event, error, and report names the section that produced it by its heading text without the leading hashes, so `## Only` reports as `Only` and `### Child` as `Child`. The three run-level events carry the prompt's frontmatter `name` in the place of a section name. That is why `loop` reports `run_started` and `run_succeeded` under `loop`, around the events named `Only`.
 
-The preamble has no heading, so its events carry the empty string as their section name. It reports `section_started` and `section_finished` like every section. The `tone` prompt from [A preamble runs first](#a-preamble-runs-first) reports `run_started` under `tone`, then the events from `section_started` through `section_finished` under the empty name, then the same six events under `Reply`, and last `run_succeeded` under `tone`.
+The preamble sits above the first heading, so its events have the empty string as their section name. It reports `section_started` and `section_finished` like every section. The `tone` prompt from [A preamble runs first](#a-preamble-runs-first) reports `run_started` under `tone`, then the events from `section_started` through `section_finished` under the empty name, then the same six events under `Reply`, and last `run_succeeded` under `tone`.
 
 ### Section boundaries
 
 Each section reports `section_started` when the walk enters it and `section_finished` when it completes, both under the section's name. At a fall-through, the section that ends reports `section_finished` before the next section reports `section_started`, so sections `One` and `Two` report One started, One finished, Two started, Two finished.
 
-A section that ends by jumping counts as completed too. It reports `section_finished` before the section the jump names reports `section_started`, the same as at a fall-through, so `A` running `jump('../B')` reports A started, A finished, B started, B finished. A section whose `jump` path names no section still reports `section_finished`, because the section completes before the path is looked up. The run then fails on the unresolved path, and for `jump('../Missing')` the error contains `not found`.
+A section that ends by jumping counts as completed too. It reports `section_finished` before the section the jump names reports `section_started`, the same as at a fall-through, so `A` running `jump('../B')` reports A started, A finished, B started, B finished. A section whose `jump` path fails to resolve still reports `section_finished`, because the section completes before the path is looked up. The run then fails on the unresolved path, and for `jump('../Missing')` the error contains `not found`.
 
 A section that ends the walk with `return` still finishes normally, as at a fall-through: its final `var` is read back and it reports `section_finished`. So `Two` doing `return 'two-ran'` gives the result `two-ran` and a final Two finished.
 
@@ -1672,7 +1672,7 @@ A `log` checkpoint is recorded under the name of the section whose Lua wrote it,
 
 ### Events from a run that ends early
 
-A run that ends before it starts has no events in its record, only the values below and the error that ended it. That holds for a run refused by a start check, and for one that ended on a failed model lookup or an early cancel.
+The record of a run that ends before it starts is empty of events: it holds only the values below and the error that ended it. That holds for a run refused by a start check, and for one that ended on a failed model lookup or an early cancel.
 
 ### What a run's record holds
 
@@ -1688,7 +1688,7 @@ Beside these values, the record holds the run's history: every event the run rep
 
 Each event in that history names the section it was reported under and has a provenance: the task it came from and its position in that task.
 
-Each run draws its own fresh [seed](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host) from the operating system's cryptographic random source and records it at the start of the run, before anything else, so two runs of the same prompt get different seeds. The run's start time, `started_at`, is stamped once from the system wall clock when the Harness begins the run's record, because the Engine reads no clock of its own, and a later run never starts earlier. The Harness supplies both the seed and the start instant, drawing them when it begins the run's record, and a prompt cannot set either one.
+Each run draws its own fresh [seed](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host) from the operating system's cryptographic random source and records it at the start of the run, before anything else, so two runs of the same prompt get different seeds. The run's start time, `started_at`, is stamped once from the system wall clock when the Harness begins the run's record, because the Engine gets the time from the Harness, and a later run never starts earlier. The Harness supplies both the seed and the start instant, drawing them when it begins the run's record, and a prompt cannot set either one.
 
 Two runs of the same prompt running at the same time stay separate. Each returns its own result, and each run's records hold only its own events, Harness work and answers, `log` checkpoints, and final `run_succeeded`.
 
