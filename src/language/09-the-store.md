@@ -532,7 +532,7 @@ When a path breaks several rules at once, only the first broken rule is reported
 
 So an over-long path reports `path is too long` whatever else is wrong with it, and a path starting with `/` reports `path is absolute` ahead of any character or segment problem. Each name gets all four of its checks before the next name is looked at, so when a device-name segment comes before a `..` segment, the path reports the device-name rule: `con/../x` fails with rule `reserved_name`.
 
-A store call checks its path before it checks an anchor or a `start` line, so a `store.str_replace` with a bad path and an empty anchor, or a `store.read` with a bad path and a `start` below 1, reports the path error.
+A store call checks its path before it checks an anchor or a `start` line, so a `store.str_replace` with a bad path and an empty anchor, or a `store.read` with a bad path and a `start` below 1, reports the path error. An `end` given with a nil `start` is the exception: the read reports `start is required when end is given` before it checks the path.
 
 ### Empty and over-long paths
 
@@ -674,7 +674,7 @@ A ten-line file read whole starts with ` 1| line1`, padded to the width of `10`,
 
 ### Bounds past the end of the file
 
-Bounds that run past the file are not errors. An `end` past the file's last line clamps down to the last line instead of failing, for both `store.read` and `store.read_numbered`. A `start` past the last line, including any start on an empty file, reads as an empty string, whatever `end` is. On a three-line file `a.txt` holding `'one\ntwo\nthree'`, these reads return:
+Bounds that run past the file are not errors. An `end` past the file's last line clamps down to the last line instead of failing, for both `store.read` and `store.read_numbered`. A `start` past the last line, including any start of 1 or more on an empty file, reads as an empty string, whatever `end` is. On a three-line file `a.txt` holding `'one\ntwo\nthree'`, these reads return:
 
 | Call | Returns |
 |---|---|
@@ -1728,7 +1728,7 @@ This run ends before its `return`. Both arms append to `log.txt`, the two arms a
 store determinism violation: write on log.txt by {id} conflicts with a write claim by {other} (at race.md:17)
 ````
 
-Every store call claims what it touches for the chain that made it, so the store tracks which chain touches which region. That record is a claim. Two store accesses that touch the same region conflict only when at least one of them is a write and the two are concurrent, and such a clash is a claims conflict. Two accesses are concurrent when they come from different chains of the run, unless a spawn or a join orders one before the other.
+Every store call claims what it touches for the chain that made it, so the store tracks which chain touches which region. That record is a claim. Two store accesses that touch the same region conflict only when at least one of them is a write and the two are concurrent, and such a clash is a claims conflict. Two accesses are concurrent when they come from chains of the run with different identities, unless a spawn or a join orders one before the other.
 
 Read claims never conflict with each other, whether they come from `store.read`, `store.read_numbered`, `store.exists`, or `store.glob`. A chain never conflicts with itself either, so a chain may write a path, overwrite it, append to it, and read it back freely.
 
