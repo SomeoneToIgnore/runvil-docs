@@ -95,7 +95,7 @@ You write a section's instruction as plain prose under its heading, such as `Say
 Which text becomes a prose block follows a few rules:
 
 - When anything other than blank lines comes before the first `lua` fence in the preamble or a section, that text becomes its own prose block ahead of the first Lua block. Blank or whitespace-only lines alone before the fence are discarded.
-- Prose after the last `lua` fence becomes a trailing prose block only when trimming leaves some text. Markdown after the last fence is valid and stays an ordinary prose block.
+- Prose after the last `lua` fence becomes a trailing prose block only when trimming leaves some text. Markdown after the last fence is valid and stays an ordinary prose block, as long as it passes the Lua fence rules, which are checked across the whole body (see [Exact fence rules and fence errors](#exact-fence-rules-and-fence-errors)).
 - Every prose block is trimmed of leading and trailing whitespace.
 - Apart from that trimming, a prose block holds the prompt file's Markdown as written, so text like `Plan {{ args.text }}.` keeps its `{{ args.text }}` placeholder (see [Placeholders in prose](07-substitution.md#placeholders-in-prose)) exactly as written when the prompt loads.
 - A section with no `lua` fence is a single prose block.
