@@ -481,18 +481,18 @@ This table lists the eight keys in the order this chapter teaches them, with wha
 |---|---|---|
 | `name` | yes | the parse fails |
 | `description` | yes | the parse fails |
-| `runvil` | no, but needed to run | no declared version: the file parses, and running it fails with `not a runvil prompt: no runvil version (prompt {name})` |
+| `runvil` | no, but needed to run | the version is undeclared: the file parses, and running it fails with `not a runvil prompt: no runvil version (prompt {name})` |
 | `max_tool_iterations` | no | the built-in round cap stays in force |
-| `uses` | no | no Packs |
+| `uses` | no | an empty list of Packs |
 | `args` | no | the default declaration of one optional `string` argument named `text` |
-| `models` | no | no requirements on any model role |
-| `prompts` | no | the prompt can execute no other prompt |
+| `models` | no | each model role accepts whichever model fills it |
+| `prompts` | no | each attempt to execute a prompt raises an error |
 
 Because every key besides `name` and `description` has a default, a frontmatter of just those two parses, and so does a prompt that leaves out every contract key. `max_tool_iterations` accepts a value from 1 to 1000, and [Tool rounds and the round cap](11-conversations.md#tool-rounds-and-the-round-cap) covers what it controls. [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key) covers the default declaration of `args`.
 
 ### Adding keys a prompt needs
 
-The `hello` prompt under [Flow style](#flow-style) shows the pattern. Its frontmatter holds only `name`, `description`, `runvil`, and `models`, and leaves out `max_tool_iterations`, `uses`, `args`, and `prompts` because it does not need them. Its `models:` key names a `fast: {}` role next to the usual three keys. The shipped `hello.md` prompt declares no model requirements, so it leaves out `models` too, and its frontmatter holds only `name`, `description`, and `runvil`.
+The `hello` prompt under [Flow style](#flow-style) shows the pattern. Its frontmatter holds only `name`, `description`, `runvil`, and `models`, and leaves out `max_tool_iterations`, `uses`, `args`, and `prompts` because it does not need them. Its `models:` key names a `fast: {}` role next to the usual three keys. The shipped `hello.md` prompt leaves out `models` too, for the same reason, and its frontmatter holds only `name`, `description`, and `runvil`.
 
 ### The contract keys
 
@@ -580,7 +580,7 @@ invalid frontmatter: prompt greet.md is listed more than once under prompts
 
 An empty entry, as in `prompts: [greet.md, ""]`, fails it with `invalid frontmatter: a prompts entry must not be empty`. Both are parse errors of kind `Frontmatter`, placed on the line of the `prompts:` key.
 
-Parsing a prompt also finds and parses every prompt it lists, then every prompt those list, each prompt once (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). So a listed prompt that is missing from the Host, or one that fails its own parse, fails the parse of the prompt that lists it. Prompts may list each other, and a prompt may list itself. A prompt that leaves the key out, or gives it an empty list, can execute no prompt.
+Parsing a prompt also finds and parses every prompt it lists, then every prompt those list, each prompt once (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). So a listed prompt that is missing from the Host, or one that fails its own parse, fails the parse of the prompt that lists it. Prompts may list each other, and a prompt may list itself. In a prompt that leaves the key out, or gives it an empty list, each attempt to execute a prompt raises an error.
 
 ### Unknown keys
 
@@ -869,11 +869,11 @@ ok
 
 The preamble's fence runs before the prose, and the prose `{{ var.omit }}` goes unread by any later Lua, so the prose stays inert, and the run returns `ok` without needing a model.
 
-The preamble ends where the first heading begins, so it has no child sections. The preamble is out of reach of every section path, because every step of a path is a section name and the preamble is unnamed. Its own Lua names the other sections by path as any section's Lua does, and [`jump` and `call` from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble) shows the paths it writes.
+The preamble ends where the first heading begins, so every section that follows is its sibling or sits under one. The preamble is out of reach of every section path, because every step of a path is a section name and the preamble is unnamed. Its own Lua names the other sections by path as any section's Lua does, and [`jump` and `call` from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble) shows the paths it writes.
 
 ### A preamble without Lua
 
-A preamble that holds no `lua` fence is commentary. It is not a section and goes unread, so editing notes above the first heading leave the run unchanged:
+A preamble without a `lua` fence is commentary. It is not a section and goes unread, so editing notes above the first heading leave the run unchanged:
 
 ````markdown
 ---
@@ -906,9 +906,9 @@ A `lua` fence shown inside a longer fence stays prose, so the preamble can show 
 Headings are optional. Frontmatter and one Lua block is a complete prompt: the block is the preamble, and the preamble does all the work, as in the `one_block` prompt at the start of this chapter, which runs to the result `hello`. Such a prompt runs with or without a Lua `return`:
 
 - When the preamble's Lua returns a value, that value is the run result, such as `hello`.
-- When the preamble's Lua has no `return`, or returns no value, the run ends with the generic result `done`.
+- When the preamble's Lua ends without a `return`, or returns no value, the run ends with the generic result `done`.
 
-Sections are optional too. A file with no heading and no `lua` fence has no section at all, and it is still a valid prompt, whose run ends with the same generic result `done`. The `frontmatter-only` prompt under [What the frontmatter holds](#what-the-frontmatter-holds) is one, and so is a file of frontmatter and prose:
+Sections are optional too. A file with no heading and no `lua` fence leaves them out, and it is still a valid prompt, whose run ends with the same generic result `done`. The `frontmatter-only` prompt under [What the frontmatter holds](#what-the-frontmatter-holds) is one, and so is a file of frontmatter and prose:
 
 ````markdown
 ---
@@ -958,7 +958,7 @@ Each section has a name taken from its heading, a level, its own prose and Lua, 
 
 The top level is the shallowest heading level in the file, and the sections at that level are the top-level sections, kept in file order. The examples in this guide write top-level sections as `##` headings, and so do the shipped prompts. Such a `##` heading starts a top-level section at level 2, and the text of the heading is the section's name, as with `## Main`, `## Analyze`, `## Greet`, and `## Research` in the shipped prompts. So `## First` followed by `## Second` gives two top-level sections, First then Second. A preamble that holds a `lua` fence is a top-level section too, ahead of every heading (see [The preamble](#the-preamble)).
 
-No particular section name is required. The first top-level section is the entry section whatever its name, so `## Zebra` followed by `## Main` makes Zebra the entry, and a preamble that holds Lua is the entry of its prompt (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)).
+Section names are yours to choose. The first top-level section is the entry section whatever its name, so `## Zebra` followed by `## Main` makes Zebra the entry, and a preamble that holds Lua is the entry of its prompt (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)).
 
 The walk runs the top-level sections one after another, and a deeper section runs only when Lua names it. So sections that are meant to run one after another all sit at the top level. A heading above them at a shallower level makes them its children:
 
@@ -988,7 +988,7 @@ return 'second'
 done
 ````
 
-`# Steps` is the only top-level section of this prompt, and `First` and `Second` are its children. The run enters `Steps`, which has no Lua of its own, and ends there with the generic result `done`, so neither child runs. The children run when the Lua in `Steps` names them:
+`# Steps` is the only top-level section of this prompt, and `First` and `Second` are its children. The run enters `Steps`, finds its own content empty, skips both children, and ends with the generic result `done`. The children run when the Lua in `Steps` names them:
 
 ````markdown
 ---
@@ -1122,7 +1122,7 @@ tail
 next
 ````
 
-This file has two sections, `S` and `Next`, and `S` has no children. The prose of `S` holds `> ## Quoted`, `- ## Listed`, and `tail` as written. An ordinary heading that follows a block quote or a list, like `## Next` here, still starts a new section as usual.
+This file has two sections, `S` and `Next`, and `S` owns every line between their headings. The prose of `S` holds `> ## Quoted`, `- ## Listed`, and `tail` as written. An ordinary heading that follows a block quote or a list, like `## Next` here, still starts a new section as usual.
 
 ### Orphan and empty headings
 
@@ -1168,7 +1168,7 @@ runvil: 0
 section `Run` is an orphan H2 heading with no parent H1
 ````
 
-Here `# Late` makes H1 the top level, and `## Run` has no H1 above it. The error points at `## Run`, on line 7, column 1, and the missing parent level it names is the top level.
+Here `# Late` makes H1 the top level, and `## Run` sits above every H1. The error points at `## Run`, on line 7, column 1, and the missing parent level it names is the top level.
 
 A heading whose name text is empty fails with parse error kind `Structure` too, at every level from `#` to `######`, because every heading needs text after trimming, and that text is the name that finds the section at run time. The message names the heading level, in the form `an H{level} section heading must not be empty`, so a bare `##` line reports:
 
@@ -1316,7 +1316,7 @@ Which forms a call takes depends on what the call does:
 | `prompt.section`, `prompt.section_or` | relative, or from the top | `prompt.section('/house_style')` |
 | `require` | from the top | `require '/helpers'` |
 
-The four calls that run a section take only the relative forms, so each of them reaches only a neighbor of the section it starts from (see [The visible set](08-jump-and-call.md#the-visible-set)). The prompt reads and `require` leave the walk where it is, and they can name every section that has a heading, wherever it sits in the prompt. [Resolving section paths](08-jump-and-call.md#resolving-section-paths) explains where each call starts and what it does when a path names no section.
+The four calls that run a section take only the relative forms, so each of them reaches only a neighbor of the section it starts from (see [The visible set](08-jump-and-call.md#the-visible-set)). The prompt reads and `require` leave the walk where it is, and they can name every section that has a heading, wherever it sits in the prompt. [Resolving section paths](08-jump-and-call.md#resolving-section-paths) explains where each call starts and what it does when a path misses.
 
 ### Exact matching
 
