@@ -160,7 +160,7 @@ A byte-order mark is an invisible character, U+FEFF, that can sit at the very st
 A prompt file can use LF (Unix) or CRLF (Windows) line endings throughout, in the frontmatter and the body alike, because CRLF is read as LF. That holds for every line the parser looks at:
 
 - The delimiter lines match exactly as in an LF file.
-- `lua` fence openings and closings are recognized exactly as in an LF file, and the Lua and prose taken from the file carry no stray carriage returns.
+- `lua` fence openings and closings are recognized exactly as in an LF file, and the Lua and prose taken from the file are the same as from an LF file.
 - A fence-label error, which has parse error kind `Fence`, names the label as you wrote it, such as `lua extra`, without a carriage return on the end.
 
 ### Delimiter errors
@@ -1356,4 +1356,4 @@ A malformed section path always raises a Lua error (see [Raising and catching er
 
 `require` has its own message for a path that is not a string: `require takes a section path such as '/helpers', got {type}`.
 
-A well-formed path that names no section is a miss, and [The not-found error](08-jump-and-call.md#the-not-found-error) covers what each call does with one.
+A well-formed path with an unmatched name is a miss, and [The not-found error](08-jump-and-call.md#the-not-found-error) covers what each call does with one.
