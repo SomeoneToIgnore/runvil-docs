@@ -323,7 +323,7 @@ A value of another type ends the run at its first step. Send `"use_mcp":"no"` in
 argument `use_mcp` must be a boolean, got string
 ````
 
-The message names the type the node needs as `a string`, `a boolean`, `an integer`, `a number`, `an array`, or `an object`, and it names what the caller sent as `string`, `boolean`, `integer`, `number`, `array`, `object`, or `null`. A JSON number counts as `number` when it is written with a decimal point or an exponent, as `5.0` and `1e3` are, and as `integer` otherwise, as `5` is.
+The message names the type the node needs as `a string`, `a boolean`, `an integer`, `a number`, `an array`, or `an object`, and it names what the caller sent as `string`, `boolean`, `integer`, `number`, `array`, `object`, or `null`. A JSON number counts as `number` when it is written with a decimal point or an exponent, as `5.0` and `1e3` are, or as plain digits above `18446744073709551615` or below `-9223372036854775808`, and as `integer` otherwise, as `5` is.
 
 ### String arguments
 
@@ -360,7 +360,7 @@ The largest value that passes is `9223372036854775807`, and the smallest is `-92
 
 ### Number arguments
 
-`type: number` takes any JSON number. Lua reads a float when the caller wrote the number with a decimal point or an exponent, and an integer otherwise:
+`type: number` takes any JSON number. Lua reads a float when the caller wrote the number with a decimal point or an exponent, or as a whole number too large for 64 bits, and an integer otherwise:
 
 | The caller sends | `args.weight` reads | `math.type(args.weight)` |
 |---|---|---|
@@ -499,9 +499,9 @@ A required argument must hold a value, and JSON `null` is not one: the search pr
 
 ### Giving an argument a default
 
-A default is the value a field takes when the caller leaves the field out. You write it with the `default` keyword on the field's node, as `default: 3` on `limit` above. The Engine fills in the default of each missing field before it checks the arguments, so for `{"query":"papers"}` the search prompt reads `args.limit` as `3`, exactly as it would for `{"query":"papers","limit":3}`. Your Lua leaves each default to the Engine.
+A default is the value a field takes when the caller leaves the field out. You write it with the `default` keyword on the field's node, as `default: 3` on `limit` above. The Engine fills in the default of each missing field as its check of the arguments reaches that field, so for `{"query":"papers"}` the search prompt reads `args.limit` as `3`, exactly as it would for `{"query":"papers","limit":3}`. Your Lua leaves each default to the Engine.
 
-A node without the keyword has no default, and `default: null` says the same thing in writing. A field with no default stays absent when the caller leaves it out, and it reads nil.
+A node without the keyword has no default, and on a field's node `default: null` says the same thing in writing. A field with no default stays absent when the caller leaves it out, and it reads nil.
 
 A JSON `null` sent for a field that is not required counts as the field left out, so `{"query":"papers","limit":null}` also gives `args.limit` the value `3`.
 
@@ -945,7 +945,7 @@ args:
 args.properties.files.items: a list item takes no `default`
 ````
 
-`default: null` is never a mismatch, because it declares no default.
+On a field's node, `default: null` is never a mismatch, because it declares no default, while the root and an `items` node refuse it like any other default.
 
 ### Bad `enum` lists
 
@@ -1769,7 +1769,7 @@ A write with a key that is neither a string nor an integer names the key's Lua t
 
 `table.insert`, `table.remove`, and `table.sort` write into the list they are given, so on a list inside `args` each raises the field refusal for the first index it tries to set. With the two files above, `table.insert(args.files, 'c.md')` raises `args is read-only: cannot set field 3`, `table.remove(args.files)` raises `args is read-only: cannot set field 2`, and `table.sort(args.files)` raises `args is read-only: cannot set field 1`.
 
-`table.sort` writes only when it has to move an item. On a list of four or more items it always moves one, and on a shorter list that is already in order, such as `["a.md","b.md"]`, it leaves every item in place and returns normally, so do not count on it to raise. Sort a copy instead, as [Keeping a value of your own](#keeping-a-value-of-your-own) shows.
+`table.sort` writes only when it moves an item, and on a list of four or more items it always moves one, even when the list is already in order. On a shorter list that is already in order, such as `["a.md","b.md"]`, it leaves every item in place and returns normally, so do not count on it to raise. Sort a copy instead, as [Keeping a value of your own](#keeping-a-value-of-your-own) shows.
 
 ### Catching a refused write with `pcall`
 
