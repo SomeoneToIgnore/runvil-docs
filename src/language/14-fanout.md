@@ -146,7 +146,7 @@ x-done
 
 ### Naming the worker section
 
-You name the worker section in the worker argument of `tasks.fanout` by a relative section path, the same two forms `call` and `jump` take: the bare name of a child of the calling section, or `../` and the name of a sibling. Each name matches a section name exactly. So a `Worker` child is named `'Worker'`, and in `sibling-worker` the string `'../Worker'` names `Worker`, the sibling of `Main`. `tasks.fanout` takes no path from the top.
+You name the worker section in the worker argument of `tasks.fanout` by a relative section path, the same two forms `call` and `jump` take: the bare name of a child of the calling section, or `../` and the name of a sibling. Each name matches a section name exactly. So a `Worker` child is named `'Worker'`, and in `sibling-worker` the string `'../Worker'` names `Worker`, the sibling of `Main`. `tasks.fanout` refuses a path from the top.
 
 ### The caller's visible set
 
@@ -183,7 +183,7 @@ The call raises an error value of kind `lua` whose message has the form ``{file}
 
 ### Child worker sections and top-level worker sections
 
-You usually place the worker section as a `###` child under the calling `##` section. The walk never runs a child section by falling through to it (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)), so a child worker section runs only as a fanout arm and never on its own.
+You usually place the worker section as a `###` child under the calling `##` section. The walk skips a section's children when it falls through (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)), so a child worker section runs only as a fanout arm and never on its own.
 
 A top-level worker section is also a section of the main walk, which reaches it in order unless an earlier section returns or jumps. So you place a top-level worker section after a caller that returns. In `sibling-worker`, `Main` returns, which ends the run before the walk reaches `Worker`.
 
@@ -255,7 +255,7 @@ return item .. '-done'
 alpha-done,beta-done
 ````
 
-A section that holds only a list, with no `lua` block, is an ordinary section too. Named as the worker section, it is entered like any section with no Lua, so each arm runs nothing and its text is the empty string. To run a fanout over a list's items, pass the items as the collection instead, as [List collections](#list-collections) shows.
+A section that holds only a list, with no `lua` block, is an ordinary section too. Named as the worker section, it is entered like any section with no Lua, so in each arm it falls through, and an arm that then runs off its last section gives the empty string as its text. To run a fanout over a list's items, pass the items as the collection instead, as [List collections](#list-collections) shows.
 
 ### Fanout from the preamble and from called sections
 
@@ -284,7 +284,7 @@ return 'item:' .. item
 item:a|item:b
 ````
 
-The top-level `Worker` runs once for `a` and once for `b`. The preamble's return ends the run, so the walk never reaches `Worker` on its own. When the preamble passes a path that names no top-level section, such as `tasks.fanout('../Nope', {'a'})`, the run fails with the not-found error, whose text is ``section `../Nope` not found: the preamble has no sibling `Nope` ``.
+The top-level `Worker` runs once for `a` and once for `b`. The preamble's return ends the run before the walk reaches `Worker`. When the preamble passes a path that misses, such as `tasks.fanout('../Nope', {'a'})`, the run fails with the not-found error, whose text is ``section `../Nope` not found: the preamble has no sibling `Nope` ``.
 
 A section running in a chain that `call` started can name one of its own children as the worker section:
 
@@ -530,7 +530,7 @@ return item .. '-' .. sys.index
 alpha-1,beta-2
 ````
 
-`tasks.fanout` starts one arm per member, first member first, and seeds each arm with its member as `item`, its position as `sys.index`, and a snapshot of the caller's `var`. So the first arm started is the one for the first member, with `sys.index` 1. Each arm here reads the `var.from_preamble` value the preamble set, writes its own entry into its copy of `var`, and never sees its sibling's entry, and once `tasks.fanout` returns, the caller's `var` holds neither entry.
+`tasks.fanout` starts one arm per member, first member first, and seeds each arm with its member as `item`, its position as `sys.index`, and a snapshot of the caller's `var`. So the first arm started is the one for the first member, with `sys.index` 1. Each arm here reads the `var.from_preamble` value the preamble set, writes its own entry into its copy of `var`, and never sees its sibling's entry, and once `tasks.fanout` returns, both entries read as nil in the caller's `var`.
 
 ### The `item` global
 
@@ -586,13 +586,13 @@ In the arm for `alpha`, the prose `Reply about {{ item }}.` becomes `Reply about
 
 `models.infer` works inside an arm and returns the reply as a string, whether the prompt is the arm's substituted `prose` or a string built in Lua. You can build an arm's prompt from `item` directly, so `local first = models.infer(item .. ':1')` sends `a:1` from the arm for `a`, and arms over `a`, `b`, and `c` send `a:1`, `b:1`, and `c:1`. Returning the reply makes it the arm's `.text`, so after an arm runs `return models.infer(prose)`, the caller reads the reply as `r[1].text` and can join all the replies with `table.concat(r, '\n\n')`, as [Collection order and joining results](#collection-order-and-joining-results) explains.
 
-`{{ item }}` in the prose of a section that has no `item`, such as a walked section, fails when the prose is read, with the error `{{ item }} is nil (no item is seeded into this section)`. So a walked section whose prose is `Ask about {{ item }}.` fails when its block runs `return prose`.
+`{{ item }}` in the prose of a section where `item` is nil, such as a walked section, fails when the prose is read, with the error `{{ item }} is nil (no item is seeded into this section)`. So a walked section whose prose is `Ask about {{ item }}.` fails when its block runs `return prose`.
 
 ### Where `item` and `sys.index` exist
 
 The `item` global exists only in the first section an arm or a spawned task enters with an item. For an arm, that is its worker section. For a task, it is the target of a [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) given an `item` option, so after `tasks.spawn('../Child', { args = 'child args', item = { name = 'alpha' }, index = 7 })` the child reads `item.name` as `alpha`. After a `jump` from the worker section, the next section, such as `Child`, passes `assert(item == nil)`.
 
-A section the normal walk reaches has no `item` global, so `item` there is nil and `assert(item == nil)` passes. The main walk and a chain started with `call` have neither `item` nor `sys.index`, even when the `call` is made from inside an arm, so a `Sub` that an arm reaches with `call('../Sub')` passes `assert(item == nil)`.
+A section the normal walk reaches has no `item` global, so `item` there is nil and `assert(item == nil)` passes. In the main walk and in a chain started with `call`, `item` reads as nil and a read of `sys.index` raises, even when the `call` is made from inside an arm, so a `Sub` that an arm reaches with `call('../Sub')` passes `assert(item == nil)`.
 
 `sys.index` follows the same rule. It exists only in the first section an arm or a spawned task enters with an index, which is the arm's worker section or the target of a `tasks.spawn` given an `index` option. There it holds that option's value as given, so the child spawned above with `index = 7` reads `sys.index` as 7 and logs `index=7`.
 
@@ -631,7 +631,7 @@ An arm can write to its own copy of `var` without error, so `var[item] = true` r
 
 ### `args` in an arm
 
-A fanout arm reads its caller's [`args`](06-arguments.md#reading-arguments-from-args), the same read-only table the caller reads (see [`args` is read-only](06-arguments.md#args-is-read-only)), the way a chain started by a `call` with no second argument does. `tasks.fanout` hands an arm no arguments of its own, and the member the arm runs for is `item`. So in a prompt with [no `args:` key](06-arguments.md#prompts-with-no-args-key), run with the arguments `{"text":"hello"}`, a worker section that returns `args.text .. ':' .. item` over `{'alpha', 'beta'}` gives `hello:alpha` and `hello:beta`. A `call` made inside an arm can give the called chain its own arguments, as anywhere (see [Call args and `var`](08-jump-and-call.md#call-args-and-var)).
+A fanout arm reads its caller's [`args`](06-arguments.md#reading-arguments-from-args), the same read-only table the caller reads (see [`args` is read-only](06-arguments.md#args-is-read-only)), the way a chain started by a `call` with no second argument does. `tasks.fanout` gives every arm the caller's arguments, and an arm's own input is the member it runs for, which it reads as `item`. So in a prompt with [no `args:` key](06-arguments.md#prompts-with-no-args-key), run with the arguments `{"text":"hello"}`, a worker section that returns `args.text .. ':' .. item` over `{'alpha', 'beta'}` gives `hello:alpha` and `hello:beta`. A `call` made inside an arm can give the called chain its own arguments, as anywhere (see [Call args and `var`](08-jump-and-call.md#call-args-and-var)).
 
 ### Models, tools, and libraries in an arm
 
@@ -647,7 +647,7 @@ Inside an arm, and in a chain the arm starts with `call`, `sys.section_count` is
 
 A library loaded with [`require`](03-blocks-and-prose.md#sharing-code-with-require) inside a fanout arm runs in the arm's environment, so its top-level code reads the arm's `item`. [`call` and `require` inside an arm](#call-and-require-inside-an-arm) shows an example.
 
-A fanout arm sees every [Pack prelude](12-tools.md#pack-preludes) global, so where `greeter` is a prelude global, an arm block `return greeter.greet(item)` yields `hello arm`. Each arm runs every prelude afresh in its own Lua environment, so a prelude's top-level code runs once per arm. That code can make no store call (see [Store calls while a prelude loads](12-tools.md#store-calls-while-a-prelude-loads)): a prelude whose top level calls `store.write` fails to load, and the run ends with error code `lua_runtime` before any arm runs. With a `pcall` around that call the prelude installs in every arm of `tasks.fanout('Worker', { 'alpha', 'beta' })`, both arms run, and the store is untouched.
+A fanout arm sees every [Pack prelude](12-tools.md#pack-preludes) global, so where `greeter` is a prelude global, an arm block `return greeter.greet(item)` yields `hello arm`. Each arm runs every prelude afresh in its own Lua environment, so a prelude's top-level code runs once per arm. A store call in that code fails (see [Store calls while a prelude loads](12-tools.md#store-calls-while-a-prelude-loads)): a prelude whose top level calls `store.write` fails to load, and the run ends with error code `lua_runtime` before any arm runs. With a `pcall` around that call the prelude installs in every arm of `tasks.fanout('Worker', { 'alpha', 'beta' })`, both arms run, and the store is untouched.
 
 ## Running arms on a model
 
@@ -689,15 +689,15 @@ With three arguments, the first must be a model handle, whether it came from `mo
 
 Any argument count other than two or three raises `tasks.fanout takes (worker, collection) or (model, worker, collection)`. A trailing `nil` counts as an argument, so `tasks.fanout('Worker', {'a'}, nil)` has three arguments and fails the first-argument check with `got string`, not the count error.
 
-`tasks.fanout` checks the argument count and the first argument before it reads the collection, so a refused call changes nothing: no arm is spawned and no model is switched.
+`tasks.fanout` checks the argument count and the first argument before it reads the collection, so a refused call stops before it spawns an arm or switches a model.
 
 ### The caller's model after the call
 
-The caller's own model is the same after the call as before it. While `tasks.fanout` spawns the arms, it sets the caller's current model to the given handle, so each arm copies that model as it is spawned. It puts the caller's model back before it first waits on an arm. It also puts it back when a spawn fails part-way, before it raises the error, and a failing arm raises after the model is already back. So a `pcall(tasks.fanout, models.get('fast'), 'Arm', {'a'})` that catches a failure finds the caller on the model it had before the call. No code of yours runs between the switch and the put-back, so your code never sees the switch.
+The caller's own model is the same after the call as before it. While `tasks.fanout` spawns the arms, it sets the caller's current model to the given handle, so each arm copies that model as it is spawned. It puts the caller's model back before it first waits on an arm. It also puts it back when a spawn fails part-way, before it raises the error, and a failing arm raises after the model is already back. So a `pcall(tasks.fanout, models.get('fast'), 'Arm', {'a'})` that catches a failure finds the caller on the model it had before the call. The caller is paused inside the call from the switch to the put-back, so your code never sees the switch.
 
-An arm's own `models.use` stays inside that arm. If only the arm for `a` calls `models.use('creative')` in the example above, and each arm returns `models.current().label`, the arm texts are `creative` and `fast`, and the caller is still on `strong`, so the example returns `creative,fast|strong`. The given model is where each arm starts and nothing more, so `models.use('default')` inside an arm selects the `default` role, not the model the call gave the arm.
+An arm's own `models.use` stays inside that arm. If only the arm for `a` calls `models.use('creative')` in the example above, and each arm returns `models.current().label`, the arm texts are `creative` and `fast`, and the caller is still on `strong`, so the example returns `creative,fast|strong`. The given model is only where each arm starts, so `models.use('default')` inside an arm selects the `default` role, not the model the call gave the arm.
 
-With the two-argument form, nothing is switched. Each arm starts on a copy of the caller's current model, taken when the arm is spawned, so after `models.use('strong')` a `tasks.fanout('Arm', {'a', 'b'})` runs both arms on `strong`. The arms of one fanout all start on the same model.
+With the two-argument form, the caller's model stays as it is throughout the call. Each arm starts on a copy of the caller's current model, taken when the arm is spawned, so after `models.use('strong')` a `tasks.fanout('Arm', {'a', 'b'})` runs both arms on `strong`. The arms of one fanout all start on the same model.
 
 ## Returning, jumping, and nesting inside an arm
 
@@ -735,9 +735,9 @@ Each arm's Lua return value becomes that arm's entry in the fanout result. Here 
 
 ### What an arm returns
 
-A `return value` in the worker section's prologue ends the arm with that value as its result. The worker section's prose after the fence is never sent to a model, and such an arm needs no model round, so in `arm-return` the prose `Do work.` goes unused. A worker section that is pure Lua and returns right away runs without any model connection, so that kind of fanout needs no model and stays fast. The 1025-arm `many-members` prompt runs with no model configured and returns `m1025`.
+A `return value` in the worker section's prologue ends the arm with that value as its result. The worker section's prose after the fence is never sent to a model, and such an arm is done once its Lua returns, so in `arm-return` the prose `Do work.` goes unused. A worker section that is pure Lua and returns right away runs on Lua alone, so that kind of fanout stays fast. The 1025-arm `many-members` prompt runs with no model configured and returns `m1025`.
 
-A worker section's return hands its value back to `tasks.fanout` as the arm's result and never ends the run, because a return ends the run only from the main walk (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The calling section, such as `Parent`, goes on to check the results, and its own return, such as `'ok'`, becomes the run's text.
+A worker section's return hands its value back to `tasks.fanout` as the arm's result, and the run continues, because a return ends the run only from the main walk (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The calling section, such as `Parent`, goes on to check the results, and its own return, such as `'ok'`, becomes the run's text.
 
 A section can call `tasks.fanout` from its epilog block, and the results still come back in collection order. The `fanout-epilog` prompt in [Where you can call `tasks.fanout`](#where-you-can-call-tasksfanout) returns `x-done,y-done` with both arms succeeding.
 
@@ -780,7 +780,7 @@ return item .. ':' .. table.concat(items, ',')
 alpha:x,y
 ````
 
-When the worker section is a child of the calling section, no relative path written in the worker section names the calling section or its siblings. A `call` with such a path raises the not-found error where it is called, so `pcall(call, path)` returns `false` and the arm goes on, while `prompt.section_or` with the same path returns `nil`. Replace the worker section's block in `arm-reach` with this one:
+When the worker section is a child of the calling section, the calling section and its siblings are out of reach of every relative path written in the worker section. A `call` with a relative path meant for one of them raises the not-found error where it is called, so `pcall(call, path)` returns `false` and the arm goes on, while `prompt.section_or` with the same path returns `nil`. Replace the worker section's block in `arm-reach` with this one:
 
 ````lua
 local ok = pcall(call, '../Parent')
@@ -839,9 +839,9 @@ tail-reply
 
 After `jump('../Target')`, the `error('never runs')` line never runs. `Target` appends its line and falls through to `Tail`, which returns `'tail-reply'`, so the arm's `.text` is `tail-reply`, and `order.txt` holds `Target` and `Tail` on two lines.
 
-A `jump` target inside an arm runs as the arm chain's next section and takes its next `sys.id` (see [Section entry ids](05-lua-environment.md#section-entry-ids)), so in the first arm `Target` sees `sys.id == '0.0.1'`. In a spawned chain, meaning a fanout arm or a task spawned with `opts.item`, `item` and `sys.index` are set only in the first section the chain enters. For an arm that is its worker section, where `sys.index` holds the arm's position, and later sections it reaches, for example by `jump`, have neither, which is why `Target` passes `assert(item == nil)`. For a spawned task, `opts.item` becomes its `item` global and `opts.index` its `sys.index`.
+A `jump` target inside an arm runs as the arm chain's next section and takes its next `sys.id` (see [Section entry ids](05-lua-environment.md#section-entry-ids)), so in the first arm `Target` sees `sys.id == '0.0.1'`. In a spawned chain, meaning a fanout arm or a task spawned with `opts.item`, `item` and `sys.index` are set only in the first section the chain enters. For an arm that is its worker section, where `sys.index` holds the arm's position, and in later sections it reaches, for example by `jump`, the global reads as nil and a read of the field raises, which is why `Target` passes `assert(item == nil)`. For a spawned task, `opts.item` becomes its `item` global and `opts.index` its `sys.index`.
 
-A `jump` from an arm into one of the worker section's own children starts a [child walk](08-jump-and-call.md#child-walks). The target runs as a plain section with no `item`, falls through to its following child siblings, and takes the arm chain's next `sys.id`:
+A `jump` from an arm into one of the worker section's own children starts a [child walk](08-jump-and-call.md#child-walks). The target runs as a plain section where `item` is nil, falls through to its following child siblings, and takes the arm chain's next `sys.id`:
 
 ````markdown
 ---
@@ -881,15 +881,15 @@ return 'child-tail-reply'
 child-tail-reply
 ````
 
-The child walk runs `Child`, which takes the id `0.0.1` and has no `item`, and falls through to `ChildTail`, whose return becomes the arm's `.text`.
+The child walk runs `Child`, which takes the id `0.0.1` and reads `item` as nil, and falls through to `ChildTail`, whose return becomes the arm's `.text`.
 
-When the walk from an arm's `jump` target ends without a result, the arm reports `.text == ''`. If `Target` only appends to `order.txt` and no section follows it, the arm's text is empty.
+When the walk from an arm's `jump` target ends without a result, the arm reports `.text == ''`. If `Target` only appends to `order.txt` and is the last of its siblings, the arm's text is empty.
 
-A `jump` from an arm whose path names no section in the worker section's visible set fails the arm, and the fanout with it. The error's message contains `not found` and names the worker section it searched, such as `/Parent/Worker`, and left uncaught it ends the run with error code `lua_runtime`. In `arm-reach`, a worker section running `jump('../Parent')` fails this way. A `pcall` inside the arm cannot catch this failure, because the target resolves after the block ends.
+A `jump` from an arm whose path misses in the worker section's visible set fails the arm, and the fanout with it. The error's message contains `not found` and names the worker section it searched, such as `/Parent/Worker`, and left uncaught it ends the run with error code `lua_runtime`. In `arm-reach`, a worker section running `jump('../Parent')` fails this way. A `pcall` inside the arm cannot catch this failure, because the target resolves after the block ends.
 
 ### `call` and `require` inside an arm
 
-`call` inside an arm runs a called chain that starts at the target, falls through the target's following siblings as plain sections with no `item` global, and returns its result to the arm:
+`call` inside an arm runs a called chain that starts at the target, falls through the target's following siblings as plain sections where `item` is nil, and returns its result to the arm:
 
 ````markdown
 ---
@@ -929,7 +929,7 @@ return 'tail-reply'
 worker:tail-reply:alpha
 ````
 
-`Sub` has no `return` and falls through to `Tail`, whose `'tail-reply'` comes back to the arm as the value of `call`. The arm's own `item` is still `alpha` after the call returns. A called chain that ends with no text gives the arm `nil`, as it does in any block (see [A call that gets no text](08-jump-and-call.md#a-call-that-gets-no-text)).
+`Sub` ends without a `return` and falls through to `Tail`, whose `'tail-reply'` comes back to the arm as the value of `call`. The arm's own `item` is still `alpha` after the call returns. A called chain that ends with no text gives the arm `nil`, as it does in any block (see [A call that gets no text](08-jump-and-call.md#a-call-that-gets-no-text)).
 
 The called chain starts on a copy of the arm's current model, taken when the `call` is made, so a `models.use` inside the called chain does not reach the arm.
 
@@ -1069,7 +1069,7 @@ Each fanout result has four fields, and `#r` counts the results, one per collect
 
 `.ok` is `true` when the arm completed normally and `false` when the arm's [`models.loop`](11-conversations.md#starting-a-conversation) hit the [round cap](11-conversations.md#tool-rounds-and-the-round-cap). `.exhausted` is the reverse of `.ok`: it is `true` only when the arm's `models.loop` hit the round cap, and `false` when the arm completed normally. [Exhausted arms and the exhausted stub](#exhausted-arms-and-the-exhausted-stub) shows what such a result holds.
 
-A result has no methods, and reading any field other than `text`, `ok`, `item`, or `exhausted` gives `nil`.
+A result holds only its four fields: reading any field other than `text`, `ok`, `item`, or `exhausted` gives `nil`, so a method call on a result raises a Lua error.
 
 ### Collection order and joining results
 
@@ -1086,7 +1086,7 @@ With the worker section from `read-results`, this returns `x-1+y-2+z-3`.
 
 You can also join the results directly with `table.concat(r, sep)`, which gives all arm texts in collection order with `sep` between them, as `read-results` does. That works because `tostring(r[i])` gives the result's `.text`, and the sandbox's `table.concat` converts any value that has a `__tostring` through `tostring`.
 
-To build a string with `..`, you use `r[i].text` or `tostring(r[i])`. A result defines no `__concat`, so applying `..` to the result itself raises a Lua error.
+To build a string with `..`, you use `r[i].text` or `tostring(r[i])`. A result lacks `__concat`, so applying `..` to the result itself raises a Lua error.
 
 ### `.item` and your own values
 
@@ -1133,9 +1133,9 @@ sealed:alpha-1:2
 
 Assigning `r[1].text = 'forged'` raises a Lua error reported at the assigning line, with a message containing `tasks.fanout results are read-only`, and `pcall` catches it. A result cannot be written through raw table access either, because the sandbox removes `rawset` from the globals before your code runs.
 
-`getmetatable` on a result returns a decoy table that holds only a `__tostring` function and no `__index` or `__newindex`, so the result's fields cannot be reached or changed through it. `setmetatable` on a result raises an error instead of replacing its protection: `setmetatable(r[1], nil)` fails with a message containing `protected metatable`, and `setmetatable(r[1], {})` fails too. A result keeps its original fields and its `tostring` text after refused writes and refused metatable changes, and rebinding base globals such as `setmetatable` in your own code does not change how `tasks.fanout` builds its results.
+`getmetatable` on a result returns a decoy table that holds only a `__tostring` function, while the real `__index` and `__newindex` stay hidden, so the result's fields cannot be reached or changed through it. `setmetatable` on a result raises an error instead of replacing its protection: `setmetatable(r[1], nil)` fails with a message containing `protected metatable`, and `setmetatable(r[1], {})` fails too. A result keeps its original fields and its `tostring` text after refused writes and refused metatable changes, and `tasks.fanout` builds its results the same way after your own code rebinds base globals such as `setmetatable`.
 
-Iterating a result with `pairs` visits its four fields in sorted key order, `exhausted`, `item`, `ok`, and `text`, and `next` steps through the same four. A result has no numbered entries, so `#r[1]` is 0 and `ipairs(r[1])` visits nothing.
+Iterating a result with `pairs` visits its four fields in sorted key order, `exhausted`, `item`, `ok`, and `text`, and `next` steps through the same four. Every key of a result is one of those four names, so `#r[1]` is 0 and a loop over `ipairs(r[1])` ends at once.
 
 The list `tasks.fanout` returns is an ordinary Lua table, so you can sort it, append to it, or replace its entries, while the result objects inside it stay read-only. In `sealed-results`, `r[#r + 1] = 'extra'` appends a string to the list, so `#r` becomes 2.
 
@@ -1181,11 +1181,11 @@ Model replies for arms admitted at the same time can land on either arm, so do n
 
 The Harness sets one concurrency limit for the whole run: the most tasks admitted to run at once. Every task counts against it, including fanout arms, tasks started with [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), and the tasks those start in turn. The run's concurrency limit defaults to 8 tasks at once.
 
-Because every task counts against the one limit, a fanout nested inside an arm shares the budget with that arm and every ancestor instead of multiplying it, and the whole run never exceeds the limit. A spawned task's concurrency limit starts out equal to its spawner's, so the tasks it starts run within the concurrency limit of their parent task and of every ancestor task. A prompt run with [`execute`](08-jump-and-call.md#one-run-shared-limits) starts with the limit of the chain that executed it, so a task or a fanout it starts runs within that limit too. The main walk never waits for a slot.
+Because every task counts against the one limit, a fanout nested inside an arm shares the budget with that arm and every ancestor instead of multiplying it, and the whole run stays within the limit. A spawned task's concurrency limit starts out equal to its spawner's, so the tasks it starts run within the concurrency limit of their parent task and of every ancestor task. A prompt run with [`execute`](08-jump-and-call.md#one-run-shared-limits) starts with the limit of the chain that executed it, so a task or a fanout it starts runs within that limit too. The main walk never waits for a slot.
 
 ### How arms are admitted
 
-`tasks.fanout` spawns every arm up front, before it waits on any of them and before any arm is admitted to run, so no arm is ordered after a sibling arm. The arms start in collection order, beginning with the first member, and `tasks.fanout` admits them in collection order as slots free up.
+`tasks.fanout` spawns every arm up front, before it waits on any of them and before any arm is admitted to run, so every arm is unordered with its sibling arms. The arms start in collection order, beginning with the first member, and `tasks.fanout` admits them in collection order as slots free up.
 
 Only as many arms run at once as the concurrency limit allows. The rest wait in a queue without sending any model request until a running arm ends, so with the limit at 1 each arm runs to its end before the next one is admitted, as in `one-at-a-time`. An arm waiting on a model round keeps its slot, so a queued arm is admitted only when a running one ends, and under a limit of 1 the next arm stays queued until the first one ends.
 
@@ -1220,9 +1220,9 @@ return item
 1025:1:1025
 ````
 
-An admitted arm holds its own section VM from admission until it ends, so at most the limit's number of arms plus the parent hold a section VM at once, while queued arms hold none. That keeps a fanout over a large collection within memory bounds set by the concurrency limit.
+An admitted arm holds its own section VM from admission until it ends, so at most the limit's number of arms plus the parent hold a section VM at once, and a queued arm gets its own only at admission. That keeps a fanout over a large collection within memory bounds set by the concurrency limit.
 
-A task started with `tasks.spawn` that is still waiting for a slot reads `state` `running`, `blocked` `queued`, and no `section` in [`tasks.status`](15-tasks.md#checking-on-a-task-with-tasksstatus-tasksready-and-tasksnote), and it first runs only once it is admitted.
+A task started with `tasks.spawn` that is still waiting for a slot reads `state` `running`, `blocked` `queued`, and a nil `section` in [`tasks.status`](15-tasks.md#checking-on-a-task-with-tasksstatus-tasksready-and-tasksnote), and it first runs only once it is admitted.
 
 ### Waiting gives the slot back
 
@@ -1260,15 +1260,15 @@ Under the default run limit of 8, this returns:
 
 The limit governs the tasks the chain spawns from then on, so calling `tasks.concurrency` before a fanout lowers the limit for that fanout's arms. You pass a positive whole number, such as `1` or `16`. A whole-number float such as `2.0` or `8.0` works too: `tasks.concurrency` treats it as the integer `2` or `8`, sets that limit, and returns it exactly as an integer argument would, so `local set = tasks.concurrency(2.0)` passes `assert(set == 2)`. `tasks.concurrency()` with no argument returns the chain's current effective limit without changing it, which is why `c` above reads 2.
 
-A limit set with `tasks.concurrency` is clamped to the parent chain's current limit, or, in the main walk, to the run's concurrency limit that the Harness sets. `tasks.concurrency(n)` sets the limit to the smaller of `n` and the parent's limit, so asking for more than that is never an error: the call clamps silently and returns the clamped value. That is why `a` above reads 8, and with the Harness's limit at 4 the same prompt returns `4|2|2|4`. A prompt that requests a high limit therefore stays portable to Hosts with a tighter limit, and never runs wider than whatever runs it.
+A limit set with `tasks.concurrency` is clamped to the parent chain's current limit, or, in the main walk, to the run's concurrency limit that the Harness sets. `tasks.concurrency(n)` sets the limit to the smaller of `n` and the parent's limit, so asking for more than that is never an error: the call clamps silently and returns the clamped value. That is why `a` above reads 8, and with the Harness's limit at 4 the same prompt returns `4|2|2|4`. A prompt that requests a high limit therefore stays portable to Hosts with a tighter limit, and runs within the limit of whatever runs it.
 
-After lowering the limit, you can raise it again with a later `tasks.concurrency(n)` call, up to the parent's limit, as `d` does. Lowering the limit never stops tasks already running, and it only gates tasks admitted afterward.
+After lowering the limit, you can raise it again with a later `tasks.concurrency(n)` call, up to the parent's limit, as `d` does. Tasks already running keep running when the limit is lowered, and the lower limit only gates tasks admitted afterward.
 
 In the main walk, the limit starts at the run's concurrency limit, and lowering it with `tasks.concurrency` in one section, the preamble included, stays in effect for the sections the walk enters after it. `tasks.concurrency(n)` called inside a spawned task sets how many of that task's own tasks may run at once, so a fanout it runs admits at most `n` arms at once.
 
 ### When `tasks.concurrency` refuses a limit
 
-An argument that is not a positive whole number fails at the call site with an error value of kind `lua` whose message, `tasks.concurrency limit must be a positive whole number, got {type}`, names only the value's type, not the value. This matters when the limit comes from data, such as a number parsed from [`args.text`](06-arguments.md#prompts-with-no-args-key), the one optional string a prompt with no `args:` key takes. Passing `nil` is the same as passing no argument and only reads the limit, so this block turns a text that is missing or is not a number into `0`, which is refused:
+An argument that is not a positive whole number fails at the call site with an error value of kind `lua` whose message, `tasks.concurrency limit must be a positive whole number, got {type}`, names only the value's type, not the value. This matters when the limit comes from data, such as a number parsed from [`args.text`](06-arguments.md#prompts-with-no-args-key), the one optional string a prompt with no `args:` key takes. Passing `nil` is the same as leaving the argument out and only reads the limit, so this block turns a text that is missing or is not a number into `0`, which is refused:
 
 ````lua
 local ok, err = pcall(tasks.concurrency, tonumber(args.text) or 0)
@@ -1279,7 +1279,7 @@ if not ok then
 end
 ````
 
-`tasks.concurrency` accepts whole numbers below 2^64. A whole number at or above 2^64 fails at the call site with an error value of kind `lua` whose message, `{file}:{line}: concurrency limit must be a positive whole number in 64-bit range, got {limit}. The Lua code failed at runtime. Fix the code at this location.`, points at the call and shows the value, unlike the type-only message for other refused arguments, which has no location. So `1e20` reads `got 100000000000000000000`. In both cases the message contains `positive whole number`, and `pcall` catches the error at the call site, as the block above does.
+`tasks.concurrency` accepts whole numbers below 2^64. A whole number at or above 2^64 fails at the call site with an error value of kind `lua` whose message, `{file}:{line}: concurrency limit must be a positive whole number in 64-bit range, got {limit}. The Lua code failed at runtime. Fix the code at this location.`, points at the call and shows the value, unlike the type-only message for other refused arguments, which leaves the location out. So `1e20` reads `got 100000000000000000000`. In both cases the message contains `positive whole number`, and `pcall` catches the error at the call site, as the block above does.
 
 ## Arms as tasks, ids, and events
 
@@ -1421,12 +1421,12 @@ This table gathers the `sys.id` values above for a fanout from a top-level secti
 
 Each fanout arm runs as a task, so the run's event stream shows a `Task started` event for each arm when it begins running, reported under the calling section, and the arm's final event, such as `Task succeeded`, reported under the worker section (see [Task events and task errors](15-tasks.md#task-events-and-task-errors)). When a `Research` section fans out two arms to `Worker`, the stream holds two `Task started` events under `Research` and two `Task succeeded` events under `Worker`.
 
-- A successful arm emits exactly one `Task started` event and one `Task succeeded` event, and no failed, canceled, or abandoned event.
+- A successful arm emits exactly one `Task started` event and one `Task succeeded` event, and that success is its only final event.
 - An arm that answers with `tasks.reply` emits `Task canceled` in place of `Task succeeded`, because the call cancels it once it takes the reply, unless the [idle cap](15-tasks.md#the-idle-cap) closed it first.
 - An arm's `Task started` event reports under the caller section, the section whose Lua called `tasks.fanout`, so two arms fanned out from `Research` both start under `Research`.
 - Every arm of one fanout runs the same worker section, and each arm's final task event reports under that worker section's name rather than the caller's, so two arms both succeed under `Worker`.
 - An arm's `Task started` event carries the arm's task id, the worker section as its target, the arm's `item`, and its `sys.index` as `index`, so the stream shows which arm each start belongs to. The arm's final event carries the same task id.
-- An arm waiting for a slot under the concurrency limit reports `Task started` only when it is admitted, so an arm canceled while still queued reports no start and no final event. A fanout with a concurrency limit of 2 over `{'boom', 'slow', 'queued'}`, where the `boom` arm fails, ends with only `0.0` failed and `0.1` canceled, and the queued arm never starts.
+- An arm waiting for a slot under the concurrency limit reports `Task started` only when it is admitted, so an arm canceled while still queued stays silent in the event stream. A fanout with a concurrency limit of 2 over `{'boom', 'slow', 'queued'}`, where the `boom` arm fails, ends with only `0.0` failed and `0.1` canceled, and the queued arm never starts.
 - An exhausted arm still reports a failed task event while its successful sibling reports a `Task succeeded` event, because the exhausted stub is the fanout's recovery, not the arm's (see [Exhausted arms and the exhausted stub](#exhausted-arms-and-the-exhausted-stub)).
 
 In a fanout arm, each model round produces debug captures for the run, tagged with the worker section's name, so an arm's captures under `Worker` include a `Request` and a `Response`.
@@ -1465,19 +1465,19 @@ The arms of a fanout and the section that called `tasks.fanout` all use one stor
 
 An arm can read the files the caller wrote before it called `tasks.fanout`, because starting an arm orders everything the caller did in the store before that point ahead of the arm's first step. It is the same rule that lets a `tasks.spawn` task build on the files its owner wrote. Any number of arms can read such a file, because two reads never conflict.
 
-`tasks.fanout` joins every arm before it returns, so afterward the caller can read, glob, and merge every arm's store writes freely, including a file each arm wrote to its own path. While the arms run, though, they never see each other's store writes, whatever order they are admitted in, because `tasks.fanout` starts every arm before it waits on or collects any of them, so no arm is ordered after a sibling.
+`tasks.fanout` joins every arm before it returns, so afterward the caller can read, glob, and merge every arm's store writes freely, including a file each arm wrote to its own path. While the arms run, though, they never see each other's store writes, whatever order they are admitted in, because `tasks.fanout` starts every arm before it waits on or collects any of them, so every arm is unordered with its siblings.
 
 ### Store conflicts
 
-Two accesses make a store conflict when they touch the same store path, at least one of them writes, they come from different arms, and nothing orders one arm before the other. So two unordered arms that touch one path with a write never silently race, while any number of arms may read the same path. Two arms writing the same store path, as in `shared-path`, end the whole run with error code `determinism`.
+Two accesses make a store conflict when they touch the same store path, at least one of them writes, they come from different arms, and the two arms are unordered. So two unordered arms that touch one path with a write never silently race, while any number of arms may read the same path. Two arms writing the same store path, as in `shared-path`, end the whole run with error code `determinism`.
 
 A cross-arm conflict is unconditional and never depends on timing. Sibling arms never join each other, and a claim on a path stands for as long as its store lasts, even after the arm that made it ends (see [Races, claims, and determinism](09-the-store.md#races-claims-and-determinism)). So whichever of two conflicting accesses runs second always meets the first one's claim, in every interleaving.
 
-Of two conflicting arm accesses, the second never reaches the store, so exactly one arm's change lands, and the run's [store run events](09-the-store.md#store-run-events) show one call that succeeded and one that failed. Which arm wins is not fixed: when two arms each add their member and a newline to `notes.md`, the append that succeeds is the one for `alpha` or the one for `beta`, never both.
+Of two conflicting arm accesses, the claims check refuses the second, so exactly one arm's change lands, and the run's [store run events](09-the-store.md#store-run-events) show one call that succeeded and one that failed. Either arm can win: when two arms each add their member and a newline to `notes.md`, the append that succeeds is the one for `alpha` or the one for `beta`, never both.
 
-A store conflict ends the run at once. The losing arm never resumes, no arm counts as failed, an arm that has not finished when the conflict lands is abandoned with the run, and at most the winning arm reports success. So two conflicting arms both report `Task started`, neither reports a failed task event, and at most one reports `Task succeeded`.
+A store conflict ends the run at once. The losing arm never resumes, the run alone counts as failed, an arm that has not finished when the conflict lands is abandoned with the run, and at most the winning arm reports success. So two conflicting arms both report `Task started`, neither reports a failed task event, and at most one reports `Task succeeded`.
 
-A cross-arm store conflict cannot be caught with `pcall`, not even a `pcall` wrapped around the store call inside the arm, because the conflict never resumes into the arm. When the arms run `pcall(store.append, 'notes.md', item .. '\n')`, the run still ends with the store conflict instead of returning `alpha,beta`.
+A cross-arm store conflict cannot be caught with `pcall`, not even a `pcall` wrapped around the store call inside the arm, because the run ends while the arm is still paused in that call. When the arms run `pcall(store.append, 'notes.md', item .. '\n')`, the run still ends with the store conflict instead of returning `alpha,beta`.
 
 ### Which store calls can conflict
 
@@ -1491,13 +1491,13 @@ Every store call can take part in a conflict, not just writes:
 
 A sibling's write to any path a `store.glob` pattern matches conflicts with the glob. Any of these calls that touches a path a sibling arm writes ends the run with a store conflict, whichever arm runs first.
 
-`store.append` claims its path for writing just like `store.write`, so two arms appending to one file conflict even though neither overwrites the other. When both arms run `store.append('log.txt', item .. ';')`, the run ends with the store conflict instead of returning the joined results, and the error names `log.txt`.
+`store.append` claims its path for writing just like `store.write`, so two arms appending to one file conflict even though each append only adds to the file. When both arms run `store.append('log.txt', item .. ';')`, the run ends with the store conflict instead of returning the joined results, and the error names `log.txt`.
 
 An arm whose `store.read`, `store.exists`, or `store.glob` touches a path a sibling arm is writing ends the run with the same store conflict in every interleaving. So arms coordinate only through the results `tasks.fanout` returns, never through store files a sibling is writing, and they cannot meet by polling each other's marker files while the sibling is still running.
 
 ### The safe store pattern
 
-The safe store pattern for a fanout is that each arm writes only its own path, built from `sys.index`, so no two arms ever claim one path, and the caller merges the per-arm files by index after `tasks.fanout` returns:
+The safe store pattern for a fanout is that each arm writes only its own path, built from `sys.index`, so each path is claimed by a single arm, and the caller merges the per-arm files by index after `tasks.fanout` returns:
 
 ````markdown
 ---
@@ -1579,7 +1579,7 @@ The arm for `boom` raises `fatal arm error`. The fanout fails with that arm's ow
 
 The error `tasks.fanout` raises is the failing arm's own error value, with its original kind and message, and its message keeps the line where the arm failed (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). It is not wrapped and it is not a cancellation error, so an arm that called `error('message')` produces an error of kind `lua`. Any other arm error fails the fanout the same way, for example a failed model round, or a `models.use` call inside the arm that names something that is not one of the five model roles, such as `models.use('ghost')`.
 
-A fanout failure is raised as an ordinary Lua error at the `tasks.fanout` call, inside the section that made the call. If nothing catches it, that section's Lua block fails, and the whole run ends with the arm's error. An arm that called `error('arm deliberately failed')` ends the run with error code `lua_runtime` and a run error message that keeps the arm's original message text and ends with ` (at {file}:{line})` for the arm's line, and any other uncaught arm error ends the run with that error's code and message.
+A fanout failure is raised as an ordinary Lua error at the `tasks.fanout` call, inside the section that made the call. Left uncaught, it fails that section's Lua block, and the whole run ends with the arm's error. An arm that called `error('arm deliberately failed')` ends the run with error code `lua_runtime` and a run error message that keeps the arm's original message text and ends with ` (at {file}:{line})` for the arm's line, and any other uncaught arm error ends the run with that error's code and message.
 
 When a fanout raises, you get no partial results, not even from arms that had already finished. When several arms have already ended by the time the fanout checks on them, the arm earliest in collection order is handled first, so when failures happen at the same time, the earliest arm's failure is the one raised.
 
@@ -1654,9 +1654,9 @@ An arm whose `models.loop` hits the round cap still reports a `Task failed` even
 
 ### When the run is canceled
 
-When the run is already canceled as a fanout starts, the fanout runs none of its arms, and the run ends with the error whose code is `canceled` (see [Cancellation and stops](16-limits-and-errors.md#cancellation-and-stops)).
+When the run is already canceled as a fanout starts, the run ends with the error whose code is `canceled` instead of running the fanout's arms (see [Cancellation and stops](16-limits-and-errors.md#cancellation-and-stops)).
 
-If the Host cancels the run while arms are waiting on model replies, the run ends at once with code `canceled`. The waiting arms' pending model requests are dropped without waiting for their replies, and no arm outlives the run. Each started arm reports one `Task abandoned` event naming the run's end, and no `Task canceled` or `Task failed` event.
+If the Host cancels the run while arms are waiting on model replies, the run ends at once with code `canceled`. The waiting arms' pending model requests are dropped without waiting for their replies, and every arm that has not finished ends with the run. Each started arm reports one `Task abandoned` event naming the run's end, in place of a `Task canceled` or `Task failed` event.
 
 ## Collection and argument errors
 
@@ -1698,7 +1698,7 @@ The empty collection raises a collection error, the ordinary error value of kind
 
 The checks run in a fixed order, and the first broken rule is the one reported: first the argument count and, with three arguments, the check that the first one is a model handle (see [Argument errors](#argument-errors)), then the check that the collection is a table, then each array-part member in position order, then each keyed pair with its key checked before its member, then the empty check. Only then does `tasks.fanout` spawn arms.
 
-The empty-collection error fires at the call site before any arm is spawned. The worker section never runs, its store writes never land, no arm start is reported, and the call never hands back a zero-result list. An empty collection means no work, which is likely a bug, such as a table a loop never filled or a wrong variable.
+The empty-collection error fires at the call site before any arm is spawned. The worker section never runs, so the store and the run's task events stay as they were, and the call raises instead of handing back a zero-result list. An empty collection means no work, which is likely a bug, such as a table a loop never filled or a wrong variable.
 
 ### Argument errors
 
@@ -1706,7 +1706,7 @@ A call with the wrong number of arguments raises an error value of kind `lua` wi
 
 ### Each collection error
 
-Every broken collection rule raises an error value of kind `lua` whose `message` is that rule's message, with no location, except the last rule, which is checked as each arm spawns and whose message gains the call's location and the Lua runtime prose, as the end of this section shows. This table gives each rule, a call that breaks it, and the message it raises:
+Every broken collection rule raises an error value of kind `lua` whose `message` is that rule's message alone, except the last rule, which is checked as each arm spawns and whose message gains the call's location and the Lua runtime prose, as the end of this section shows. This table gives each rule, a call that breaks it, and the message it raises:
 
 | Rule | A call that breaks it | Message |
 |---|---|---|
@@ -1722,7 +1722,7 @@ The collection argument to `tasks.fanout` must be a Lua table, and any other val
 
 Members must be data, so a member that is a function, userdata, or thread raises `fanout collection member at index {index} is a {type}; members must be data`. For an array-part member, `{index}` is its position, as in the table above. For a keyed member, `{index}` is the key as plain text: a string key's own text, `true` or `false`, an integer's decimal digits, or a float in its usual form such as `2.5`. So a function stored under the key `cb`, as in `{cb = function() end}`, raises `fanout collection member at index cb is a function; members must be data`. A `json.null` member passes this check, so `tasks.fanout('Worker', { json.null })` runs one arm, and in that arm `item == json.null` is true and `item == nil` is false.
 
-Every collection key must be a string, number, or boolean, and a key of any other type raises `fanout collection key must be a string, number, or boolean, got {type_name}`, naming the key's Lua type. Every number key must be finite, since a key that is not finite has no ordered position. Every string key must be valid UTF-8, and a key whose bytes are not valid UTF-8 raises a `lua` error that carries the Lua runtime's own string conversion message, with no fanout-specific wording.
+Every collection key must be a string, number, or boolean, and a key of any other type raises `fanout collection key must be a string, number, or boolean, got {type_name}`, naming the key's Lua type. Every number key must be finite, since a number has a place in the key order only when it is finite. Every string key must be valid UTF-8, and a key whose bytes are not valid UTF-8 raises a `lua` error that carries the Lua runtime's own string conversion message, with no fanout-specific wording.
 
 The call-time member check looks only at each member's own type and not inside it. A table member that holds a function, such as `{ f = function() end }`, passes the call-time check but fails when `tasks.fanout` spawns its arm, with `item must be a JSON-representable value: {error}`. The call then cancels the arms it already spawned and raises that `lua` error. Because the arm's spawn refuses it rather than the call-time check, its message points at the `tasks.fanout` line, as `{file}:{line}: item must be a JSON-representable value: {error}. The Lua code failed at runtime. Fix the code at this location.`
 
