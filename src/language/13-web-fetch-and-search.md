@@ -55,19 +55,19 @@ Both tools return untrusted output, which is tool output whose trust level is un
 
 ### What the Host supplies
 
-A prompt can use the web Pack only on a Host that calls the web Plugin, which adds the Pack under its fully qualified name, `runvil/web`. The Host also supplies the search provider, the Host-wide service `runvil/search-provider` that every web search runs through. The prompt never sees the search provider, and it never sees the client that fetches pages either.
+A prompt can use the web Pack only on a Host that calls the web Plugin, which adds the Pack under its fully qualified name, `runvil/web`. The Host also supplies the search provider, the Host-wide service `runvil/search-provider` that every web search runs through. The Pack holds the search provider and the client that fetches pages, and a prompt reaches both only through the Pack's two tools.
 
-Neither web tool takes a credential argument, so a prompt never supplies an API key, a gateway address, or a token. The fetch tool's only arguments are `url`, `max_chars`, and `raw`. The search tool accepts only `query`, `count`, `freshness`, `country`, `search_lang`, `safesearch`, `include_domains`, and `exclude_domains`, and no other argument.
+Both web tools leave credentials out of their arguments, so a prompt never supplies an API key, a gateway address, or a token. The fetch tool's only arguments are `url`, `max_chars`, and `raw`. The search tool accepts only `query`, `count`, `freshness`, `country`, `search_lang`, `safesearch`, `include_domains`, and `exclude_domains`, and refuses any other argument.
 
 ### Pack ids and tool ids
 
-The web Pack's Pack id is `web`, the second segment of its fully qualified name `runvil/web`, and no Host can give it another. Each web tool id is the Pack id, a slash, and the tool name, so the fetch tool is `web/fetch` and the search tool is `web/search`.
+The web Pack's Pack id is `web`, the second segment of its fully qualified name `runvil/web`, and it is the same on every Host. Each web tool id is the Pack id, a slash, and the tool name, so the fetch tool is `web/fetch` and the search tool is `web/search`.
 
 ### Declared or not, the tools are there
 
-The web Pack has no prelude, so it defines nothing in the prompt's Lua environment, and you work with the web tools by tool id (see [Pack preludes](12-tools.md#pack-preludes)). Declaring `web` under `uses:` makes the Pack a required Pack for the prompt, and because there is no prelude, the declaration adds no Lua names.
+The web Pack lacks a prelude, so it leaves the prompt's Lua environment as it is, and you work with the web tools by tool id (see [Pack preludes](12-tools.md#pack-preludes)). Declaring `web` under `uses:` makes the Pack a required Pack for the prompt, and since the Pack lacks a prelude, the declaration leaves the prompt's Lua names as they were.
 
-You reach both web tools by id, as in `tools.call("web/search", ...)` or `tools.offer("web/fetch")`, whether or not the prompt declares the Pack, because a run receives the tools of every usable Pack the Host has, declared or not. On a Host that has the web Pack, this prompt has no `uses:` key and gives the same run result as `fetch-page`:
+You reach both web tools by id, as in `tools.call("web/search", ...)` or `tools.offer("web/fetch")`, whether or not the prompt declares the Pack, because a run receives the tools of every usable Pack the Host has, declared or not. On a Host that has the web Pack, this prompt leaves out the `uses:` key and gives the same run result as `fetch-page`:
 
 ````markdown
 ---
@@ -114,10 +114,10 @@ Each setup problem has its own reason:
 | Host setup | Unavailable reason |
 |---|---|
 | A configuration other than `null` or `{}` | `web takes no configuration` |
-| No search provider | `web needs runvil/search-provider, and this host provides none` |
-| No Tokio runtime service | `web needs runvil/tokio-runtime, and this host provides none` |
+| A missing search provider | `web needs runvil/search-provider, and this host provides none` |
+| A missing Tokio runtime service | `web needs runvil/tokio-runtime, and this host provides none` |
 
-The web Pack takes no configuration, so it accepts `{}` as well as `null`. When the Pack has several setup problems at once, its reason names only the first, in the order of the table: a bad configuration comes before a missing search provider, and a missing search provider comes before a missing Tokio runtime service.
+The web Pack accepts only an empty configuration, and `{}` counts as empty as well as `null`. When the Pack has several setup problems at once, its reason names only the first, in the order of the table: a bad configuration comes before a missing search provider, and a missing search provider comes before a missing Tokio runtime service.
 
 When the web Pack is unavailable and the prompt does not declare it, offering the whole Pack fails the run (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)):
 
@@ -188,9 +188,9 @@ For an HTML page, fetch by default returns only the main article. Readability ex
 
 When readability extraction yields fewer than 100 bytes of article markdown after trimming whitespace, including a page where it finds no article at all, fetch converts the whole HTML page to markdown instead and the header reads `extraction: raw-html`. The threshold counts bytes, not characters. So a short page with no real article, such as `<div>short</div>`, still returns its text through the whole-page conversion.
 
-Rendering an HTML page never fails the fetch. If even the whole-page conversion fails, the short text from readability extraction comes back, still labelled `extraction: raw-html`, and at worst the text body is empty.
+Rendering an HTML page always yields a text body. If even the whole-page conversion fails, the short text from readability extraction comes back, still labelled `extraction: raw-html`, and at worst the text body is empty.
 
-For a text resource that is not HTML, such as JSON, XML, or plain text, fetch returns the decoded body verbatim with no extraction, and the header reads `extraction: plain`. [Content types and charsets](#content-types-and-charsets) lists which responses take which path.
+For a text resource that is not HTML, such as JSON, XML, or plain text, fetch skips extraction and returns the decoded body verbatim, and the header reads `extraction: plain`. [Content types and charsets](#content-types-and-charsets) lists which responses take which path.
 
 ### Limiting the text with `max_chars`
 
@@ -204,7 +204,7 @@ return tools.call('web/fetch', { url = 'https://example.com/long-article', max_c
 ```
 ````
 
-`max_chars` runs from 1 up to 40,000, which is fetch's character limit. When the call omits `max_chars` or passes it as `null`, the full 40,000 limit applies to that call. A `max_chars` above 40,000 is quietly lowered to 40,000 rather than refused. The limit is always 40,000, because the web Pack takes no configuration. The model reads this description of the argument:
+`max_chars` runs from 1 up to 40,000, which is fetch's character limit. When the call omits `max_chars` or passes it as `null`, the full 40,000 limit applies to that call. A `max_chars` above 40,000 is quietly lowered to 40,000 rather than refused. The limit is always 40,000, because the web Pack accepts only an empty configuration. The model reads this description of the argument:
 
 ````text
 Maximum number of characters of text to return for this call. Clamped to the configured ceiling. Longer text is truncated on a character boundary and the result is flagged as truncated.
@@ -226,7 +226,7 @@ return tools.call('web/fetch', { url = 'https://example.com/prices', raw = true 
 
 With `raw` set to `true`, fetch converts the whole HTML document to markdown and the header reads `extraction: raw-html`, so content such as the rows of a table page survives. A model asks for the same fetch with the JSON arguments `{"url": "https://example.com/prices", "raw": true}`.
 
-`raw` defaults to `false`, and a `raw` of `null` also means `false`. `raw` has no effect on a response that is not HTML, so it changes nothing for JSON, XML, or plain text.
+`raw` defaults to `false`, and a `raw` of `null` also means `false`. Fetch ignores `raw` on a response that is not HTML, so JSON, XML, or plain text comes back the same either way.
 
 ### What the model sees for fetch
 
@@ -279,7 +279,7 @@ A call passes one JSON argument object whose `query` names what to search for. `
 
 Every `web/search` call runs through the search provider the Host supplies, the Host-wide service with the id `runvil/search-provider`, and never through one the prompt chooses. So the results you see depend on which search provider the Host supplies.
 
-The search provider owns the search transport and its deadline, so a prompt never sees or supplies the search vendor's credential. The web Pack accepts no configuration but `null` or `{}`, and none of the eight search arguments is a credential. Under Workshop, every search goes through Workshop's Runvil gateway, which keeps the search vendor's credential on the server and receives only the Gateway's key, so the prompt never touches a search credential.
+The search provider owns the search transport and its deadline, so the search vendor's credential stays wherever the search provider keeps it, out of the prompt's reach. The web Pack accepts only `null` or `{}` as its configuration, and the eight search arguments do not include a credential. Under Workshop, every search goes through Workshop's Runvil gateway, which keeps the search vendor's credential on the server and receives only the Gateway's key, so the prompt never touches a search credential.
 
 ### Reading the search results
 
@@ -301,11 +301,11 @@ A row includes `age`, `site_name`, and `extra_snippets` only when they hold some
 {"query":"rust","results":[{"title":"Rust","url":"https://www.rust-lang.org/","description":"A language.","age":"2 days ago","site_name":"www.rust-lang.org","extra_snippets":["Fast.","Safe."]},{"title":"","url":"https://e.com","description":""}]}
 ````
 
-Results appear in the order the search returns them. No field beyond `query`, `results`, and the row fields `title`, `url`, `description`, `age`, `site_name`, and `extra_snippets` reaches the prompt. Every result a successful search returns has a non-empty `url`, because a search provider response with any blank url is rejected whole before any output is built, and that rejection fails the call (see [Soft failures and hard failures](#soft-failures-and-hard-failures)).
+Results appear in the order the search returns them. Only `query`, `results`, and the row fields `title`, `url`, `description`, `age`, `site_name`, and `extra_snippets` reach the prompt. Every result a successful search returns has a non-empty `url`, because a search provider response with any blank url is rejected whole before any output is built, and that rejection fails the call (see [Soft failures and hard failures](#soft-failures-and-hard-failures)).
 
 `web/search` output is marked untrusted because it is external content that embeds third-party titles, URLs, and descriptions. It is wrapped with a nonce before it reaches model input, and the results reach the model as untrusted tool output.
 
-To read the results as data in Lua, use the same cut-and-decode as [Decoding a fetched JSON body](#decoding-a-fetched-json-body), but since search results have no header block, cut everything between the tags with `string.match` and the pattern `'<untrusted_input_%x+>\n(.*)\n</untrusted_input_%x+>$'` before passing it to `json.decode`.
+To read the results as data in Lua, use the same cut-and-decode as [Decoding a fetched JSON body](#decoding-a-fetched-json-body), but since the envelope of a search result holds the JSON alone, cut everything between the tags with `string.match` and the pattern `'<untrusted_input_%x+>\n(.*)\n</untrusted_input_%x+>$'` before passing it to `json.decode`.
 
 ### The search arguments
 
@@ -350,7 +350,7 @@ The optional `safesearch` argument sets the SafeSearch filtering level and accep
 
 The optional `include_domains` argument is a list of hostnames, and the search keeps only results from those sites, such as `"include_domains": ["example.com"]`. The optional `exclude_domains` argument is a list of hostnames whose results the search drops, such as `"exclude_domains": ["example.com"]`.
 
-Each list holds at most 20 bare hostnames, and a longer list is refused. Each entry must be non-blank, at most 128 characters, and free of `/`, whitespace, and control characters, and both lists get the same checks. Omitting either list is the same as passing an empty list, and an empty list is valid, because the lists have a maximum length but no minimum. From Lua, write an empty list as `json.array()`, as in `include_domains = json.array()`, because a bare `{}` is sent as the empty object `{}`, which is the wrong JSON type for a domain list (see [Encoding and decoding JSON with `json`](05-lua-environment.md#encoding-and-decoding-json-with-json)). A list the call omits applies no filter on that side and reaches the search provider as an empty list.
+Each list holds at most 20 bare hostnames, and a longer list is refused. Each entry must be non-blank, at most 128 characters, and free of `/`, whitespace, and control characters, and both lists get the same checks. Omitting either list is the same as passing an empty list, and an empty list is valid, because the only limit on a list's length is the maximum. From Lua, write an empty list as `json.array()`, as in `include_domains = json.array()`, because a bare `{}` is sent as the empty object `{}`, which is the wrong JSON type for a domain list (see [Encoding and decoding JSON with `json`](05-lua-environment.md#encoding-and-decoding-json-with-json)). A list the call omits lets every result through on that side and reaches the search provider as an empty list.
 
 ### What the model sees for search
 
@@ -407,7 +407,7 @@ url must not contain userinfo
 
 ### Soft fetch failures
 
-When a fetch fails because of the target, the network, or the response, `web/fetch` does not fail the call. It returns the failure as untrusted tool text, so the model can try a different URL. These are the soft failures:
+When a fetch fails because of the target, the network, or the response, the `web/fetch` call still completes. It returns the failure as untrusted tool text, so the model can try a different URL. These are the soft failures:
 
 - a timeout
 - an HTTP error status
@@ -475,7 +475,7 @@ These are the eleven soft messages:
 | A body that breaks off | `the response body from {url} could not be read; try again or use a different URL` |
 | Any other network error | `fetch failed for {url}: network error; try a different URL` |
 
-There is no refusal for a blocked IP-literal address with the web Pack. That refusal applies only when IP-literal hosts are allowed, which is off by default and which the web Pack's configuration cannot turn on.
+With the web Pack, a blocked IP-literal address gets the IP-literal host refusal, as every IP-literal host does. A refusal of its own applies only when IP-literal hosts are allowed, which is off by default and which the web Pack's configuration cannot turn on.
 
 ### Status codes, name lookups, and network errors
 
@@ -487,11 +487,11 @@ Any other send failure, or any other network error during a fetch, comes back as
 
 ### Bodies that cannot be read
 
-Body-read failures, both the size cap and a failure partway through the download, are always soft and never fail the call. A body that fails partway through reading is a soft return for HTML, JSON and XML, and plain text alike. It never comes back as partial text: the text read so far is dropped and only the failure message returns.
+Body-read failures, both the size cap and a failure partway through the download, are always soft. A body that fails partway through reading is a soft return for HTML, JSON and XML, and plain text alike. It never comes back as partial text: the text read so far is dropped and only the failure message returns.
 
 A body that breaks off mid-download comes back as the soft text `the response body from {url} could not be read; try again or use a different URL`, so the model can try a different URL. The other possible outcome is the catch-all `fetch failed for {url}: network error; try a different URL`, so when a plain-text body breaks off partway through, the returned text either says the body `could not be read` or names a `network error`.
 
-The only way a fetched body fails to decode is an unrecognized charset label, and that failure comes back as soft text for HTML, JSON and XML, and plain text alike. A body with no charset or a UTF-8 charset always decodes, lossily if needed, and never fails.
+The only way a fetched body fails to decode is an unrecognized charset label, and that failure comes back as soft text for HTML, JSON and XML, and plain text alike. A body with no charset or a UTF-8 charset always decodes, lossily if needed.
 
 ### What fetch messages show
 
@@ -501,15 +501,15 @@ Several fetch messages end with a hint about the next step:
 - An HTTP error status, a missing content type, or the catch-all network error says `try a different URL`.
 - An unsupported content type says `try an HTML version of the page or a different URL`.
 
-No fetch message repeats the underlying transport, resolver, or URL-parser cause. A URL that does not parse reads only `invalid url`, a failed lookup reads only `dns resolution failed for {host}`, a failed body read names no transport detail, and the catch-all names no network detail.
+Every fetch message leaves out the underlying transport, resolver, or URL-parser cause. A URL that does not parse reads only `invalid url`, a failed lookup reads only `dns resolution failed for {host}`, a failed body read omits the transport detail, and the catch-all omits the network detail.
 
-Messages built from a named failure, meaning an HTTP status, a content type, a charset, the size cap, a body read, a time limit, or a refused redirect, show the URL with only its scheme, host, port, and path. A query string, credentials, or a fragment never appears in them, so `https://user:pass@host.example:8443/a/b?x=secret#frag` shows as `https://host.example:8443/a/b`. A secret in a fetched URL's query string, such as `?token=...`, never appears in a named-failure message the model sees, while the host and path remain for diagnosis.
+Messages built from a named failure, meaning an HTTP status, a content type, a charset, the size cap, a body read, a time limit, or a refused redirect, show the URL with only its scheme, host, port, and path. A query string, credentials, and a fragment are stripped from the URL, so `https://user:pass@host.example:8443/a/b?x=secret#frag` shows as `https://host.example:8443/a/b`. A secret in a fetched URL's query string, such as `?token=...`, never appears in a named-failure message the model sees, while the host and path remain for diagnosis.
 
 Because fetch drops a `#fragment` from the `url` argument before the request (see [Query strings and fragments](#query-strings-and-fragments)), the fragment never reaches the catch-all network error message, and named-failure messages drop any fragment too. The catch-all message shows the URL as requested and the provenance header's `url:` line shows the final URL, and both keep the query string.
 
 ### Search failures
 
-A `web/search` call whose arguments are accepted can still fail on the network or at the gateway, and every search failure fails the call, with none coming back as soft text. A failed `web/search` call has a tool error kind that tells the causes apart:
+A `web/search` call whose arguments are accepted can still fail on the network or at the gateway, and every search failure is a hard failure that fails the call. A failed `web/search` call has a tool error kind that tells the causes apart:
 
 | Tool error kind | Cause |
 |---|---|
@@ -565,7 +565,7 @@ The run result is:
 refused: {file}:{line}: url must not contain userinfo
 ````
 
-Your Lua cannot read which web tool failure happened from a field on the error value, because every web tool failure reaches Lua with `err.kind` set to `tool` and no extra fields, and its `code` names only the class of tool failure, such as `tool_invalid_arguments`. To tell which fetch failure you caught, search `tostring(err)` for the tool's message text, as in `string.find(tostring(err), 'userinfo', 1, true)`, because `tostring(err)` returns the error's message, the `tools.call` line and then the tool's own message, such as `{file}:{line}: url must not contain userinfo` (see [Where an error points](16-limits-and-errors.md#where-an-error-points)).
+Your Lua cannot read which web tool failure happened from a field on the error value, because every web tool failure reaches Lua with just three fields: `err.kind` set to `tool`, the message, and a `code` that names only the class of tool failure, such as `tool_invalid_arguments`. To tell which fetch failure you caught, search `tostring(err)` for the tool's message text, as in `string.find(tostring(err), 'userinfo', 1, true)`, because `tostring(err)` returns the error's message, the `tools.call` line and then the tool's own message, such as `{file}:{line}: url must not contain userinfo` (see [Where an error points](16-limits-and-errors.md#where-an-error-points)).
 
 Catch a search failure the same way: wrap the call in `pcall` and check `err.kind == 'tool'`, just as for a hard fetch failure. Both a search provider failure and a result with an empty `url` fail the call like this.
 
@@ -579,7 +579,7 @@ An uncaught search failure ends the run the same way, with the tool code its too
 
 ### Messages reach you unchanged
 
-A web tool's output and errors reach the caller exactly as the fetch or search tool produces them, and the Pack adds no wrapping of its own. A caught error's message only gains the call's `{file}:{line}: ` in front, and a model reads the message alone. The tools' own messages keep fixed prefixes. Fetch argument errors start with `web_fetch:`, such as `web_fetch: missing url argument`, `web_fetch: max_chars must be a positive integer`, and `web_fetch: raw must be a boolean`. Every search error starts with `web_search:`, such as `web_search: malformed search response: ...` and `web_search: the results could not be rendered`.
+A web tool's output and errors reach the caller exactly as the fetch or search tool produces them, and the Pack passes them on as they are. A caught error's message only gains the call's `{file}:{line}: ` in front, and a model reads the message alone. The tools' own messages keep fixed prefixes. Fetch argument errors start with `web_fetch:`, such as `web_fetch: missing url argument`, `web_fetch: max_chars must be a positive integer`, and `web_fetch: raw must be a boolean`. Every search error starts with `web_search:`, such as `web_search: malformed search response: ...` and `web_search: the results could not be rendered`.
 
 ### Offering a web tool to the model
 
@@ -637,7 +637,7 @@ The prose also tells the model that everything `web_fetch` returns is untrusted 
 
 ### Failures inside `models.loop`
 
-Inside `models.loop`, soft and hard fetch failures alike reach the model as the result text of its tool call, wrapped in the untrusted envelope, and the loop goes on so the model can try a different URL. A hard failure reaches the model as the tool's own message alone, with no location in front. A search failure reaches the model the same way, as the result text of its tool call, wrapped in the untrusted envelope, and the loop goes on. So a hard failure that the model's tool call meets does not end the run the way an uncaught failure in your own `tools.call` does.
+Inside `models.loop`, soft and hard fetch failures alike reach the model as the result text of its tool call, wrapped in the untrusted envelope, and the loop goes on so the model can try a different URL. A hard failure reaches the model as the tool's own message alone, with no location in front. A search failure reaches the model the same way, as the result text of its tool call, wrapped in the untrusted envelope, and the loop goes on. So the run goes on after a hard failure that the model's tool call meets, where an uncaught failure in your own `tools.call` ends it.
 
 ### Tool objects for the web tools
 
@@ -720,17 +720,17 @@ When the server answers with the same body as in `fetch-data`, the run result is
 value
 ````
 
-The pattern relies on the envelope's fixed layout (see [The envelope shape](09-the-store.md#the-envelope-shape)). The first blank line in the string ends the provenance header, the close tag is the last line with no newline after it, and the capture is everything between the two, which is the body. `json.decode` turns that body into a table, so `data.key` reads `value`, `#data.numbers` is `3`, and `data.nested.ok` is `true`.
+The pattern relies on the envelope's fixed layout (see [The envelope shape](09-the-store.md#the-envelope-shape)). The first blank line in the string ends the provenance header, the close tag is the last line and ends the string, and the capture is everything between the two, which is the body. `json.decode` turns that body into a table, so `data.key` reads `value`, `#data.numbers` is `3`, and `data.nested.ok` is `true`.
 
 The text you cut out is the envelope's escaped copy of the body. The envelope has already escaped every `<` as `&lt;`, broken every copy of the run's nonce with a space, and put a space after the opener of chat-template markup such as `[INST]` (see [What the envelope escapes](12-tools.md#what-the-envelope-escapes)), so a string value can differ from what the server sent. A body of `{"html":"<b>hi</b>"}` decodes with `html` reading `&lt;b>hi&lt;/b>`.
 
 Decoded strings are plain Lua strings, outside any envelope, even though they came from an untrusted tool. Wrap one with `untrusted` before it reaches a model, as in `untrusted(data.key)` (see [Handing store text to a model with `untrusted`](09-the-store.md#handing-store-text-to-a-model-with-untrusted)).
 
-A [soft failure](#soft-fetch-failures) has no header block, so `page:match` returns `nil` and `json.decode` raises `json.decode expects a string, got nil`. A body that `max_chars` cut short, which the header marks `truncated: true`, is no longer a whole JSON document, so `json.decode` raises on it too. Wrap the decode in `pcall` when either can happen.
+The envelope of a [soft failure](#soft-fetch-failures) holds the failure message alone, so `page:match` returns `nil` and `json.decode` raises `json.decode expects a string, got nil`. A body that `max_chars` cut short, which the header marks `truncated: true`, is no longer a whole JSON document, so `json.decode` raises on it too. Wrap the decode in `pcall` when either can happen.
 
 ### Which content types fetch accepts
 
-The response's `Content-Type` header decides how `web/fetch` handles a page. An HTML type is rendered to markdown, a JSON or XML type comes back whole, every other `text/*` type comes back as plain text, and every other type is refused. Each accepted body is decoded with the charset the header declares. The set of content types that fetch accepts is built in, and no [fetch policy](#the-fetch-policy-and-anonymous-requests) value changes it.
+The response's `Content-Type` header decides how `web/fetch` handles a page. An HTML type is rendered to markdown, a JSON or XML type comes back whole, every other `text/*` type comes back as plain text, and every other type is refused. Each accepted body is decoded with the charset the header declares. The set of content types that fetch accepts is built in, and it stays the same under every [fetch policy](#the-fetch-policy-and-anonymous-requests) value.
 
 | Content type | What comes back | `extraction:` |
 |---|---|---|
@@ -741,11 +741,11 @@ The response's `Content-Type` header decides how `web/fetch` handles a page. An 
 
 A response typed `text/html` or `application/xhtml+xml` is treated as an HTML page. It comes back as the main article in markdown with `extraction: readability`, or as the whole page in markdown with `extraction: raw-html` when `raw` is `true` or the article comes to under 100 bytes. An `application/xhtml+xml` response is handled as HTML, not as XML, even though its type has a `+xml` suffix.
 
-JSON and XML responses come back as the decoded body exactly as served, with no extraction step and `extraction: plain`. This covers `application/json`, `application/xml`, any `application/*` type with a `+json` or `+xml` suffix such as `application/ld+json` or `application/atom+xml`, and any `text/*` type with a JSON or XML subtype or suffix such as `text/xml`. `fetch-data` shows a JSON body served as `application/json` coming back verbatim.
+JSON and XML responses come back as the decoded body exactly as served: fetch skips extraction, and the header reads `extraction: plain`. This covers `application/json`, `application/xml`, any `application/*` type with a `+json` or `+xml` suffix such as `application/ld+json` or `application/atom+xml`, and any `text/*` type with a JSON or XML subtype or suffix such as `text/xml`. `fetch-data` shows a JSON body served as `application/json` coming back verbatim.
 
-Every other `text/*` response, called flat text, such as `text/plain`, `text/markdown`, or `text/csv`, comes back as the decoded body verbatim with no extraction, and the header reads `extraction: plain`.
+Every other `text/*` response, called flat text, such as `text/plain`, `text/markdown`, or `text/csv`, comes back as the decoded body verbatim: fetch skips extraction, and the header reads `extraction: plain`.
 
-Every other content type is refused, meaning anything that is neither a `text/*` type nor an HTML, JSON, or XML `application/*` type. That includes PDF, `application/octet-stream`, images (`image/svg+xml` included, despite its `+xml` suffix), audio, video, archives, and other `application/*` types such as `application/javascript`.
+Every other content type is refused, meaning anything outside the `text/*` types and the HTML, JSON, and XML `application/*` types. That includes PDF, `application/octet-stream`, images (`image/svg+xml` included, despite its `+xml` suffix), audio, video, archives, and other `application/*` types such as `application/javascript`.
 
 ### Refused and missing content types
 
@@ -765,7 +765,7 @@ response from https://example.com/feed declared no content type; refusing to gue
 
 A `Content-Type` header whose value holds a non-ASCII byte, such as a UTF-8 character, counts as missing and gets the same text. So whenever fetch refuses a response for declaring no content type at all, the returned text says `no content type`.
 
-Fetch checks the content type before it reads any of the body, so a response whose content type is refused, unparseable, or missing costs no body download.
+Fetch checks the content type before it reads any of the body, so it skips the body download for a response whose content type is refused, unparseable, or missing.
 
 ### Charsets
 
@@ -812,17 +812,17 @@ return tools.call('web/fetch', { url = 'https://example.com/' })
 ```
 ````
 
-This is `fetch-page` from [What the web Pack gives a prompt](#what-the-web-pack-gives-a-prompt). Its request goes over HTTPS to port 443, carries the header `User-Agent: harness-webfetch/0.0`, and carries no cookie, no `Authorization` header, and no `Referer` header. Each of those facts comes from the fetch policy.
+This is `fetch-page` from [What the web Pack gives a prompt](#what-the-web-pack-gives-a-prompt). Its request goes over HTTPS to port 443, carries the header `User-Agent: harness-webfetch/0.0`, and leaves out cookies, the `Authorization` header, and the `Referer` header. Each of those facts comes from the fetch policy.
 
 ### What a fetch policy sets
 
 The fetch policy is the set of limits every `web/fetch` call runs under. It sets the allowed URL scheme, the allowed ports, whether IP-literal hosts (hosts written as a bare IP address rather than a domain name) are allowed, the blocked address ranges and their exceptions, the redirect cap on how many redirect hops one fetch follows, the byte cap on the response body, the character ceiling on returned text, the timeouts, and the `User-Agent` header.
 
-The fetch policy is the server-side request forgery (SSRF) boundary. SSRF means turning a fetch against internal systems, and the risk exists because the model supplies the URL. To keep a fetch from being turned that way, `web/fetch` checks the URL against the policy before it sends any request, and it checks every address it connects to. A redirect to an internal address such as `127.0.0.1` is refused without the internal target ever being contacted, and the result text says `refused` and names the address (see [Following redirects](#following-redirects)).
+The fetch policy is the server-side request forgery (SSRF) boundary. SSRF means turning a fetch against internal systems, and the risk exists because the model supplies the URL. To keep a fetch from being turned that way, `web/fetch` checks the URL against the policy before it sends any request, and it checks every address it connects to. A redirect to an internal address such as `127.0.0.1` is refused before any connection to the internal target opens, and the result text says `refused` and names the address (see [Following redirects](#following-redirects)).
 
 ### The default fetch policy
 
-The default fetch policy is the built-in policy, and it is the only one in force. The `runvil/web` Pack builds its fetch client once, when the Host builds the Pack, using the default policy, and the Pack takes no configuration (see [When the web Pack is missing or unavailable](#when-the-web-pack-is-missing-or-unavailable)). Neither a prompt nor the Host can change the fetch policy, so every `web/fetch` call runs under these values:
+The default fetch policy is the built-in policy, and it is the only one in force. The `runvil/web` Pack builds its fetch client once, when the Host builds the Pack, using the default policy, and the Pack accepts only an empty configuration (see [When the web Pack is missing or unavailable](#when-the-web-pack-is-missing-or-unavailable)). The fetch policy is fixed for a prompt and for the Host alike, so every `web/fetch` call runs under these values:
 
 | Setting | Default fetch policy |
 |---|---|
@@ -855,7 +855,7 @@ return tools.call('web/fetch', { url = 'https://example.com/', max_chars = 10000
 
 ### Why requests carry no credentials
 
-Fetches are anonymous. No request, redirect hops included, goes through a proxy or carries cookies, an `Authorization` header, an automatic `Referer` header, or default credentials, so no request sends an ambient identity on any hop. In detail:
+Fetches are anonymous. Every request, redirect hops included, connects directly and leaves out cookies, an `Authorization` header, an automatic `Referer` header, and default credentials, so a request never sends an ambient identity on any hop. In detail:
 
 - A request never sends a `Cookie` or `Authorization` header, on the first request or on any redirect hop.
 - A request never sends a `Referer` header on any hop, so the first URL and its query string never reach a redirect target. A secret in the first URL's query string does not leak to the site it redirects to.
@@ -916,7 +916,7 @@ return tools.call('web/fetch', { url = 'https://example.com/data.json' })
 ```
 ````
 
-When the JSON body at that URL is larger than 8 MiB, the call does not return a partial document. It returns this soft text instead:
+When the JSON body at that URL is larger than 8 MiB, the fetch refuses the document whole, and the call returns this soft text instead:
 
 ````text
 response from https://example.com/data.json exceeds the 8388608-byte size cap
@@ -937,11 +937,11 @@ An HTML, JSON, or XML body over the cap is refused whole rather than cut to a pr
 - The body passes the declared-length check but is larger than the cap. It is counted as it streams in, and the download stops the moment the running total passes the cap.
 - A small gzip-compressed body inflates past the cap.
 
-A [flat text](#content-types-and-charsets) body over the byte cap is not refused. The read stops at the cap, 8,388,608 bytes under the default policy, the `max_chars` cut then applies, and the text comes back with `truncated: true` and `extraction: plain` in the header. A flat-text response is read up to the cap even when its declared `Content-Length` is larger, so it is never refused up front.
+A [flat text](#content-types-and-charsets) body over the byte cap is cut to a prefix. The read stops at the cap, 8,388,608 bytes under the default policy, the `max_chars` cut then applies, and the text comes back with `truncated: true` and `extraction: plain` in the header. A flat-text response is read up to the cap even when its declared `Content-Length` is larger, so it is never refused up front.
 
 ### How `truncated:` is set
 
-The header's `truncated:` line reads `true` when either the flat-text byte cap or the character limit cut the text, and `false` otherwise. An HTML, JSON, or XML body never sets it through the byte cap, because an oversized one is refused.
+The header's `truncated:` line reads `true` when either the flat-text byte cap or the character limit cut the text, and `false` otherwise. An HTML, JSON, or XML body sets it through the character limit alone, because an oversized one is refused.
 
 ### Connect and request time limits
 
@@ -969,7 +969,7 @@ Each fetch request is bounded by the fetch policy's connect time limit and its w
 
 ### Calls that end before the fetch does
 
-When a `web/fetch` call is dropped before it finishes, the fetch aborts and closes its connection instead of running on to its time limit, so a fetch never outlives its call. A call is dropped when the run ends while the call is in flight, or when the chain that made it ends early (a chain is a walk with its own entries; see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). Neither web tool survives a stop, which is the Host stopping the model round in flight (see [Effects and Harness work](01-what-a-prompt-is.md#effects-and-harness-work)), so a stop drops any `web/fetch` or `web/search` call still in flight.
+When a `web/fetch` call is dropped before it finishes, the fetch aborts and closes its connection instead of running on to its time limit, so a fetch never outlives its call. A call is dropped when the run ends while the call is in flight, or when the chain that made it ends early (a chain is a walk with its own entries; see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). A stop, which is the Host stopping the model round in flight (see [Effects and Harness work](01-what-a-prompt-is.md#effects-and-harness-work)), drops any `web/fetch` or `web/search` call still in flight, while a call to a tool that survives a stop keeps running.
 
 ## URL admission rules
 
@@ -990,17 +990,17 @@ return tools.call('web/fetch', { url = 'https://example.com/path?q=1#frag' })
 ```
 ````
 
-`web/fetch` admits this URL: it parses, it uses `https`, it has no userinfo, its port is the default 443, and its host is a domain name. [Query strings and fragments](#query-strings-and-fragments) explains what happens to its `?q=1` and `#frag` parts.
+`web/fetch` admits this URL: it parses, it uses `https`, it does not contain userinfo, its port is the default 443, and its host is a domain name. [Query strings and fragments](#query-strings-and-fragments) explains what happens to its `?q=1` and `#frag` parts.
 
 ### The five admission checks
 
-Every `web/fetch` URL goes through the URL admission check before any network access, whether your Lua or the model called the tool. The URL admission check is five rules run in a fixed order, parse, scheme, credentials, port, and host, and it reports only the first rule the URL breaks. A URL that breaks a rule is refused before any network request, so it never reaches the network and costs no request. Each rule has its own refusal, and a refused URL comes back either as soft untrusted text or as a hard tool error, depending on which rule it broke:
+Every `web/fetch` URL goes through the URL admission check before any network access, whether your Lua or the model called the tool. The URL admission check is five rules run in a fixed order, parse, scheme, credentials, port, and host, and it reports only the first rule the URL breaks. A URL that breaks a rule is refused at the check, before any network request is sent. Each rule has its own refusal, and a refused URL comes back either as soft untrusted text or as a hard tool error, depending on which rule it broke:
 
 | Check | The URL passes when | A refused URL | What comes back |
 |---|---|---|---|
 | Parse | it parses as an absolute URL | `not a url` | hard error `invalid url` |
 | Scheme | it uses `https` | `http://example.com/` | soft text `scheme not allowed: http` |
-| Credentials | it has no userinfo such as `user:pass@` | `https://user:pass@example.com/` | hard error `url must not contain userinfo` |
+| Credentials | it does not contain userinfo such as `user:pass@` | `https://user:pass@example.com/` | hard error `url must not contain userinfo` |
 | Port | its effective port is 80 or 443 | `https://example.com:8080/` | hard error `port not allowed: 8080` |
 | Host | its host is a domain name, not an IP literal | `https://1.2.3.4/` | hard error `ip literal host not allowed: 1.2.3.4` |
 
@@ -1008,7 +1008,7 @@ Each hard admission refusal, for an unparseable URL, userinfo, a blocked port, o
 
 ### The parse check
 
-The `url` argument passes the parse check when it parses as an absolute URL, and parsing applies to the string exactly as supplied. A `url` that does not parse, such as `not a url`, fails with tool error kind `InvalidArguments` and the message `invalid url`. That text is the whole failure message: it carries none of the URL parser's error text.
+The `url` argument passes the parse check when it parses as an absolute URL, and parsing applies to the string exactly as supplied. A `url` that does not parse, such as `not a url`, fails with tool error kind `InvalidArguments` and the message `invalid url`. That text is the whole failure message: the URL parser's own error text is left out.
 
 ### The scheme check
 
@@ -1022,7 +1022,7 @@ return tools.call('web/fetch', { url = 'http://example.com/' })
 ```
 ````
 
-This call does not fail. It returns soft text naming the refused scheme, so the model can retry with another address:
+This call completes. It returns soft text naming the refused scheme, so the model can retry with another address:
 
 ````text
 scheme not allowed: http
@@ -1032,7 +1032,7 @@ The default fetch policy allows only the `https` scheme, so a fetch goes over HT
 
 ### The credentials check
 
-A URL with an embedded `user:pass@` part, such as `https://user:pass@example.com/`, fails with tool error kind `InvalidArguments` and the message `url must not contain userinfo`. A username with no password, such as `https://user@example.com/`, or a password with no username, such as `https://:pass@example.com/`, fails the same way. The message does not echo the credentials or any other part of the URL.
+A URL with an embedded `user:pass@` part, such as `https://user:pass@example.com/`, fails with tool error kind `InvalidArguments` and the message `url must not contain userinfo`. A username alone, such as `https://user@example.com/`, or a password alone, such as `https://:pass@example.com/`, fails the same way. The message does not echo the credentials or any other part of the URL.
 
 ### The port check
 
@@ -1052,7 +1052,7 @@ This call fails with tool error kind `InvalidArguments` and a message that names
 port not allowed: 8080
 ````
 
-The default fetch policy allows only ports 80 and 443, and `web/fetch` connects to no other port. The check uses the URL's effective port, which is the port written in the URL, or 443 when none is written. Because 443 is on the list, an `https` URL with no explicit port, such as `https://example.com/path?q=1#frag`, is admitted without naming one, while `https://example.com:8443/` is refused. Port 80 is on the list too, whatever the scheme, so `https://example.com:80/` passes the port check: the URL still has to use `https`, and only its port is 80. Any effective port off the list fails with `port not allowed: {port}`.
+The default fetch policy allows only ports 80 and 443, and `web/fetch` connects to those two alone. The check uses the URL's effective port, which is the port written in the URL, or 443 when the URL leaves the port out. Because 443 is on the list, an `https` URL that relies on that default, such as `https://example.com/path?q=1#frag`, is admitted, while `https://example.com:8443/` is refused. Port 80 is on the list too, whatever the scheme, so `https://example.com:80/` passes the port check: the URL still has to use `https`, and only its port is 80. Any effective port off the list fails with `port not allowed: {port}`.
 
 ### The host check and IP literals
 
@@ -1090,7 +1090,7 @@ Because the checks run in a fixed order, a URL that breaks several rules reports
 
 ### Query strings and fragments
 
-`web/fetch` sends a URL's query string unchanged, and it drops a `#fragment` before the request, since a fragment never goes to the server. For the admitted URL `https://example.com/path?q=1#frag`, the query `q=1` goes out unchanged, the `#frag` part never reaches the server, and the request goes to `https://example.com/path?q=1`.
+`web/fetch` sends a URL's query string unchanged, and it drops a `#fragment` before the request, since a fragment never goes to the server. For the admitted URL `https://example.com/path?q=1#frag`, the query `q=1` goes out unchanged, the `#frag` part is dropped, and the request goes to `https://example.com/path?q=1`.
 
 ## Blocked addresses
 
@@ -1111,7 +1111,7 @@ return tools.call('web/fetch', { url = 'https://example.com/' })
 ```
 ````
 
-When `example.com` resolves to both `93.184.216.34` and `127.0.0.1`, the fetch connects to `93.184.216.34` only, because `127.0.0.1` is a non-global address. A non-global address is any address in the built-in blocked table, such as a loopback or private-network address, and `web/fetch` never connects to one, no matter what host name the URL uses. Blocking these addresses is what keeps a fetch from being turned against internal systems, as [The fetch policy and anonymous requests](#the-fetch-policy-and-anonymous-requests) explains. This `Fetch` section replaces the one in `fetch-page`:
+When `example.com` resolves to both `93.184.216.34` and `127.0.0.1`, the fetch connects to `93.184.216.34` only, because `127.0.0.1` is a non-global address. A non-global address is any address in the built-in blocked table, such as a loopback or private-network address, and `web/fetch` refuses to connect to one, whatever host name the URL uses. Blocking these addresses is what keeps a fetch from being turned against internal systems, as [The fetch policy and anonymous requests](#the-fetch-policy-and-anonymous-requests) explains. This `Fetch` section replaces the one in `fetch-page`:
 
 ````markdown
 ## Fetch
@@ -1134,18 +1134,18 @@ Every fetch checks each address the target host resolves to against the built-in
 A fetch goes through only when its host resolves to at least one address outside the blocked table:
 
 - A host that resolves to a mix of public and blocked addresses is fetched at its public address only.
-- A host whose addresses all fall inside blocked ranges, or whose lookup returns no address at all, fails the call with tool error kind `InvalidArguments` and the message `host {host} has no allowed address`.
+- A host whose addresses all fall inside blocked ranges, or whose lookup comes back empty, fails the call with tool error kind `InvalidArguments` and the message `host {host} has no allowed address`.
 - A host name such as `localhost` that resolves only to loopback addresses is refused, because the whole `127.0.0.0/8` block and `::1` are in the blocked table.
 
 The `host {host} has no allowed address` message names only the host, never the resolved address or the blocking range. Each address the fetch drops is written to the debug log instead, as `host {host} resolved to blocked address {addr} in range {range}`, where the range is the matching table row's CIDR text such as `127.0.0.0/8`. The model sees only the no-allowed-address message.
 
 ### DNS rebinding
 
-DNS rebinding is a host name that resolves to a public address the first time it is looked up and to an internal address the next time. `web/fetch` checks every DNS lookup again, with no cached approval, which defeats it: when `example.com` resolves to `93.184.216.34` on the first lookup and to `127.0.0.1` on the next, the first fetch is allowed and the second is refused.
+DNS rebinding is a host name that resolves to a public address the first time it is looked up and to an internal address the next time. `web/fetch` checks every DNS lookup again and judges each answer on its own, which defeats it: when `example.com` resolves to `93.184.216.34` on the first lookup and to `127.0.0.1` on the next, the first fetch is allowed and the second is refused.
 
 ### The built-in blocked table
 
-Under the default fetch policy, the built-in blocked table is the whole address rule: no extra ranges are blocked, and no host and address pair gets an exception. The table is a fixed list of 30 ranges, 16 IPv4 and 14 IPv6, covering this-network, private, shared (CGNAT), loopback, link-local, protocol-assignment, documentation, benchmarking, multicast, broadcast, reserved, NAT64, 6to4, discard-only, unique local, and site-local addresses. Every address inside a blocked range is refused, from its first address to its last.
+Under the default fetch policy, the built-in blocked table is the whole address rule: the policy blocks the table's ranges alone, and it blocks them for every host. The table is a fixed list of 30 ranges, 16 IPv4 and 14 IPv6, covering this-network, private, shared (CGNAT), loopback, link-local, protocol-assignment, documentation, benchmarking, multicast, broadcast, reserved, NAT64, 6to4, discard-only, unique local, and site-local addresses. Every address inside a blocked range is refused, from its first address to its last.
 
 A fetch never reaches these 16 IPv4 ranges:
 
@@ -1189,11 +1189,11 @@ A fetch never reaches these 14 IPv6 ranges:
 
 ### IPv4 addresses inside IPv6
 
-Because `::/96` and `::ffff:0:0/96` are whole rows of the table, `web/fetch` refuses every IPv4-compatible (`::a.b.c.d`) and IPv4-mapped (`::ffff:a.b.c.d`) IPv6 address, whatever IPv4 value it embeds. Neither an internal target such as `::ffff:127.0.0.1` nor a public one such as `::ffff:1.1.1.1` can be reached in IPv6 form. The cloud metadata address is refused in all three of its forms, `169.254.169.254`, `::ffff:169.254.169.254`, and `::169.254.169.254`, and the NAT64 form of loopback, `64:ff9b::7f00:1`, is refused as a destination too.
+Because `::/96` and `::ffff:0:0/96` are whole rows of the table, `web/fetch` refuses every IPv4-compatible (`::a.b.c.d`) and IPv4-mapped (`::ffff:a.b.c.d`) IPv6 address, whatever IPv4 value it embeds. An internal target such as `::ffff:127.0.0.1` and a public one such as `::ffff:1.1.1.1` are refused alike in IPv6 form. The cloud metadata address is refused in all three of its forms, `169.254.169.254`, `::ffff:169.254.169.254`, and `::169.254.169.254`, and the NAT64 form of loopback, `64:ff9b::7f00:1`, is refused as a destination too.
 
 ### Addresses a fetch can reach
 
-`web/fetch` connects to any resolved address that no blocked range covers, such as `1.1.1.1`, `8.8.8.8`, `93.184.216.34`, `2606:4700:4700::1111`, and `2001:4860:4860::8888`. The table does not over-block its neighbors, so an address one step outside a blocked range is allowed:
+`web/fetch` connects to any resolved address outside the blocked ranges, such as `1.1.1.1`, `8.8.8.8`, `93.184.216.34`, `2606:4700:4700::1111`, and `2001:4860:4860::8888`. The table blocks exactly its ranges, so an address one step outside a blocked range is allowed:
 
 | Allowed address | Just outside |
 |---|---|
@@ -1222,7 +1222,7 @@ return tools.call('web/fetch', { url = 'https://example.com/' })
 ```
 ````
 
-When `https://example.com/` answers with a redirect to `https://example.com/next`, the fetch follows the hop with no action needed from the prompt and returns the response from `https://example.com/next`, which receives exactly one request. The status check, the messages about the received response, and the `url:` line of the provenance header all use that final URL.
+When `https://example.com/` answers with a redirect to `https://example.com/next`, the fetch follows the hop on its own and returns the response from `https://example.com/next`, which receives exactly one request. The status check, the messages about the received response, and the `url:` line of the provenance header all use that final URL.
 
 `web/fetch` follows HTTP redirects automatically, but it checks every hop again before following it. A refused hop comes back as soft text the model can act on, not as a failed call. This `Fetch` section replaces the one in `fetch-page`:
 
@@ -1250,11 +1250,11 @@ A redirect policy is applied on every hop, and it checks each hop against three 
 | 2 | stay on `https` rather than move to `http` | `refusing https to http downgrade` |
 | 3 | lead to a URL the URL admission check accepts | the broken rule's own message |
 
-A redirect may move to a different host, because no rule ties a hop to the original host. An `https` hop to another host that passes the URL admission rules is followed, as in the chain `https://a.example/`, then `https://b.example/`, then `https://c.example/`.
+A redirect may move to a different host, because the three rules do not tie a hop to the original host. An `https` hop to another host that passes the URL admission rules is followed, as in the chain `https://a.example/`, then `https://b.example/`, then `https://c.example/`.
 
 ### The 5-hop redirect cap
 
-Under the default policy, the redirect cap is 5 hops, and no setting changes it, because the default fetch policy is the only one in force (see [The default fetch policy](#the-default-fetch-policy)). A fetch follows exactly 5 redirect hops and refuses the next one, so a chain of 5 redirects completes and a sixth redirect is refused with the reason `exceeded max redirects (5)`. Going past the cap comes back as soft refusal text, not as a failed call.
+Under the default policy, the redirect cap is 5 hops, and it is fixed, because the default fetch policy is the only one in force (see [The default fetch policy](#the-default-fetch-policy)). A fetch follows exactly 5 redirect hops and refuses the next one, so a chain of 5 redirects completes and a sixth redirect is refused with the reason `exceeded max redirects (5)`. Going past the cap comes back as soft refusal text, not as a failed call.
 
 ### No downgrade to `http`
 
@@ -1271,17 +1271,17 @@ Every redirect target passes the same URL admission check as the first URL, cove
 | `https://example.com:8080/` | `port not allowed: 8080` |
 | `https://127.0.0.1/` | `ip literal host not allowed: 127.0.0.1` |
 
-A redirect to an IP-literal target is refused before any connection to that address opens, because the default policy does not allow IP-literal hosts. That holds whatever the encoding: `https://127.0.0.1/`, the octal `https://0177.0.0.1/`, the short form `https://127.1/`, the decimal integer `https://2130706433/`, the IPv6 loopback `https://[::1]/`, the IPv4-mapped `https://[::ffff:127.0.0.1]/`, and the IPv4-compatible `https://[::127.0.0.1]/` are all refused. The reason is `ip literal host not allowed: {address}` with the address in parsed form, and the to-URL in the refusal names that same parsed address. Because the target is never contacted, a redirect to `127.0.0.1` sends that server no request, and the call returns soft text containing `refused` and naming `127.0.0.1`.
+A redirect to an IP-literal target is refused before any connection to that address opens, because the default policy does not allow IP-literal hosts. That holds whatever the encoding: `https://127.0.0.1/`, the octal `https://0177.0.0.1/`, the short form `https://127.1/`, the decimal integer `https://2130706433/`, the IPv6 loopback `https://[::1]/`, the IPv4-mapped `https://[::ffff:127.0.0.1]/`, and the IPv4-compatible `https://[::127.0.0.1]/` are all refused. The reason is `ip literal host not allowed: {address}` with the address in parsed form, and the to-URL in the refusal names that same parsed address. So a redirect to `127.0.0.1` is refused before any contact with that server, and the call returns soft text containing `refused` and naming `127.0.0.1`.
 
 ### Redirects to blocked addresses
 
-`web/fetch` validates the URL and every resolved address again on each redirect hop, and it denies any address that is not globally reachable, with no exceptions under the default policy. A redirect to a host name that resolves only to a blocked address, such as a name that resolves only to `10.0.0.1`, is blocked at connection time, on every hop, by the same lookup check [Blocked addresses](#blocked-addresses) describes, and the internal target is never contacted. That case fails the call with the hard error `host {host} has no allowed address` and tool error kind `InvalidArguments`, not with redirect refusal text.
+`web/fetch` validates the URL and every resolved address again on each redirect hop, and under the default policy it denies every non-global address. A redirect to a host name that resolves only to a blocked address, such as a name that resolves only to `10.0.0.1`, is blocked at connection time, on every hop, by the same lookup check [Blocked addresses](#blocked-addresses) describes, and the internal target is never contacted. That case fails the call with the hard error `host {host} has no allowed address` and tool error kind `InvalidArguments`, not with redirect refusal text.
 
 ### Reading a redirect refusal
 
 A refused redirect hop comes back as the soft text `redirect from {from} to {to} refused: {reason}`. Every refusal names the URL the hop came from, the URL it pointed to, and the reason it was refused, so a hop refused for its address names the blocked address. The from and to URLs show only scheme, host, port, and path, with credentials, the query string, and the fragment dropped, the same way every named-failure message shows a URL (see [What fetch messages show](#what-fetch-messages-show)).
 
-A refused hop ends the whole fetch. The tool returns only the refusal text, with nothing from the page that sent the redirect.
+A refused hop ends the whole fetch. The tool returns only the refusal text, and the page that sent the redirect is discarded.
 
 ### Where a broken rule lands
 
@@ -1319,7 +1319,7 @@ return tools.call('web/search', {
 ```
 ````
 
-These arguments pass every check, so the call reaches the search provider, and `country` and `search_lang` reach it unchanged as `us` and `en`. `web/search` checks its arguments before it runs any search, and only a call that passes every check reaches the search provider. A call with an invalid argument fails with tool error kind `InvalidArguments` and never reaches the provider. This `Search` section replaces the one in `search-web`:
+These arguments pass every check, so the call reaches the search provider, and `country` and `search_lang` reach it unchanged as `us` and `en`. `web/search` checks its arguments before it runs any search, and only a call that passes every check reaches the search provider. A call with an invalid argument fails with tool error kind `InvalidArguments` before it reaches the provider. This `Search` section replaces the one in `search-web`:
 
 ````markdown
 ## Search
@@ -1359,7 +1359,7 @@ The tool parses its arguments first, and four kinds of mistake fail at that stag
 - a missing `query`
 - a `freshness` or `safesearch` value other than the exact lowercase values listed
 
-The `web_search: invalid arguments` message names neither the offending argument nor the reason the parse failed, and the error keeps that parse failure only as its underlying cause, not in the message text. Because parsing comes before any bounds check, a call that fails to parse and also breaks a bound reports only `web_search: invalid arguments`.
+The `web_search: invalid arguments` message reads the same for every parse failure, whichever argument is at fault and whatever the reason, and the error keeps that parse failure only as its underlying cause, not in the message text. Because parsing comes before any bounds check, a call that fails to parse and also breaks a bound reports only `web_search: invalid arguments`.
 
 ### Errors from the search bounds checks
 
@@ -1379,9 +1379,9 @@ Some of these rules need more detail:
 
 - A whitespace-only `query` fails as empty even though it meets the schema's `minLength` of 1. The `query` reaches the search provider exactly as written, and its 400-character check counts any surrounding whitespace, because trimming applies only to the emptiness check.
 - `country` and `search_lang` are checked only for blankness and length, so any non-blank string of at most 128 characters passes, whether or not it is a real country or language code, and reaches the provider unchanged.
-- Each `include_domains` and `exclude_domains` entry must be a bare hostname such as `example.com`: not blank, at most 128 characters, and free of `/`, whitespace, and control characters, so a full URL or a hostname with a path does not qualify.
+- Each `include_domains` and `exclude_domains` entry must be a bare hostname such as `example.com`: not blank, at most 128 characters, and free of `/`, whitespace, and control characters, so a full URL or a hostname with a path is an invalid entry.
 - One invalid entry fails the whole call, even when the list's other entries are valid, and the message names the list but not the entry.
-- An empty `include_domains` or `exclude_domains` list is valid and filters nothing, the same as leaving the list out (see [Keeping and dropping sites](#keeping-and-dropping-sites)).
+- An empty `include_domains` or `exclude_domains` list is valid and keeps every result, the same as leaving the list out (see [Keeping and dropping sites](#keeping-and-dropping-sites)).
 
 ### When the search provider fails
 
@@ -1389,7 +1389,7 @@ When the search provider fails, the call fails with the message `web_search: {er
 
 Under any provider, a result row whose `url` is empty or only whitespace fails the whole search with tool error kind `Backend` and the message `web_search: malformed search response: result {index} has an empty url`. The index is zero-based and names the first such row, so a blank second row gives `result 1 has an empty url`.
 
-A search has no time limit of its own, because the Host's search provider owns the transport, and its deadline is whatever that provider enforces.
+A search takes its time limit from the Host's search provider, because that provider owns the transport, and its deadline is whatever the provider enforces.
 
 ### Errors from the Gateway provider
 
@@ -1397,7 +1397,7 @@ The Gateway provider is the search provider Workshop supplies. Under it, each se
 
 | What happened | Tool error kind | Message |
 |---|---|---|
-| The connection was refused or failed, the deadline passed while the request was being sent, or Workshop has no usable gateway | `Transport` | `web_search: request failed` |
+| The connection was refused or failed, the deadline passed while the request was being sent, or Workshop's gateway is unusable | `Transport` | `web_search: request failed` |
 | Reading a successful response's body failed, including the deadline passing mid-read | `Transport` | `web_search: reading response failed` |
 | The gateway answered with a status outside the 2xx range | `Backend` | `web_search: backend returned {code}: {body}` |
 | The gateway answered with an error status and the connection dropped while its error body was read | `Backend` | `web_search: backend returned {code}, and its error body could not be read` |
@@ -1405,8 +1405,8 @@ The Gateway provider is the search provider Workshop supplies. Under it, each se
 | A successful response was not valid UTF-8 | `Backend` | `web_search: response body was not valid UTF-8` |
 | A successful response was not JSON, lacked the `results` array, had a row without a string `url`, or had a known field of the wrong type | `Backend` | `web_search: malformed search response` |
 
-Workshop has no usable gateway when it has no gateway at all, when its gateway is reported down, or when it cannot use the gateway's endpoint or key.
+Workshop's gateway is unusable when it is missing, when it is reported down, or when Workshop cannot use its endpoint or key.
 
 The `backend returned {code}: {body}` message names the HTTP status and the gateway's error body, with an empty body shown as `(empty body)`, as in `web_search: backend returned 503: (empty body)`. The quoted body is cut to its first 2000 bytes and has its control characters escaped, newline, carriage return, and tab as `\n`, `\r`, and `\t` and any other as `\u{xxxx}`, so the message stays on one line. When the error body cannot be read, the message says so instead, as in `web_search: backend returned 500, and its error body could not be read`.
 
-A successful response over 256 KiB is rejected whole rather than truncated, and that size check runs before the JSON shape is checked. Extra fields the Gateway adds beyond the known ones are ignored. For an empty `include_domains` or `exclude_domains` list, the Gateway provider sends no filter.
+A successful response over 256 KiB is rejected whole rather than truncated, and that size check runs before the JSON shape is checked. Extra fields the Gateway adds beyond the known ones are ignored. The Gateway provider leaves an empty `include_domains` or `exclude_domains` list out of its search request.
