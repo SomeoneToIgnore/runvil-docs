@@ -24,7 +24,7 @@ return 'hello'
 hello
 ````
 
-This run is as short as a run gets. The start checks pass, because the frontmatter leaves Packs and model requirements undeclared. The walk enters `Main`, the prompt's only section, the block returns `hello`, and the run ends in success with `hello` as its run result. The Engine does all the work of a block that only returns a literal value, so this run finishes without waiting on anything outside the prompt.
+This run is as short as a run gets. The start checks pass, because the frontmatter leaves Packs and model requirements undeclared. The walk enters `Main`, the prompt's only section, the block returns `hello`, and the run ends in success with `hello` as its run result. The Engine does all the work of a block that only returns a literal value, so once the start checks pass, this run goes straight to its end.
 
 ### The stages in order
 
@@ -179,7 +179,7 @@ A prompt that breaks a Lua fence rule (see [Exact fence rules and fence errors](
 
 Parsing happens before the run exists. A prompt that does not parse stops at the parse: its Lua and prose never run, the model is never asked, and the run record is never made. The Host gets the parse error and reports it. Its code is a parse code such as `fence_invalid`, or `lua_compile` when a Lua block does not compile. Its message is the parse error's full cause chain, followed by where the parse failed (see [Where a run error's message points](16-limits-and-errors.md#where-a-run-errors-message-points)).
 
-Parsing never reports a run event. A run's events begin with `run_started`, which the run reports once it passes its start checks (see [Run events and records](#run-events-and-records)). A run that stops before then leaves a record that holds only the run's own values and the error that ended it. That is the case when a cancel comes before the run or during the model lookup, when the model lookup fails, and when a start check fails on the run's first step.
+Parsing never reports a run event. A run's events begin with `run_started`, which the run reports once it passes its start checks (see [Run events and records](#run-events-and-records)). A run that stops before then leaves a record that holds only the run's own values, the error that ended it, and, when a start check refuses the run, an `inbox_message` event for each message the Host sent before the run's first step. That is the case when a cancel comes before the run or during the model lookup, when the model lookup fails, and when a start check fails on the run's first step.
 
 ## Preparing the run
 
@@ -207,7 +207,7 @@ Prepare is the stage before a run starts in which the Harness sets up everything
 
 ### What the start checks look at
 
-The run's first step makes three start checks before any section runs, in this order: the `runvil` version, the arguments, and the requirements. The argument check compares the run's arguments with the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). The requirements check compares the Packs the prompt declares with the Packs the Harness took for the run, and compares the requirements the prompt declares for its model roles with the models that fill those roles. A start check that fails ends the run on that first step, before it reports any run event.
+The run's first step makes three start checks before any section runs, in this order: the `runvil` version, the arguments, and the requirements. The argument check compares the run's arguments with the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). The requirements check compares the Packs the prompt declares with the Packs the Harness took for the run, and compares the requirements the prompt declares for its model roles with the models that fill those roles. A start check that fails ends the run on that first step, before it reports `run_started`.
 
 The version check and the requirements check cover every prompt the parse read: the one the run starts in and each listed prompt. A listed prompt with an unsupported or missing `runvil` version, a declared Pack that the run cannot give, or a model role that falls short of its `models:` requirements refuses the run on its first step, even when the run would never execute that prompt (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). The argument check covers only the run's own prompt, because a listed prompt gets its arguments from the `execute` that runs it, and they are checked there (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
@@ -281,7 +281,7 @@ argument `query` is required
 
 The message names the first mismatch the check finds. It leaves out the file and the line, because the arguments come from the caller, so the fault lies outside the prompt's lines. Argument text that is not one JSON object ends the run the same way, and [Argument errors](06-arguments.md#argument-errors) has the full list of messages. With the arguments `{"query":"papers"}`, the check passes and the run returns `query: papers`.
 
-The requirements check is the third start check and the last. A run that a start check refuses ends before it reports any run event, so its record holds only the run's own values and the error that ended it. When the run's cancel flag is set as a start check fails, the run ends with the canceled error instead of the check's own error.
+The requirements check is the third start check and the last. A run that a start check refuses ends before it reports `run_started`, so its record holds only the run's own values, the error that ended it, and an `inbox_message` event for each message the Host sent before the run's first step. When the run's cancel flag is set as a start check fails, the run ends with the canceled error instead of the check's own error.
 
 ### Waiting for Packs and taking the snapshot
 
@@ -1672,7 +1672,7 @@ A `log` checkpoint is recorded under the name of the section whose Lua wrote it,
 
 ### Events from a run that ends early
 
-A run that ends before it starts never reports an event, so its record holds only the values below and the error that ended it. That holds for a run refused by a start check, and for one that ended on a failed model lookup or an early cancel.
+A run that ends before it starts never reports `run_started`, so its record holds only the values below, the error that ended it, and, when a start check refuses the run, an `inbox_message` event for each message the Host sent before the run's first step (see [Inbox events](15-tasks.md#inbox-events)). That holds for a run refused by a start check, and for one that ended on a failed model lookup or an early cancel.
 
 ### What a run's record holds
 
@@ -1688,7 +1688,7 @@ Beside these values, the record holds the run's history: every event the run rep
 
 Each event in that history names the section it was reported under and has a provenance: the task it came from and its position in that task.
 
-Each run draws its own fresh [seed](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host) from the operating system's cryptographic random source and records it at the start of the run, before anything else, so two runs of the same prompt get different seeds. The run's start time, `started_at`, is stamped once from the system wall clock when the Harness begins the run's record, because the Engine gets the time from the Harness, and a later run never starts earlier. The Harness supplies both the seed and the start instant, drawing them when it begins the run's record, and a prompt cannot set either one.
+Each run draws its own fresh [seed](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host) from the operating system's cryptographic random source and records it at the start of the run, before anything else, so two runs of the same prompt get different seeds. The run's start time, `started_at`, is stamped once from the system wall clock when the Harness begins the run's record, because the Engine gets the time from the Harness, and a later run starts at the same time or later as long as that clock runs forward. The Harness supplies both the seed and the start instant, drawing them when it begins the run's record, and a prompt cannot set either one.
 
 Two runs of the same prompt running at the same time stay separate. Each returns its own result, and each run's records hold only its own events, Harness work and answers, `log` checkpoints, and final `run_succeeded`.
 
