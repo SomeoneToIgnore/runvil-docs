@@ -22,7 +22,7 @@ return models.infer(prose)
 ```
 ````
 
-The frontmatter declares no model role, and the `Greet` section sends its prose to the model with `return models.infer(prose)`, so the model's reply to `Say "Hello, world!"` becomes the run result. A prompt that only wants the Host's model needs nothing else: no `models:` key, no selection, and one `models.infer(prose)` call in a section. The bundled `hello.md` prompt is built this way, with no `models:` key in its frontmatter and `return models.infer(prose)` at the end of its `Greet` section.
+The frontmatter leaves model roles out, and the `Greet` section sends its prose to the model with `return models.infer(prose)`, so the model's reply to `Say "Hello, world!"` becomes the run result. For a prompt that only wants the Host's model, one `models.infer(prose)` call in a section is enough, with the `models:` key and the selection left out. The bundled `hello.md` prompt is built this way, with no `models:` key in its frontmatter and `return models.infer(prose)` at the end of its `Greet` section.
 
 ### What a model role is
 
@@ -36,13 +36,13 @@ A model role is a name for a kind of model a prompt can ask for. There are exact
 | `fast` | the lowest-latency model |
 | `creative` | a model for open-ended writing |
 
-The names are only hints. The Engine does not enforce any of those meanings, and a role is nothing more than a name that the [Host](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host) maps to a model. The prompt never says which model that is, so the same prompt runs on whatever models the Host provides.
+The names are only hints. The Engine does not enforce any of those meanings, and a role is only a name that the [Host](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host) maps to a model. The prompt never says which model that is, so the same prompt runs on whatever models the Host provides.
 
 The Host passes one map from role to model. A role with no entry of its own uses the `default` entry, so a Host that gives one model, as the Harness does with the model the Host selected, fills all five roles with that model. [How the Host fills and checks roles](#how-the-host-fills-and-checks-roles) covers the map and the checks. Role names are lowercase and exact, so `Strong` is not a role.
 
-You attach requirements to a role in the frontmatter, such as a context minimum, under `models:`. A role declares only two keys, `min_context` and `thinking`, and none of them names a concrete model. [Declaring roles under `models:`](#declaring-roles-under-models) covers both keys.
+You attach requirements to a role in the frontmatter, such as a context minimum, under `models:`. A role declares only two keys, `min_context` and `thinking`, and each is a requirement on whichever model fills the role. [Declaring roles under `models:`](#declaring-roles-under-models) covers both keys.
 
-The Host's list of models stays with the Host. A prompt's roles draw only on the models the Host's map gives them, so a prompt reaches no other model, with one exception: when the Host passes a Host-state snapshot, `models.get` also accepts a raw gateway model id (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)).
+The Host's list of models stays with the Host. A prompt's roles draw only on the models the Host's map gives them, so those are the only models a prompt reaches, with one exception: when the Host passes a Host-state snapshot, `models.get` also accepts a raw gateway model id (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)).
 
 ### The `models` global
 
@@ -61,13 +61,13 @@ The table holds six functions. `models.use` selects a role or a handle, `models.
 
 The `models` table is in place with the other Engine globals before any block runs, so any block, its top-level statements included, calls it directly with no `require` and no setup line. The block in `hello` uses it that way.
 
-The roles are fixed, and Lua never creates or binds one, so the `models` table holds no function for adding a role. `models.use` and `models.get` take one of the five role names, and any other name is an error that lists the five (see [Rejected calls](#rejected-calls)), except that when the Host passes a Host-state snapshot, `models.get` also accepts a raw gateway model id (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)). The run fills its roles before any Lua runs, and every section, the preamble included, reads that same set, so the same roles work in every section.
+The roles are fixed, and Lua never creates or binds one, so the `models` table cannot add a role. `models.use` and `models.get` take one of the five role names, and any other name is an error that lists the five (see [Rejected calls](#rejected-calls)), except that when the Host passes a Host-state snapshot, `models.get` also accepts a raw gateway model id (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)). The run fills its roles before any Lua runs, and every section, the preamble included, reads that same set, so the same roles work in every section.
 
 ### When a prompt needs a role
 
-A prompt needs to say nothing about roles to run a model round. A run starts on the `default` role, so `models.infer(prose)` runs on the Host's `default` model, as `hello` does. A prompt names a role in two cases: it attaches a requirement to a role under `models:`, or it switches to another role with `models.use`.
+A prompt can leave roles out and still run a model round. A run starts on the `default` role, so `models.infer(prose)` runs on the Host's `default` model, as `hello` does. A prompt names a role in two cases: it attaches a requirement to a role under `models:`, or it switches to another role with `models.use`.
 
-A section has no model only when the Host gave the run none. This prompt names no role, and on a Host that gave no model its round has nothing to run on:
+A section has no model only when the Host gave the run none. This prompt leaves roles out, and on a Host that gave no model its round fails:
 
 ````markdown
 ---
@@ -85,7 +85,7 @@ return models.infer(prose)
 ```
 ````
 
-On a Host that gave the run no model, the run fails with this message, which names the section whose round had no model and ends with the line of the `models.infer` call (see [Where an error points](16-limits-and-errors.md#where-an-error-points)):
+On a Host that gave the run no model, the run fails with this message, which names the section that made the round and ends with the line of the `models.infer` call (see [Where an error points](16-limits-and-errors.md#where-an-error-points)):
 
 ````text
 model binding required for section Only (at unselected.md:12)
@@ -93,7 +93,7 @@ model binding required for section Only (at unselected.md:12)
 
 This is the missing-model error, covered in [Infer errors and the missing-model error](#infer-errors-and-the-missing-model-error). On a Host that gives the run a model, the same prompt runs as `hello` does.
 
-A prompt that runs no model round needs no `models:` declaration at all. The bundled `echo.md` prompt has no `models:` key in its frontmatter and never touches `models` in its body. Prose alone never needs a model either, because only an explicit `models.infer` of it does. A prompt whose blocks run no model round runs to completion even when the Host provides no model at all:
+A prompt that runs no model round can leave the `models:` declaration out altogether. The bundled `echo.md` prompt leaves `models:` out of its frontmatter and `models` out of its body. Prose needs a model only when an explicit `models.infer` sends it to one. A prompt whose blocks run no model round runs to completion even when the Host provides no model at all:
 
 ````markdown
 ---
@@ -116,7 +116,7 @@ return prose
 The word is mutated.
 ````
 
-The block renders its prose and returns it, and no model takes part, so this run gives the same result on a Host with no model.
+The block renders its prose and returns it, and it never asks a model, so this run gives the same result on a Host with no model.
 
 ## Declaring roles under `models:`
 
@@ -154,16 +154,16 @@ Declaring a role does not select it. The run still starts on the `default` role,
 
 | Key | What it takes | When you leave it out |
 |---|---|---|
-| `min_context` | a whole number of tokens from 1 to 4294967295 | no context minimum |
-| `thinking` | `true` or `false` | no thinking requirement and no thinking switch |
+| `min_context` | a whole number of tokens from 1 to 4294967295 | a context window of any size passes |
+| `thinking` | `true` or `false` | any thinking mode passes, and the thinking switch stays unset |
 
 Each prompt's `models:` key applies to its own sections. That matters when a prompt runs another prompt with [`execute`](08-jump-and-call.md#executing-another-prompt), where the first is the caller and the second is the executed prompt: a role's thinking switch in a section is the one that the section's own prompt declares (see [The thinking switch](#the-thinking-switch)), and the requirements of both prompts are checked at the run's first step (see [What the run checks](#what-the-run-checks)).
 
 ### Empty roles and no roles
 
-A role written as an empty map, such as `strong: {}` or `fast: {}`, is valid. It declares no requirement, so it places none on the model that fills the role, and it changes nothing about the run.
+A role written as an empty map, such as `strong: {}` or `fast: {}`, is valid. It leaves both keys out, so the role accepts any model that fills it, and the run is the same as if the entry were left out.
 
-The `models` key itself is optional. Leaving `models:` out of the frontmatter declares no requirements, and all five roles stay available: `hello` has no `models:` key and can still pass any of the five names to `models.use`.
+The `models` key itself is optional. With `models:` left out of the frontmatter, each role accepts whichever model fills it, and all five roles stay available: `hello` leaves the `models:` key out and can still pass any of the five names to `models.use`.
 
 ### The five roles
 
@@ -175,13 +175,13 @@ A role name means the same thing in every prompt, and the model that fills it is
 
 `min_context` sets the smallest context window, in tokens, that the model filling the role must provide, such as `min_context: 200000` or `min_context: 40000`. A model with a smaller window is refused, so a 32000-token model against `min_context: 200000` is refused with a line saying the role `requires a context of at least 200000 tokens`.
 
-`min_context` takes a whole number of tokens from 1 to 4294967295, and any other value fails the parse with a `Frontmatter` error. The smallest minimum you can write is 1, so a role that wants no minimum leaves the key out. Leaving out `min_context`, or setting it to null, declares no context minimum, and the role sets no floor on the model's context window.
+`min_context` takes a whole number of tokens from 1 to 4294967295, and any other value fails the parse with a `Frontmatter` error. The smallest minimum you can write is 1, so a role that takes any window leaves the key out. With `min_context` left out, or set to null, the role accepts a context window of any size.
 
 Parsing a `models` declaration checks only its shape. The checks against a real model happen at the run's first step, after the version check and the argument check, once the Host's models fill the roles, and any shortfall refuses the run there. So a prompt declaring `strong` with `min_context: 200000` parses cleanly, and only a run whose model for `strong` has a smaller window refuses it, with `role 'strong': requires a context of at least 200000 tokens` (see [The context check](#the-context-check)).
 
 ### The `thinking` key
 
-`thinking` takes `true` or `false`. `thinking: true` requires a model that can think and turns thinking on for the role's requests, and `thinking: false` requires a model that can run with thinking turned off and turns it off for the role's requests. Leaving the key out places no requirement on the model and sets no thinking switch. Any other value, such as a string or a number, fails the parse with a `Frontmatter` error. [The thinking requirement](#the-thinking-requirement) covers which models meet each value and what the switch does.
+`thinking` takes `true` or `false`. `thinking: true` requires a model that can think and turns thinking on for the role's requests, and `thinking: false` requires a model that can run with thinking turned off and turns it off for the role's requests. With the key left out, a model of any thinking mode can fill the role, and the thinking switch stays unset. Any other value, such as a string or a number, fails the parse with a `Frontmatter` error. [The thinking requirement](#the-thinking-requirement) covers which models meet each value and what the switch does.
 
 ### Flow style
 
@@ -203,7 +203,7 @@ expected one of `default`, `strong`, `small`, `fast`, `creative`
 
 The message comes from the YAML reader and contains that list, so a line such as `models: { reviewer: {} }` is reported instead of being silently ignored.
 
-A role accepts no keys besides `min_context` and `thinking`. Any other key fails the parse with a `Frontmatter` error whose message names the key and the two that are accepted. A key named `tier` gives:
+A role accepts only the keys `min_context` and `thinking`. Any other key fails the parse with a `Frontmatter` error whose message names the key and the two that are accepted. A key named `tier` gives:
 
 ````text
 unknown field `tier`, expected `min_context` or `thinking`
@@ -256,7 +256,7 @@ A model in thinking mode `never` always runs with thinking off, so a role with `
 
 ### The thinking switch
 
-A role's `thinking` value sets its thinking switch, the thinking setting that every request on the role sends. `thinking: true` asks for thinking on in every request, and `thinking: false` asks for thinking off. A role that leaves `thinking` out leaves the switch unset, so its requests send no thinking setting at all, and the model's own thinking default stays in place.
+A role's `thinking` value sets its thinking switch, the thinking setting that every request on the role sends. `thinking: true` asks for thinking on in every request, and `thinking: false` asks for thinking off. A role that leaves `thinking` out leaves the switch unset, so its requests omit the thinking setting, and the model's own thinking default stays in place.
 
 The switch is fixed once per run from the role's declaration, when the run fills its roles. Every round on the role sends that same switch, even when `models.use` sets sampling options, which change only `temperature` and `max_tokens` (see [Sampling options on `models.use`](#sampling-options-on-modelsuse)). A handle for the role reads the switch back as its `thinking` field (see [The nine handle fields](#the-nine-handle-fields)).
 
@@ -306,7 +306,7 @@ Each model's info holds a description, a context window, a thinking mode, and an
 - The thinking mode is `never`, `always`, or `switchable`, as [Thinking modes](#thinking-modes) explains.
 - The provider id is present only when the catalog names one, and is absent otherwise.
 
-A catalog keeps its models in the order the Host gives them. Each model id in a catalog names exactly one model, so no two available models share an id.
+A catalog keeps its models in the order the Host gives them. Each model id in a catalog names exactly one model, so every available model has an id of its own.
 
 ### Model ids
 
@@ -317,7 +317,7 @@ Each part of a model id can be any non-empty text without control characters, so
 Two rules apply to each part, and a part that breaks one is refused with a reason:
 
 - Each part holds at least one character, and an empty part gives the reason `must not be empty`.
-- No part contains a control character, judged per Unicode character rather than per byte. Newline, NUL, U+001E, U+007F, and U+0085 are each refused with the reason `must not contain a control character`, while `café-模型` is accepted.
+- Each part is free of control characters, judged per Unicode character rather than per byte. Newline, NUL, U+001E, U+007F, and U+0085 are each refused with the reason `must not contain a control character`, while `café-模型` is accepted.
 
 A model served by the gateway has the server namespace `gateway`. Its name is the name the gateway lists it under, which is the `name` key of its entry in the gateway configuration and the `id` field in the OpenAI-compatible `/models` list.
 
@@ -326,10 +326,10 @@ A model served by the gateway has the server namespace `gateway`. Its name is th
 The Host fills the roles by passing one map from role to model when it starts the run. Three rules govern the map:
 
 - A role with no entry of its own uses the `default` entry. A map with only a `default` entry fills all five roles with that model, and a map that also has a `strong` entry gives only `strong` its own model.
-- An empty map means the Host has no model. No role is filled and nothing is checked (see [When the Host gives no model](#when-the-host-gives-no-model)).
-- A non-empty map with no `default` entry is refused, because the roles without an entry have nothing to fall back to.
+- An empty map means the Host has no model. Every role stays empty and the run skips the requirement checks (see [When the Host gives no model](#when-the-host-gives-no-model)).
+- A non-empty map with no `default` entry is refused, because that entry is what the roles without one fall back to.
 
-The refusal ends the run on its first step with error code `requirements_unmet`. The run checks no declared requirement in that case, so the notice has exactly one model line, in which the caller is the Host:
+The refusal ends the run on its first step with error code `requirements_unmet`. The run skips the declared requirements in that case, so the notice has exactly one model line, in which the caller is the Host:
 
 ````text
 the environment cannot satisfy this prompt:
@@ -348,9 +348,9 @@ The run fills its roles once, when it is built, and keeps that fill for its whol
 
 ### What the run checks
 
-A role's `min_context` and `thinking` are requirements, and at the run's first step, before any section runs, the run checks every declared requirement against the model that fills the role. A role's own entry in the map fills it, and the `default` entry fills a role with none, so a requirement on a role with no entry of its own is checked against the `default` model. These two checks are the only role requirements that can refuse the run, and the run makes them only when the Host's map has a `default` entry. A role the prompt does not declare, or declares as `{}`, has no requirement, so nothing is reported for it and it never blocks the run.
+A role's `min_context` and `thinking` are requirements, and at the run's first step, before any section runs, the run checks every declared requirement against the model that fills the role. A role's own entry in the map fills it, and the `default` entry fills every other role, so a requirement on a role with no entry of its own is checked against the `default` model. These two checks are the only role requirements that can refuse the run, and the run makes them only when the Host's map has a `default` entry. A role the prompt does not declare, or declares as `{}`, accepts any model, so it always passes and the notice leaves it out.
 
-An unmet requirement is one shortfall in the refusal that ends the run on its first step with error code `requirements_unmet` and no run events (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). The run checks a role's `min_context` and its `thinking` as two separate checks, so a role can fail only one of them, and a role that fails both gets one notice line for its context and another for its thinking:
+An unmet requirement is one shortfall in the refusal that ends the run on its first step with error code `requirements_unmet`, before it reports any run event (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). The run checks a role's `min_context` and its `thinking` as two separate checks, so a role can fail only one of them, and a role that fails both gets one notice line for its context and another for its thinking:
 
 ````markdown
 ---
@@ -435,9 +435,9 @@ On a Host that gives no model, the run returns:
 ok
 ````
 
-When the Host gives no model, its role map is empty, so the run fills no role and checks no requirement, and even a role with `min_context` does not stop the run from starting. This prompt declares a requirement on `strong`, but no section asks a model for a reply, and the line above `Main` sits in a [preamble](02-file-structure.md#the-preamble) with no Lua, so it is commentary that nothing reads. The run therefore still succeeds.
+When the Host gives no model, its role map is empty, so the run leaves every role empty and skips the requirement checks, and the run starts even when a role has a `min_context`. This prompt declares a requirement on `strong`, but its one section never asks a model for a reply, and the line above `Main` sits in a [preamble](02-file-structure.md#the-preamble) with no Lua, so it is commentary that the run skips. The run therefore still succeeds.
 
-Nothing refuses the run in this case, and every role stays empty. Selecting a role with `models.use` or `models.get` then raises an error that names the role, and `models.current()` raises its own, where the caller in both is the Host:
+The run starts in this case with every role empty. Selecting a role with `models.use` or `models.get` then raises an error that names the role, and `models.current()` raises its own, where the caller in both is the Host:
 
 ````text
 the caller supplied no model for the strong role
@@ -472,7 +472,7 @@ return models.current().name
 strong
 ````
 
-The current model is the model a round runs on when the call names none, such as `models.infer(prose)`. `models.use` sets it and `models.current()` reads it. It belongs to a chain, not to a section: the preamble's `models.use('strong')` set it, and `Check`, a different section, still sees it.
+The current model is the model a round runs on when the call leaves the model out, such as `models.infer(prose)`. `models.use` sets it and `models.current()` reads it. It belongs to a chain, not to a section: the preamble's `models.use('strong')` set it, and `Check`, a different section, still sees it.
 
 A chain is a walk with its own entries (see [The main walk as a chain](04-how-a-prompt-runs.md#the-main-walk-as-a-chain)). The main walk is one chain, a section run through `call` begins another, a prompt run with `execute` begins another, and each spawned task is a chain of its own.
 
@@ -480,7 +480,7 @@ A chain is a walk with its own entries (see [The main walk as a chain](04-how-a-
 
 Each chain starts on a model the run decides when it begins:
 
-- The main walk, which is the root chain, starts on the `default` role's model, or on no model when the Host gave none. A `models.use` lasts for the rest of its chain, so one in the preamble chooses the model for every section the walk enters after it, as `current` shows, because the preamble and those sections are entries of the same chain. A `jump` between sections stays in one chain too, so it keeps the current model.
+- The main walk, which is the root chain, starts on the `default` role's model, or with that role empty when the Host gave none. A `models.use` lasts for the rest of its chain, so one in the preamble chooses the model for every section the walk enters after it, as `current` shows, because the preamble and those sections are entries of the same chain. A `jump` between sections stays in one chain too, so it keeps the current model.
 - A section run through `call` starts on a copy of its caller's current model, taken when the `call` is dispatched.
 - A spawned task starts on a copy of its spawner's current model, taken when the spawn is dispatched. Every fanout arm is a spawned task, so arms start the same way.
 - A prompt run with `execute` starts on the `default` role's model, whatever model its caller is on (see [Children and fanout arms](#children-and-fanout-arms)).
@@ -489,7 +489,7 @@ Every section a chain enters runs on whatever model the chain is on, so the firs
 
 ### Reading the current model with `models.current`
 
-`models.current()` returns a model handle for the chain's current model: the model the last `models.use` in the chain chose, with the options that call set, or the model the chain started on. It takes no arguments, and each call builds a fresh handle that freezes the model at that moment (see [A handle's frozen binding](#a-handles-frozen-binding)). Saving the handle and passing it to `models.use` later puts the chain back on it, options included:
+`models.current()` returns a model handle for the chain's current model: the model the last `models.use` in the chain chose, with the options that call set, or the model the chain started on. It is called with empty parentheses, and each call builds a fresh handle that freezes the model at that moment (see [A handle's frozen binding](#a-handles-frozen-binding)). Saving the handle and passing it to `models.use` later puts the chain back on it, options included:
 
 ````markdown
 ---
@@ -513,11 +513,11 @@ return previous.name .. '|' .. inside .. '|' .. models.current().name
 default|creative|default
 ````
 
-The chain starts on `default`, so `previous` reads `default`. After `models.use('creative')` the current model reads `creative`, and `models.use(previous)` puts the chain back on `default`. When the Host gave no model there is no current model, and `models.current()` raises an error (see [When the Host gives no model](#when-the-host-gives-no-model)).
+The chain starts on `default`, so `previous` reads `default`. After `models.use('creative')` the current model reads `creative`, and `models.use(previous)` puts the chain back on `default`. When the Host gave no model, `models.current()` raises an error (see [When the Host gives no model](#when-the-host-gives-no-model)).
 
 ### Children and fanout arms
 
-A section run through `call`, a spawned task, and every fanout arm start on a copy of their parent's current model, taken when the call or the spawn is dispatched. After the copy the two chains are independent: a `models.use` in the child changes only the child and the chains it starts, and it never reaches the parent or a sibling.
+A section run through `call`, a spawned task, and every fanout arm start on a copy of their parent's current model, taken when the call or the spawn is dispatched. After the copy the two chains are independent: a `models.use` in the child changes only the child and the chains it starts, and the parent and every sibling keep their own current model.
 
 ````markdown
 ---
@@ -551,9 +551,9 @@ strong|strong>fast
 
 A task that waits in the queue under a concurrency limit (see [Concurrency slots](15-tasks.md#concurrency-slots)) starts on the model its parent had when the task was spawned, not on the model the parent has when the scheduler admits it. If a parent spawns two tasks on `strong` and then switches to `fast`, the task still queued runs on `strong`. All the arms of one fanout start on the same model as one another.
 
-To run every arm of a fanout on a model you choose, without switching the parent, give `tasks.fanout` the model first. The form is covered with fanout in [the model-first form of `tasks.fanout`](14-fanout.md#running-arms-on-a-model).
+To run every arm of a fanout on a model you choose while the parent keeps its current model, give `tasks.fanout` the model first. The form is covered with fanout in [the model-first form of `tasks.fanout`](14-fanout.md#running-arms-on-a-model).
 
-A prompt run with `execute` starts differently. It gets no copy of its caller's current model: it starts on the `default` role, whatever model the caller is on, and a `models.use` inside it never reaches the caller (see [What crosses an execute](08-jump-and-call.md#what-crosses-an-execute)):
+A prompt run with `execute` starts differently. Its caller's current model stays with the caller: the executed prompt starts on the `default` role, whatever model the caller is on, and a `models.use` inside it never reaches the caller (see [What crosses an execute](08-jump-and-call.md#what-crosses-an-execute)):
 
 ````markdown
 ---
@@ -675,7 +675,7 @@ return models.infer('Critique this tagline in one sentence: ' .. var.tagline)
 
 The first round runs on `creative` and the second on `strong`. `models.use` switches the model that later [`models.loop`](11-conversations.md#starting-a-conversation) calls send to in the same way, so a `models.loop` that follows `models.use('fast')` sends its requests to the model that fills `fast`.
 
-Selecting the same role again is allowed, and a plain re-selection clears the earlier options. So `models.use('strong', { temperature = 0.5, max_tokens = 64 })` followed by `models.use('strong')` leaves the chain on `strong` with no `temperature` or `max_tokens` override.
+Selecting the same role again is allowed, and a plain re-selection clears the earlier options. So `models.use('strong', { temperature = 0.5, max_tokens = 64 })` followed by `models.use('strong')` leaves the chain on `strong` with `temperature` and `max_tokens` both unset.
 
 ### Selecting a handle
 
@@ -697,7 +697,7 @@ return tostring(h.temperature) .. '|' .. tostring(h.max_tokens)
 0.2|128
 ````
 
-A role name starts from the role's own binding, which has no sampling options, so `models.use('strong')` clears the options an earlier call set. [How long sampling options last](#how-long-sampling-options-last) covers that rule.
+A role name starts from the role's own binding, where both sampling options are unset, so `models.use('strong')` clears the options an earlier call set. [How long sampling options last](#how-long-sampling-options-last) covers that rule.
 
 ### Which model a round uses
 
@@ -705,7 +705,7 @@ A round that names no model runs on the chain's current model, which is picked i
 
 1. The chain's latest `models.use`.
 2. Otherwise, the model the chain started on (see [Where a chain starts](#where-a-chain-starts)): the `default` role's model for the main walk and for a prompt run with `execute`, and a copy of the parent's current model for a `call` child, a spawned task, or a fanout arm.
-3. Otherwise, no model at all, which happens only when the Host gave the run none.
+3. Otherwise, the missing-model error, which the round raises only when the Host gave the run none.
 
 A round that names a model with a handle, as in `models.infer(handle, prompt)`, runs on that handle and leaves the current model alone.
 
@@ -713,9 +713,9 @@ A `models.use` selection lasts until the next `models.use` in its chain. It reac
 
 ### The effective model
 
-The chain's effective model is the selected role's or handle's binding with the `models.use` options applied on top. The options shape the chain's rounds and nothing else, and the role itself stays unchanged, so after `models.use('strong', { temperature = 0.5, max_tokens = 64 })`, `models.get('strong')` still reads `temperature` and `max_tokens` as `nil`.
+The chain's effective model is the selected role's or handle's binding with the `models.use` options applied on top. The options shape the chain's rounds alone, and the role itself stays unchanged, so after `models.use('strong', { temperature = 0.5, max_tokens = 64 })`, `models.get('strong')` still reads `temperature` and `max_tokens` as `nil`.
 
-`models.use` takes at most two arguments: a target and an optional options table such as `{ temperature = 0, max_tokens = 256 }`. Leaving the table out, or passing `nil`, sets no sampling overrides on a role name and keeps the handle's own settings on a handle. [Sampling options on `models.use`](#sampling-options-on-modelsuse) covers each option.
+`models.use` takes at most two arguments: a target and an optional options table such as `{ temperature = 0, max_tokens = 256 }`. With the table left out, or `nil` passed, a role name starts with both sampling options unset and a handle keeps its own settings. [Sampling options on `models.use`](#sampling-options-on-modelsuse) covers each option.
 
 ### Rejected calls
 
@@ -781,7 +781,7 @@ return models.infer(prose)
 
 The prologue selects the `default` role and passes `models.use` a second argument, an options table. The epilog's model round then asks the model for a temperature of 0.3 and caps its reply at 256 generated tokens, and the reply becomes the run result.
 
-The `temperature` and `max_tokens` keys are the sampling options: the two settings a `models.use` call can attach to its selection. They come only from `models.use`, because a model role declared under `models:` has no sampling fields of its own (see [Declaring roles under `models:`](#declaring-roles-under-models)). A model round that has neither option sends no temperature and no token cap.
+The `temperature` and `max_tokens` keys are the sampling options: the two settings a `models.use` call can attach to its selection. They come only from `models.use`, because a model role declared under `models:` holds only its two requirement keys (see [Declaring roles under `models:`](#declaring-roles-under-models)). A model round with both options unset leaves the temperature and the token cap out of its request.
 
 ### Reading sampling options back
 
@@ -817,7 +817,7 @@ return tostring(h.temperature == 0) .. '|' .. tostring(h.max_tokens)
 true|nil
 ````
 
-Rounds on this selection ask the model for a temperature of 0 and send no token cap. `0` is an accepted temperature, and an integer works as well as a float, so `temperature = 0`, `temperature = 1`, and `temperature = 0.7` are all valid.
+Rounds on this selection ask the model for a temperature of 0 and leave the token cap out. `0` is an accepted temperature, and an integer works as well as a float, so `temperature = 0`, `temperature = 1`, and `temperature = 0.7` are all valid.
 
 ### How long sampling options last
 
@@ -831,18 +831,18 @@ return models.infer(careful, 'Write a slogan for a bakery.')
 ```
 ````
 
-The second `models.use` call selects `default` again with no options, so the chain's selection now has none. The round on `careful` still asks for a temperature of 0, because a handle keeps the options it was made with.
+The second `models.use` call selects `default` again and passes the role alone, so the chain's selection now has both options unset. The round on `careful` still asks for a temperature of 0, because a handle keeps the options it was made with.
 
 Sampling options follow these rules:
 
-- The options stay on the chain's selection. They apply to every following model round in the chain that names no model, in this section and in the sections after it, such as `models.infer(prose)` and each round of a `models.loop` conversation (see [Starting a conversation](11-conversations.md#starting-a-conversation)), until the next `models.use` call replaces the selection. A `call` child, a spawned task, and a fanout arm start on a copy of the parent's selection with its options, and their own `models.use` calls never reach the parent (see [Children and fanout arms](#children-and-fanout-arms)). A prompt run with `execute` starts on the `default` role with no options.
-- A later plain `models.use(role)` with no options clears the options an earlier call set. The handle from `models.use('default')` reads `nil` for both `temperature` and `max_tokens`, and the chain's following rounds send neither.
+- The options stay on the chain's selection. They apply to every following model round in the chain that names no model, in this section and in the sections after it, such as `models.infer(prose)` and each round of a `models.loop` conversation (see [Starting a conversation](11-conversations.md#starting-a-conversation)), until the next `models.use` call replaces the selection. A `call` child, a spawned task, and a fanout arm start on a copy of the parent's selection with its options, and their own `models.use` calls never reach the parent (see [Children and fanout arms](#children-and-fanout-arms)). A prompt run with `execute` starts on the `default` role with both options unset.
+- A later plain `models.use(role)`, which passes the role alone, clears the options an earlier call set. The handle from `models.use('default')` reads `nil` for both `temperature` and `max_tokens`, and the chain's following rounds leave both out.
 - The handle a `models.use` call returns keeps that call's options for every round on it, `models.infer(h, prompt)` and each round of `models.loop(h)`, even after a later `models.use` changes the chain's selection.
-- The options do not apply to a handle from `models.get`, because it describes the role's own settings, and they shape only the chain's effective model (see [The effective model](#the-effective-model)). A round on `models.get('strong')` sends no temperature and no token cap, only the role's thinking switch (see [The thinking switch](#the-thinking-switch)).
+- The options do not apply to a handle from `models.get`, because it describes the role's own settings, and they shape only the chain's effective model (see [The effective model](#the-effective-model)). A round on `models.get('strong')` sends only the role's thinking switch, with the temperature and the token cap left out (see [The thinking switch](#the-thinking-switch)).
 
 ### Sampling option values
 
-The options table names only `temperature` and `max_tokens`, written as string keys. The second argument of `models.use` is either that table or `nil`, and leaving it out or passing `nil` means no options.
+The options table names only `temperature` and `max_tokens`, written as string keys. The second argument of `models.use` is either that table or `nil`, and leaving it out or passing `nil` keeps the target's own settings.
 
 | Option | Accepted values | Sent as | Read back as |
 | --- | --- | --- | --- |
@@ -917,7 +917,7 @@ strong|claude-sonnet-4-6|true
 
 `models.get('strong')` returns the `strong` role's handle (see [Getting handles with `models.get`](#getting-handles-with-modelsget)), and the block reads three of its fields to inspect the role without running a model round.
 
-A model handle is the value that `models.use`, `models.get`, and `models.current` all return. It is frozen Lua userdata whose read-only fields describe the role and model it stands for. It has no methods. You run a model round on a handle by passing it to `models.infer(model, prompt)` (see [Running a round with `models.infer`](#running-a-round-with-modelsinfer)), and you start a conversation on it with `models.loop(model, compactor?)` (see [Starting a conversation](11-conversations.md#starting-a-conversation)).
+A model handle is the value that `models.use`, `models.get`, and `models.current` all return. It is frozen Lua userdata whose read-only fields describe the role and model it stands for. Those fields are all it has. You run a model round on a handle by passing it to `models.infer(model, prompt)` (see [Running a round with `models.infer`](#running-a-round-with-modelsinfer)), and you start a conversation on it with `models.loop(model, compactor?)` (see [Starting a conversation](11-conversations.md#starting-a-conversation)).
 
 ### The nine handle fields
 
@@ -931,7 +931,7 @@ A model handle has exactly nine fields, all read-only:
 | `description` | The filling model's catalog description, which can be empty |
 | `context` | The filling model's context window in tokens, a positive integer such as `8192` |
 | `provider` | The provider id the model catalog records for the filling model, or `nil` |
-| `thinking` | `true` for a role declared `thinking: true`, `false` for `thinking: false`, `nil` for neither |
+| `thinking` | `true` for a role declared `thinking: true`, `false` for `thinking: false`, `nil` for a role that leaves the key out |
 | `temperature` | The `temperature` option from `models.use`, a number, or `nil` |
 | `max_tokens` | The `max_tokens` option from `models.use`, a positive integer, or `nil` |
 
@@ -941,13 +941,13 @@ A model handle has exactly nine fields, all read-only:
 
 `description` reads the filling model's catalog description from the Host, which can be empty. It is Host data, so a prompt cannot set it and its text differs from one Host to the next.
 
-`context` reads the filling model's catalog context window in tokens, always a positive integer of at least 1, such as `8192`. It is the model's own window, not the role's `min_context`, so it reports what the model offers rather than what the role asked for.
+`context` reads the filling model's catalog context window in tokens, always a positive integer of at least 1, such as `8192`. It is the model's own window, not the role's `min_context`, so it reports what the model offers.
 
-`provider` reads the provider id the model catalog records for the filling model, as a string. With a model whose catalog entry records the provider `xai`, `tostring(h.provider)` reads `xai`. With a model whose entry records none, it reads `nil`.
+`provider` reads the provider id the model catalog records for the filling model, as a string. With a model whose catalog entry records the provider `xai`, `tostring(h.provider)` reads `xai`. With a model whose entry leaves the provider out, it reads `nil`.
 
 `thinking` reads the role's thinking switch as a boolean, or `nil` when the role declared no `thinking` (see [The thinking switch](#the-thinking-switch)).
 
-`temperature` and `max_tokens` read `nil` on every handle except one that `models.use` returned with that option set, such as `0.3` and `256` after `local h = models.use('default', { temperature = 0.3, max_tokens = 256 })`. A role has only `min_context` and `thinking`, and declares no sampling settings of its own.
+`temperature` and `max_tokens` read `nil` on every handle except one that `models.use` returned with that option set, such as `0.3` and `256` after `local h = models.use('default', { temperature = 0.3, max_tokens = 256 })`. A role has only `min_context` and `thinking`, so sampling settings come from the call that selects it.
 
 ### A handle's frozen binding
 
@@ -967,17 +967,17 @@ return models.infer(models.get('strong'), 'ping')
 
 The chain starts on `default`, so a round in `Check` that names no model would run on `default`. The round on the `strong` handle still sends its request to the model that fills `strong`.
 
-A model handle holds a frozen binding: the model and settings fixed when the handle was made. Its fields report the values fixed then and read the same every time during the run. Its requests go to the model it was made for, so a handle for a `strong` role filled by `gateway/claude-sonnet-4-6` sends its requests to that model, naming it `claude-sonnet-4-6`. Later changes to the chain's current model never change which model a handle uses, and repeated rounds on one handle use the same model, as when two `models.loop(other)` calls both send their requests to the model `other` was made for.
+A model handle holds a frozen binding: the model and settings fixed when the handle was made. Its fields report the values fixed then and read the same every time during the run. Its requests go to the model it was made for, so a handle for a `strong` role filled by `gateway/claude-sonnet-4-6` sends its requests to that model, naming it `claude-sonnet-4-6`. A handle keeps its model through every later change to the chain's current model, and repeated rounds on one handle use the same model, as when two `models.loop(other)` calls both send their requests to the model `other` was made for.
 
 ### Read-only handle fields
 
-Model handle fields can only be read. Reading any name other than the nine fields raises a Lua error, so `pcall` around such a read returns `false`. That includes `infer` and `loop`: a handle has no methods.
+Model handle fields can only be read. Reading any name other than the nine fields raises a Lua error, so `pcall` around such a read returns `false`. That includes `infer` and `loop`: the nine fields are all a handle has.
 
 A model handle is Lua userdata, not a table, so `type(h)` returns `'userdata'`. Only the userdata that `models.use`, `models.get`, or `models.current` returns counts as a model handle. A plain table that copies a handle's fields is not one, and `models.infer` and `models.use` refuse it (see [Infer call-shape errors](#infer-call-shape-errors) and [Rejected calls](#rejected-calls)).
 
 ## Getting handles with `models.get`
 
-You can get the model handle for any of the five roles, or with a Host-state snapshot for a gateway model by its name, without changing the chain's current model.
+You can get the model handle for any of the five roles, or with a Host-state snapshot for a gateway model by its name, and leave the chain's current model as it is.
 
 ````markdown
 ---
@@ -995,7 +995,7 @@ return models.infer(models.get('strong'), 'ping')
 
 `models.get(name)` returns the model handle for one of the five roles, so you reach the model that fills a role by passing its role name. Here the handle runs one round on the `strong` role's model, and the reply is the run result. The call is nested without storing the handle, a common way to run one round on a role.
 
-`Ask` has no `models.use` call, so the chain stays on `default`. The round still runs on `strong`, because a round given a handle runs on that handle's frozen binding rather than on the chain's current model.
+`Ask` never calls `models.use`, so the chain stays on `default`. The round still runs on `strong`, because a round given a handle runs on that handle's frozen binding rather than on the chain's current model.
 
 ### `models.get` keeps the selection
 
@@ -1017,9 +1017,9 @@ return models.infer(strong, 'Name the weakest claim in this summary: ' .. summar
 ```
 ````
 
-`models.get` returns a role's handle without selecting it. It does not change the chain's current model, so `models.infer(prose)` after it still goes to the current model, here `default`, and only the round given the `strong` handle uses the `strong` role.
+`models.get` returns a role's handle without selecting it. The chain's current model stays as it was, so `models.infer(prose)` after it still goes to the current model, here `default`, and only the round given the `strong` handle uses the `strong` role.
 
-The handle describes the role's own settings, whatever the chain has selected, so it never has the sampling options of a `models.use` call (see [The effective model](#the-effective-model)).
+The handle describes the role's own settings, whatever the chain has selected, so both sampling options are unset on it even after a `models.use` call set them (see [The effective model](#the-effective-model)).
 
 `models.get` returns the same kind of model handle as `models.use` and `models.current`, a Lua userdata, so `type(models.get('fast'))` is `'userdata'`. You can store it and run several rounds on it, as in `local other = models.get('fast')` followed by `models.loop(other)`. Model roles are reachable through `models.get` from a walked section, from a section run through `call` (see [Calling a section](08-jump-and-call.md#calling-a-section)), and from fanout arms (see [What an arm sees](14-fanout.md#what-an-arm-sees)) alike.
 
@@ -1045,7 +1045,7 @@ return models.infer(h, prose)
 ```
 ````
 
-The role name arrives as the run's `text` argument, which the block reads as `args.text` (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)). In a run without a Host-state snapshot, the arguments `{"text":"reviewer"}` name none of the five roles, `pcall` catches the failure, and the block falls back instead of failing:
+The role name arrives as the run's `text` argument, which the block reads as `args.text` (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)). In a run without a Host-state snapshot, the arguments `{"text":"reviewer"}` give a name outside the five roles, `pcall` catches the failure, and the block falls back instead of failing:
 
 ````text
 unknown role: ask-role.md:12: models.get label "reviewer" is not a model role: expected default, strong, small, fast or creative. The Lua code failed at runtime. Fix the code at this location.
@@ -1080,7 +1080,7 @@ qwen/qwen3-8b|qwen/qwen3-8b|8192
 
 A Host-state snapshot is the application state a Host can hand a run, the value that `ui()` returns (see [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui)). With one, `models.get` treats a name that is not one of the five roles as a raw model id: the name a gateway model is listed under, passed in place of a role name. It returns a handle for the model id made of the server namespace `gateway` and that name, so the handle above is for `gateway/qwen/qwen3-8b` and its `model_id` reads the name as passed. Pass the name alone, because a full model id such as `gateway/fast` is read as a name too, giving the model id `gateway/gateway/fast`, and the handle's requests then name the model `gateway/fast`.
 
-A prompt can then reach a gateway model by its name with no further setup, usually the one the Host reports in `ui().selected_model`:
+A prompt can then reach a gateway model by its name alone, usually the one the Host reports in `ui().selected_model`:
 
 ````markdown
 ## Reply
@@ -1100,7 +1100,7 @@ Raw model ids follow these rules:
 - A raw-id handle works anywhere a handle does, in `models.use`, `models.infer(model, prompt)`, `models.loop(model, compactor?)`, and the model-first form of `tasks.fanout`, and it works on a Host that gave the run no model, because the handle holds its own binding.
 - The run's roles are filled from the Host's role map, so a raw model id through `models.get` is the only way a prompt reaches a model outside that map.
 - Only `models.get` has the raw model id fallback. `models.use` takes only the five role names and handles, so `models.use('qwen/qwen3-8b')` fails with `models.use label "qwen/qwen3-8b" is not a model role: expected default, strong, small, fast or creative`. To select a raw model id, pass its handle: `models.use(models.get('qwen/qwen3-8b'))`.
-- Without a Host-state snapshot there is no `ui` global, and `models.get` accepts only the five role names, so any other name is an error rather than a raw model id.
+- Without a Host-state snapshot the `ui` global reads as nil, and `models.get` accepts only the five role names, so any other name is an error rather than a raw model id.
 
 ### `models.get` errors and check order
 
@@ -1131,15 +1131,15 @@ return models.infer(prose)
 ```
 ````
 
-`return models.infer(prose)` sends the section's prose, the rendered Markdown above the block (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)), to the model in one round and makes the reply the section's result. In this one-section prompt, the run result is whatever the model replies. The call names no model, so it runs on the chain's current model, which here is the `default` role's.
+`return models.infer(prose)` sends the section's prose, the rendered Markdown above the block (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)), to the model in one round and makes the reply the section's result. In this one-section prompt, the run result is whatever the model replies. The call leaves the model out, so it runs on the chain's current model, which here is the `default` role's.
 
-Each `models.infer` call is one infer round: a model round on a fresh conversation whose only message is the prompt, sent as a single message with the `user` message role. Nothing from earlier rounds or from the rest of the section reaches the model. An infer round never reads or changes the section entry's `messages` list (see [Starting a conversation](11-conversations.md#starting-a-conversation)), sends no tools, and works inside a loop's tool handlers and compactors, where a loop cannot start.
+Each `models.infer` call is one infer round: a model round on a fresh conversation whose only message is the prompt, sent as a single message with the `user` message role. The model receives that one message alone, with earlier rounds and the rest of the section left out. An infer round never reads or changes the section entry's `messages` list (see [Starting a conversation](11-conversations.md#starting-a-conversation)), leaves tools out of its request, and works inside a loop's tool handlers and compactors, where a loop cannot start.
 
 ### Which model an infer round uses
 
 `models.infer(prompt)` runs on the chain's current model, which it looks up when the call runs, in the order [Which model a round uses](#which-model-a-round-uses) gives. In `bakery`, that is `default`, the model the chain starts on.
 
-`models.infer(model, prompt)` sends the prompt to the model handle's own model instead, using the frozen binding the handle got when you obtained it, so the request has that handle's role name and model. It does not change the chain's current model:
+`models.infer(model, prompt)` sends the prompt to the model handle's own model instead, using the frozen binding the handle got when you obtained it, so the request has that handle's role name and model. The chain's current model stays as it was:
 
 ````markdown
 ## Write
@@ -1187,13 +1187,13 @@ local ok, text = pcall(function() return models.infer('hi') end)
 
 ### What an infer round leaves out
 
-An infer round sends the prompt and returns the reply, and nothing more:
+An infer round only sends the prompt and returns the reply:
 
-- Each `models.infer` call sends a single round that offers the model no tools, even when the prompt declares tools, so no tool call can happen during the round, and a reply that comes back with tool calls anyway is refused (see [Errors from the model backend](#errors-from-the-model-backend)). When a Lua block needs a model round that can use tools, it runs a section with `call` instead (see [Calling a section](08-jump-and-call.md#calling-a-section)).
-- The reply comes back whole as the call's return value, and none of it appears in the run's live output while the model is still writing.
-- Any reasoning text the model backend supplies never becomes part of the returned value, which holds only the reply text.
+- Each `models.infer` call sends a single round with the tools left out, even when the prompt declares tools, so the round never dispatches a tool, and a reply that comes back with tool calls anyway is refused (see [Errors from the model backend](#errors-from-the-model-backend)). When a Lua block needs a model round that can use tools, it runs a section with `call` instead (see [Calling a section](08-jump-and-call.md#calling-a-section)).
+- The reply comes back whole as the call's return value, and the run's live output leaves it out while the model is still writing.
+- The returned value holds only the reply text, and any reasoning text the model backend supplies stays out of it.
 - A round cut off at the generation cap, such as one limited by a `max_tokens` option, still returns the text the model produced up to that point.
-- The round sets no global and leaves `sys` untouched, so `sys` reads the same before and after it (see [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui)).
+- The round leaves every global as it was, `sys` included, so `sys` reads the same before and after it (see [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui)).
 
 ### Infer rounds in tasks and arms
 
@@ -1245,7 +1245,7 @@ So an extra argument after the prompt, such as an options table, gets the first 
 
 ### Errors from the model backend
 
-An infer call offers the model no tools, so it never dispatches tools. A model that replies to an infer round with tool calls fails the call with an error value of kind `model_failure` whose message is the file and line of the `models.infer` call, then this text:
+An infer call leaves the tools out of its request, so it never dispatches tools. A model that replies to an infer round with tool calls fails the call with an error value of kind `model_failure` whose message is the file and line of the `models.infer` call, then this text:
 
 ````text
 the model backend sent a reply that could not be understood: the round sent tool calls, but no tools were advertised
@@ -1267,7 +1267,7 @@ skipped (model_required)
 
 `models.loop` with no model handle on such a Host fails with the same missing-model error naming the section, which `pcall` also catches as kind `model_required`.
 
-Only an explicit model call such as `models.infer(prose)` can raise the missing-model error, so prose that no block sends to a model needs no model at all (see [When a prompt needs a role](#when-a-prompt-needs-a-role)). `models.use`, `models.get`, and `models.current` do not raise it. On a Host with no model they fail with ordinary Lua errors of kind `lua`, as [When the Host gives no model](#when-the-host-gives-no-model) shows.
+Only an explicit model call such as `models.infer(prose)` can raise the missing-model error, so prose needs a model only when a block sends it to one (see [When a prompt needs a role](#when-a-prompt-needs-a-role)). `models.use`, `models.get`, and `models.current` do not raise it. On a Host with no model they fail with ordinary Lua errors of kind `lua`, as [When the Host gives no model](#when-the-host-gives-no-model) shows.
 
 `models.infer(model, prompt)` runs on the handle's own model, so it works on a Host that gave no model when the handle is a raw-id handle such as `models.get('qwen/qwen3-8b')`, where `models.infer(prompt)` would fail with the missing-model error.
 
@@ -1310,7 +1310,7 @@ A successful infer round reports the same round events, in the same order, as an
 
 When the backend's response names no model, the Harness's `model_metadata_degraded` message reads ``completion response named no string `model`; labeled with the requested model``, and the Harness labels the round with the requested model.
 
-When the backend supplies no reasoning, or empty reasoning, an infer round reports no `thinking` event. When it supplies reasoning, the round reports it as one `thinking` event after `model_turn_completed` and before the infer `assistant_reply`, the same way other model rounds report reasoning. The `thinking` event holds the reasoning text in `text`, the round number in `turn`, the round id in `round`, and the model name in `model`.
+An infer round reports a `thinking` event only when the backend supplies non-empty reasoning. When it supplies reasoning, the round reports it as one `thinking` event after `model_turn_completed` and before the infer `assistant_reply`, the same way other model rounds report reasoning. The `thinking` event holds the reasoning text in `text`, the round number in `turn`, the round id in `round`, and the model name in `model`.
 
 ### The infer `assistant_reply` event
 
@@ -1326,9 +1326,9 @@ An infer round that returns text reports exactly one `assistant_reply` event, st
 | `finish_reason` | The provider's finish reason, or `null` when the provider sent none |
 | `metrics` | The call's metrics, or `null` when none were reported |
 
-The Engine adds nothing of its own, so every figure comes from one of four sources: the backend's `usage`, llama.cpp's `timings`, vLLM's `metrics`, and the client's own `client` timing.
+Every figure comes from one of four sources outside the Engine: the backend's `usage`, llama.cpp's `timings`, vLLM's `metrics`, and the client's own `client` timing.
 
-Each infer round counts as one model round on the run's round counter, the number its events report in `turn`. Inside a spawned task (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)), it counts on the task's own counter instead, so a task's `turn` numbers, and its `tasks.status` `turns`, count only its own rounds. No cap counts infer rounds.
+Each infer round counts as one model round on the run's round counter, the number its events report in `turn`. Inside a spawned task (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)), it counts on the task's own counter instead, so a task's `turn` numbers, and its `tasks.status` `turns`, count only its own rounds. The count of infer rounds is uncapped.
 
 An infer round's `thinking` event, `assistant_reply` event, and answer record name the model the round was actually sent to. That can be a substitute the Host picked in place of the model that fills the role. The Harness labels each completion with the model the request named, whatever name the backend's response gave, and the Engine reports the name the completion carries.
 
@@ -1336,4 +1336,4 @@ An infer round's `thinking` event, `assistant_reply` event, and answer record na
 
 When the model request for an infer round fails, the run reports a `model_turn_failed` event for the calling section, and the infer call fails with that error (see [Errors from the model backend](#errors-from-the-model-backend)).
 
-When the run is canceled while an infer round is still waiting for its answer, the run ends with code `canceled` and the round's answer is dropped. No `model_turn_failed` event is reported, because cancellation never reports a model failure.
+When the run is canceled while an infer round is still waiting for its answer, the run ends with code `canceled` and the round's answer is dropped. The run leaves the `model_turn_failed` event out here, because cancellation never reports a model failure.
