@@ -74,7 +74,7 @@ Your Lua reads the checked arguments through the `args` global, a table that is 
 
 ### Leaving the `args:` key out
 
-A prompt whose frontmatter has no `args:` key takes one optional string argument named `text`. This prompt leaves the key out and greets whoever its text names:
+A prompt whose frontmatter leaves the `args:` key out takes one optional string argument named `text`. This prompt leaves the key out and greets whoever its text names:
 
 ````markdown
 ---
@@ -246,7 +246,7 @@ Under this declaration the same arguments pass, and `args.n` reads `2`. The Engi
 
 ### A prompt that declares an empty object
 
-A root with no `properties` declares an empty object, for a prompt that takes no arguments:
+A root with no `properties` declares an empty object, for a prompt that accepts only the empty object as its arguments:
 
 ````markdown
 args: { type: object }
@@ -1069,7 +1069,7 @@ Arguments that do not match the declaration end the run with the [error code](16
 - The error's message leaves out the prompt's file and line, because the arguments come from the caller and the fault lies in them. It is exactly the text shown here.
 - A prompt whose `runvil` version is refused fails with the version error whatever its arguments are, because the version is checked first.
 
-Beside its code and its message, the error holds two facts, named values that a Host can read. `Reason` is one of `not_json`, `not_an_object`, `required`, `type`, `enum`, or `undeclared`, and when one argument is at fault, `Name` is that argument's path. The error's prose, the text a model reads for the failure, is the message, a period, and then `The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.` For text that is not JSON, the prose leaves off the JSON parser's reason.
+Beside its code and its message, the error holds two facts, named values that a Host can read. `Reason` is one of `not_json`, `not_an_object`, `required`, `type`, `enum`, or `undeclared`, and when one argument is at fault, `Name` is that argument's path. The error's prose, the text a model reads for the failure, is the message, a period, and then `The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.` For text that fails to parse as JSON, the prose leaves off the JSON parser's reason.
 
 The same check, with the same messages, also runs on the arguments of an `execute`, against the declaration of the prompt it runs. That failure reaches Lua and has a location: it is an [error value](05-lua-environment.md#error-values) of kind `lua` whose `code` is `args_invalid`, raised in the caller at the line of the `execute`, before any section of that prompt runs, so a `pcall` in the caller catches it, and uncaught it ends the run with code `args_invalid` and a message that points at that line (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
@@ -1572,7 +1572,7 @@ hello there
 
 ### The default declaration in full
 
-A prompt whose frontmatter has no `args:` key has the default declaration. It is the same as a prompt that writes this `args:` key:
+A prompt whose frontmatter leaves the `args:` key out has the default declaration. It is the same as a prompt that writes this `args:` key:
 
 ````markdown
 args:

@@ -30,7 +30,7 @@ hi Acme Corp!
 
 A placeholder is `{{ path }}` written inside a section's prose. It runs from `{{` to the next `}}`, and the path between them is trimmed of surrounding spaces. When a Lua block reads `prose`, the Engine replaces each placeholder with a live value from the run, so the text the block gets already holds those values. A placeholder sits inline and is replaced in place, so the words around it, here `hi ` and `!`, stay exactly as written.
 
-`{{ args.text }}` inserts the field `text` of the arguments the run was given. The arguments of a run are one JSON object, and a prompt with no `args:` key in its frontmatter, like this one, takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). Besides inline use like the one above, a prompt can put `{{ args.text }}` on its own line after an instruction that asks the model to analyze the following text:
+`{{ args.text }}` inserts the field `text` of the arguments the run was given. The arguments of a run are one JSON object, and a prompt whose frontmatter leaves the `args:` key out, like this one, takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). Besides inline use like the one above, a prompt can put `{{ args.text }}` on its own line after an instruction that asks the model to analyze the following text:
 
 ````markdown
 Analyze the following input:
@@ -420,7 +420,7 @@ Run with the arguments `{"query":" spaced { brace "}`, whose string has one lead
 Query:  spaced { brace 
 ````
 
-An `args` placeholder reads the arguments by a key path, the dotted keys that follow the root, so `{{ args.query }}` inserts the field `query` of the object that the [`args` global](06-arguments.md#reading-arguments-from-args) holds. A string renders as written: unquoted, and with every character kept, leading spaces and stray braces included. The Engine checks the run's arguments against the prompt's [`args:` declaration](06-arguments.md#declaring-arguments-in-frontmatter) at the run's first step, and arguments that do not match end the run there, before any prose renders (see [Argument errors](06-arguments.md#argument-errors)). A placeholder reads the arguments the same way under any declaration, as here, or in a prompt with no `args:` key at all, and `return prose` gives back the rendered text, as `hi {{ args.text }}!` showed at the start of this chapter.
+An `args` placeholder reads the arguments by a key path, the dotted keys that follow the root, so `{{ args.query }}` inserts the field `query` of the object that the [`args` global](06-arguments.md#reading-arguments-from-args) holds. A string renders as written: unquoted, and with every character kept, leading spaces and stray braces included. The Engine checks the run's arguments against the prompt's [`args:` declaration](06-arguments.md#declaring-arguments-in-frontmatter) at the run's first step, and arguments that do not match end the run there, before any prose renders (see [Argument errors](06-arguments.md#argument-errors)). A placeholder reads the arguments the same way under any declaration, as here, or in a prompt that leaves the `args:` key out, and `return prose` gives back the rendered text, as `hi {{ args.text }}!` showed at the start of this chapter.
 
 A common pattern puts `{{ args.text }}` on its own line after an instruction such as `Your input is a request about a person:`, and because `prose` already has the placeholder replaced, `models.infer(prose)` over the prose `Summarize in one word: {{ args.text }}` in a run with the arguments `{"text":"quantum"}` sends `Summarize in one word: quantum` to the model.
 
@@ -496,7 +496,7 @@ A field renders by its type: a string as written, a number as text, and a list o
 
 ### Under the default `args:` declaration
 
-With no `args:` key, a prompt takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)), so `{{ args.text }}` renders that string and `{{ args }}` renders the whole object:
+When a prompt leaves the `args:` key out, it takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)), so `{{ args.text }}` renders that string and `{{ args }}` renders the whole object:
 
 ````markdown
 ---
