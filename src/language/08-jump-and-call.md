@@ -698,7 +698,7 @@ return 'x-value'
 x-value
 ````
 
-Both `Y` and `B` are skipped, and the run result is `x-value`. A `return` that gives [no value](04-how-a-prompt-runs.md#a-bare-return-and-return-nil) ends the chain the same way: with a bare `return` in `X`, `Y` and `B` are skipped too, and the run result is `done`.
+Both `Y` and `B` are skipped, and the run result is `x-value`. [A bare `return` or a `return` of `nil`](04-how-a-prompt-runs.md#a-bare-return-and-return-nil) ends the chain the same way: with a bare `return` in `X`, `Y` and `B` are skipped too, and the run result is `done`.
 
 ## When a jump is refused or fails
 
@@ -936,7 +936,7 @@ B saw: S1 S2
 
 `S1` ends without a `return`, so the contained chain falls through to `S2`. Within a called chain, `var` rolls forward across the chain's sections as it does on the main walk, so the `var.trail` that `S1` stores is readable in `S2`. `S2`'s return ends the chain, `call` returns `S1 S2` to `A`, and the walk resumes at `B`.
 
-A `return value` inside a called chain ends only that chain, not the run (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The value becomes what `call` returns, the chain's remaining sections are skipped, and the outer walk keeps going. `call` returns the final reply of its contained chain from whichever section ends it with a return, even when that section is a later sibling of the section you named, so a call to `Sub` that falls through to a `Tail` returning `'tail-reply'` gives `tail-reply`. A called chain that runs off its last section without returning gives `call` `nil`, and so does one that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#a-bare-return-and-return-nil), such as a bare `return` or `return nil`. A chain that returns the empty string on purpose, with `return ''`, gives `call` that string. [When `call` returns `nil`](#when-call-returns-nil) shows what the calling block can do with the `nil`.
+A `return value` inside a called chain ends only that chain, not the run (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The value becomes what `call` returns, the chain's remaining sections are skipped, and the outer walk keeps going. `call` returns the final reply of its contained chain from whichever section ends it with a return, even when that section is a later sibling of the section you named, so a call to `Sub` that falls through to a `Tail` returning `'tail-reply'` gives `tail-reply`. A called chain that runs off its last section without returning gives `call` `nil`, and so does one that ends at [a bare `return` or a `return` of `nil`](04-how-a-prompt-runs.md#a-bare-return-and-return-nil). A chain that returns the empty string on purpose, with `return ''`, gives `call` that string. [When `call` returns `nil`](#when-call-returns-nil) shows what the calling block can do with the `nil`.
 
 A section can `call` any other sibling at its level, earlier or later in the file, even one that sits past other sections, such as `A` calling a `Sub` that sits after `B`.
 
@@ -2135,7 +2135,7 @@ The message is the one [Argument errors](06-arguments.md#argument-errors) lists 
 | A table of named fields | the fields of that table, with each declared default filled in |
 | A string | one field, `text`, that holds the string |
 
-Each row is checked against the declaration. So `execute('search.md')` is refused with ``argument `query` is required``, because the empty object lacks the required field, and `execute('search.md', 'tea')` is refused with the same message, because a string fills only `text` and leaves `query` out. A prompt with no `args:` key takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)), so it starts with a string, or with no second argument at all, and refuses any other field.
+Each row is checked against the declaration. So `execute('search.md')` is refused with ``argument `query` is required``, because the empty object lacks the required field, and `execute('search.md', 'tea')` is refused with the same message, because a string fills only `text` and leaves `query` out. A prompt that leaves the `args:` key out takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)), so it starts with a string, or with no second argument at all, and refuses any other field.
 
 An `execute` never hands on the caller's arguments by itself. To give the executed prompt the caller's own arguments, pass them, as in `execute('search.md', args)` or `execute('search.md', { query = args.query })`. The refusals that [Call args errors](#call-args-errors) lists for the second argument of `call` apply to `execute` unchanged, so a list fails with `args must be a table of named fields or a string, got a list`.
 

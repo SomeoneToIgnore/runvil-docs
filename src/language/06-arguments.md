@@ -60,7 +60,7 @@ The Engine checks the arguments against the declaration at the run's first step,
 argument `limit` must be an integer, got string
 ````
 
-Text that is not JSON, JSON that is not an object, a missing required argument, a value of the wrong type, a value outside its `enum`, and a field the declaration does not list all end the run the same way, with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. So a run's arguments reach its sections only when they match the declaration, and the prompt can take everything the declaration says as already checked. [Argument errors](#argument-errors) gives each message.
+Text that fails to parse as JSON, JSON other than an object, a missing required argument, a value of the wrong type, a value outside its `enum`, and a field the declaration does not list all end the run the same way, with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. So a run's arguments reach its sections only when they match the declaration, and the prompt can take everything the declaration says as already checked. [Argument errors](#argument-errors) gives each message.
 
 The same check, with the same messages, runs on the arguments that a prompt passes when it runs another prompt with `execute`, against the declaration of the prompt it runs. It happens at the `execute`, before that prompt starts, and a mismatch is raised there as an error in the caller's Lua (see [`args` in an executed prompt](#args-in-an-executed-prompt)).
 
@@ -738,7 +738,7 @@ args:
 args.properties.query: a node needs a `type`: `string`, `boolean`, `integer`, `number`, `array`, or `object`
 ````
 
-The root is a node too. An `args:` key that gives `properties` and leaves out `type: object` gets the same message with the path `args`, and so does the empty map `args: {}`. A prompt that takes no arguments writes `args: { type: object }`.
+The root is a node too. An `args:` key that gives `properties` and leaves out `type: object` gets the same message with the path `args`, and so does the empty map `args: {}`. A prompt that accepts only the empty object as its arguments writes `args: { type: object }`.
 
 `type` takes exactly the six lowercase words. Any other word, such as a capitalized `String`, an alias like `int`, or `text`, is refused, and the path ends in `.type`:
 
@@ -1077,8 +1077,8 @@ The same check, with the same messages, also runs on the arguments of an `execut
 
 The check reports the first mismatch only, so a caller who fixes it may then meet the next one. The order is fixed:
 
-1. Text that is not JSON.
-2. JSON that is not an object.
+1. Text that fails to parse as JSON.
+2. JSON other than an object.
 3. The declared fields of the root, in name order.
 4. The undeclared fields of the root, in name order.
 
