@@ -631,7 +631,7 @@ An arm can write to its own copy of `var` without error, so `var[item] = true` r
 
 ### `args` in an arm
 
-A fanout arm reads its caller's [`args`](06-arguments.md#reading-arguments-from-args), the same read-only table the caller reads (see [`args` is read-only](06-arguments.md#args-is-read-only)), the way a chain started by a `call` with no second argument does. `tasks.fanout` gives every arm the caller's arguments, and an arm's own input is the member it runs for, which it reads as `item`. So in a prompt with [no `args:` key](06-arguments.md#the-default-args-declaration), run with the arguments `{"text":"hello"}`, a worker section that returns `args.text .. ':' .. item` over `{'alpha', 'beta'}` gives `hello:alpha` and `hello:beta`. A `call` made inside an arm can give the called chain its own arguments, as anywhere (see [Call args and `var`](08-jump-and-call.md#call-args-and-var)).
+A fanout arm reads its caller's [`args`](06-arguments.md#reading-arguments-from-args), the same read-only table the caller reads (see [`args` is read-only](06-arguments.md#args-is-read-only)), the way a chain started by a `call` with no second argument does. `tasks.fanout` gives every arm the caller's arguments, and an arm's own input is the member it runs for, which it reads as `item`. So in [a prompt that leaves the `args:` key out](06-arguments.md#the-default-args-declaration), run with the arguments `{"text":"hello"}`, a worker section that returns `args.text .. ':' .. item` over `{'alpha', 'beta'}` gives `hello:alpha` and `hello:beta`. A `call` made inside an arm can give the called chain its own arguments, as anywhere (see [Call args and `var`](08-jump-and-call.md#call-args-and-var)).
 
 ### Models, tools, and libraries in an arm
 
@@ -743,7 +743,7 @@ A section can call `tasks.fanout` from its epilog block, and the results still c
 
 The arm's result is whatever the worker section returns, not whatever its model rounds return. A worker section that runs `models.infer(item)` and then `return item` gets a reply every time, yet over the members `'1'` through `'1025'`, `r[1].text` is `1` and `r[1025].text` is `1025`.
 
-A fanout arm that runs off its last section without returning gives the empty string as its result, so `r[1].ok` holds and `r[1].text == ''`, the same as a task that runs off its last section. An arm that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#a-bare-return-and-return-nil), such as a bare `return`, gives the same result, and the sections after that `return` do not run.
+A fanout arm that runs off its last section without returning gives the empty string as its result, so `r[1].ok` holds and `r[1].text == ''`, the same as a task that runs off its last section. An arm that ends at [a bare `return` or a `return` of `nil`](04-how-a-prompt-runs.md#a-bare-return-and-return-nil) gives the same result, and the sections after that `return` do not run.
 
 ### The worker section's visible set
 
