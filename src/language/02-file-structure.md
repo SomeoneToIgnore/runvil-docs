@@ -1074,7 +1074,7 @@ runvil: 0
 
 ### Section names
 
-A section name is the text of a section's heading without the leading `#` markers. It may contain several words separated by spaces, so `## Gather Background Research Notes` is named `Gather Background Research Notes`. A section name can be any nonblank text, including spaces and punctuation, and that is the whole naming rule. A single lowercase word such as `helpers` works, and so do several words with spaces and any letter case, such as `Author note`, `Section Two`, or `Stop Early`.
+A section name is the text of a section's heading without the leading `#` markers. It may contain several words separated by spaces, so `## Gather Background Research Notes` is named `Gather Background Research Notes`. A section name can be any nonblank text, including spaces and punctuation, and sibling sections must have distinct names (see [Sibling name uniqueness](#sibling-name-uniqueness)). A single lowercase word such as `helpers` works, and so do several words with spaces and any letter case, such as `Author note`, `Section Two`, or `Stop Early`.
 
 The name keeps only the visible text of the heading:
 
