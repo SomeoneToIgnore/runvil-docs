@@ -48,17 +48,17 @@ The [section walk](04-how-a-prompt-runs.md#the-section-walk) enters `Check` firs
 
 ### Two globals in every section
 
-`jump` and `call` are the control functions. The Engine installs both as Lua globals while it sets up every section, so every block can use them, and once setup finishes neither one is ever `nil`.
+`jump` and `call` are the control functions. The Engine installs both as Lua globals while it sets up every section, so every block can use them, and once setup finishes they are never `nil`.
 
 Each one takes the target section's section path as its first argument, written as a Lua string, as in `call('Sub')` and `jump('../B')`. A section path names a neighbor of the section the code is written in: the bare name of a direct child, or `../` and the name of a sibling (see [Section paths](02-file-structure.md#section-paths)). Either quote style works, as in `call('Inner')` or `call("../Child")`. So `call('Answer')` runs the child named `Answer`, `jump('../Target')` moves to the sibling `Target`, and from `A`, `call('../S1')` runs the sibling `S1`. Both `call('../Sub', { query = 'chain' })` and `call('../Sub')` reach the same `Sub` section, because only the first argument names the target.
 
 ### What `jump` does
 
-`jump(path)` transfers control outright: the block ends at the `jump`, and the walk continues at the target section. `jump` returns nothing to the block, because the block is over, and code after it in the same block never runs. In a block holding `jump("../Target")` followed by `error("unreachable")`, the `error` is never reached. In the opening prompt, the line after `jump('../Help')` never runs, `Accept` is skipped, and the run ends with `helped:forty-two`. A path to a child works the same way, as in `jump('S1')`. [Jumping to a section](#jumping-to-a-section) covers sibling moves and backward-jump loops in full.
+`jump(path)` transfers control outright: the block ends at the `jump`, and the walk continues at the target section. Because the block is over, code after the `jump` in the same block never runs. In a block holding `jump("../Target")` followed by `error("unreachable")`, the `error` is never reached. In the opening prompt, the line after `jump('../Help')` never runs, `Accept` is skipped, and the run ends with `helped:forty-two`. A path to a child works the same way, as in `jump('S1')`. [Jumping to a section](#jumping-to-a-section) covers sibling moves and backward-jump loops in full.
 
 ### What `call` does
 
-`call(target, args?)` runs another section as a contained chain: a chain that starts at the target and [falls through](04-how-a-prompt-runs.md#the-section-walk) the target's following siblings until a section returns or the level runs out. The second argument is optional: a table of named fields, as in `call('../Sub', { query = 'chain' })`, or a string, as in `call('../Sub', 'chain-args')` or `call("../Child", "override")`. Leaving it out, as in `call('../Child')`, gives the chain no arguments of its own. [Call args and `var`](#call-args-and-var) covers what the called sections see in each case.
+`call(target, args?)` runs another section as a contained chain: a chain that starts at the target and [falls through](04-how-a-prompt-runs.md#the-section-walk) the target's following siblings until a section returns or the level runs out. The second argument is optional: a table of named fields, as in `call('../Sub', { query = 'chain' })`, or a string, as in `call('../Sub', 'chain-args')` or `call("../Child", "override")`. Leaving it out, as in `call('../Child')`, makes the chain inherit its caller's arguments. [Call args and `var`](#call-args-and-var) covers what the called sections see in each case.
 
 `call` runs the section like a function and returns the contained chain's final text to the block as a plain Lua string, or `nil` when the chain ends with no text. Here `Main` calls its child `Sub`, which falls through to `After`:
 
@@ -93,7 +93,7 @@ return var.trail .. 'After'
 got:Sub After
 ````
 
-`call('Sub')` runs `Sub` first. It has no `return`, so the contained chain falls through to the next sibling, `After`, whose return ends the chain. That return value comes back as `r`, and `Main` finishes its block with it. [Calling a section](#calling-a-section) covers contained chains in full.
+`call('Sub')` runs `Sub` first. It ends without a `return`, so the contained chain falls through to the next sibling, `After`, whose return ends the chain. That return value comes back as `r`, and `Main` finishes its block with it. [Calling a section](#calling-a-section) covers contained chains in full.
 
 ### Children run only when named
 
@@ -129,7 +129,7 @@ return var.trail .. ' B'
 A B
 ````
 
-The walk runs `A`, then moves to its next sibling, `B`, and `Child` with its `error` never runs. A child runs only when something names it by section path. `jump('Child')` from its parent starts a walk over the children, and `call('Child')` runs it, along with the children after it, and comes back. When `A` runs `jump('X')` over children `X` and `Y`, the walk runs `X` and `Y` and then resumes at `B`, in the order A, X, Y, B. Without that `jump`, `X` and `Y` never run and only A and B do. When `Main` runs `call('Sub')`, `Sub` and `After` run, and then `Main` resumes with the reply, as in the previous prompt.
+The walk runs `A`, then moves to its next sibling, `B`, and `Child` with its `error` never runs. A child runs only when something names it by section path. `jump('Child')` from its parent starts a walk over the children, and `call('Child')` runs it, along with the children after it, and comes back. When `A` runs `jump('X')` over children `X` and `Y`, the walk runs `X` and `Y` and then resumes at `B`, in the order A, X, Y, B. Without that `jump`, the walk passes over `X` and `Y` and runs only A and B. When `Main` runs `call('Sub')`, `Sub` and `After` run, and then `Main` resumes with the reply, as in the previous prompt.
 
 ## Resolving section paths
 
@@ -165,7 +165,7 @@ return 'topics ran'
 worker ran
 ````
 
-The section path `'Worker'` names the direct child of `Main` with exactly that name, so among the children `Worker` and `Topics` it finds `Worker`. Change the call to `call('../Worker')` and the lookup fails, because `../` asks for a sibling, and no sibling of `Main` has the name `Worker`. The call raises the not-found error, whose text says where the lookup looked:
+The section path `'Worker'` names the direct child of `Main` with exactly that name, so among the children `Worker` and `Topics` it finds `Worker`. Change the call to `call('../Worker')` and the lookup fails, because `../` asks for a sibling, and the name `Worker` is unmatched among the siblings of `Main`. The call raises the not-found error, whose text says where the lookup looked:
 
 ````text
 section `../Worker` not found: `/Main` has no sibling `Worker`
@@ -175,7 +175,7 @@ section `../Worker` not found: `/Main` has no sibling `Worker`
 
 A relative path has two forms, and each names one kind of neighbor: `"Name"` is a direct child and `"../Name"` is a sibling, so the two strings name different sections. A path from the top, such as `"/Main/Worker"`, starts at the top-level sections and names one section per level. [Section paths](02-file-structure.md#section-paths) covers how each form is written.
 
-A name in a path is compared with a section name as an exact string, with no prefix, fuzzy, or case-insensitive matching. The heading level plays no part, because a section is found by where it sits in the section tree. Whitespace around the whole path and around each name is ignored. Spaces inside a name are kept, so `"../My Section"` names a multi-word section with its inner spacing intact.
+A name in a path is compared with a section name as an exact string, so a prefix, a near spelling, or a difference in case is a miss. A section is found by where it sits in the section tree, whatever its heading level. Whitespace around the whole path and around each name is ignored. Spaces inside a name are kept, so `"../My Section"` names a multi-word section with its inner spacing intact.
 
 ### One lookup for every call that names a section
 
@@ -196,7 +196,7 @@ A path is looked up when the call runs, not when the prompt is parsed. A prompt 
 A relative path starts at the section its code is written in:
 
 - A section's own blocks start at that section, which is the one that is running. A called chain, a task, and a fanout arm each run a section of their own, and each starts from it.
-- A block in the [preamble](02-file-structure.md#the-preamble), the text between the frontmatter and the first heading, starts at the preamble. The other top-level sections are its siblings, and it has no children (see [Jump and call from the preamble](#jump-and-call-from-the-preamble)).
+- A block in the [preamble](02-file-structure.md#the-preamble), the text between the frontmatter and the first heading, starts at the preamble. The other top-level sections are its siblings, and every nested section sits under one of them (see [Jump and call from the preamble](#jump-and-call-from-the-preamble)).
 - A library's code starts at the library section, both while the library loads and when its functions run later, whichever section is using the library (see [A library names its own sections](03-blocks-and-prose.md#a-library-names-its-own-sections)).
 
 `jump` is the one exception. It moves the walk of the section that is running, so its path starts at the running section even when the `jump` is written in a library.
@@ -229,7 +229,7 @@ A section path names at most one section. The parser rejects two sibling section
 
 ## The visible set
 
-After this section you can tell which sections a given section can run, using its place in the section tree, and read the not-found error when a section path names nothing.
+After this section you can tell which sections a given section can run, using its place in the section tree, and read the not-found error when a section path misses.
 
 ````markdown
 ---
@@ -273,11 +273,11 @@ Niece notes.
 ../Sibling=true, ../Other=true, Kid=true, ../Main=false, Grand=false, Niece=false
 ````
 
-From `Main`, the paths `'../Sibling'`, `'../Other'`, and `'Kid'` each name a section. `'../Main'`, `'Grand'`, and `'Niece'` name nothing, because `Main` is not its own sibling and has no child named `Grand` or `Niece`. The probe uses `prompt.section_or`, which reads `nil` for a path that names no section. `call`, `jump`, `tasks.spawn`, and `tasks.fanout` resolve the same six paths the same way, and they raise the not-found error for the last three.
+From `Main`, the paths `'../Sibling'`, `'../Other'`, and `'Kid'` each name a section. `'../Main'`, `'Grand'`, and `'Niece'` miss, because `Main` is not its own sibling, and the names `Grand` and `Niece` are unmatched among its children. The probe uses `prompt.section_or`, which reads `nil` for a path that misses. `call`, `jump`, `tasks.spawn`, and `tasks.fanout` resolve the same six paths the same way, and they raise the not-found error for the last three.
 
 ### The visible set rule
 
-The visible set is the set of sections the two relative forms can name from a section: its sibling sections, not counting itself, plus its own direct children. `call`, `jump`, `tasks.spawn`, and `tasks.fanout` run a section and take only the relative forms, so each of them reaches only the visible set of the section it starts from. None of them has a way to write a parent, a grandchild, a sibling's child, or a cousin. The preamble's visible set is every other top-level section, as its siblings, and no nested section, so from the preamble `call('../Main')` runs the top-level `Main` and `call('../Kid')` fails (see [Jump and call from the preamble](#jump-and-call-from-the-preamble)).
+The visible set is the set of sections the two relative forms can name from a section: its sibling sections, not counting itself, plus its own direct children. `call`, `jump`, `tasks.spawn`, and `tasks.fanout` run a section and take only the relative forms, so each of them reaches only the visible set of the section it starts from. A parent, a grandchild, a sibling's child, and a cousin all lie outside that set. The preamble's visible set is every other top-level section, as its siblings, and those alone, so from the preamble `call('../Main')` runs the top-level `Main` and `call('../Kid')` fails (see [Jump and call from the preamble](#jump-and-call-from-the-preamble)).
 
 So a top-level `A` can `jump('../B')` to a sibling or `jump('X')` to one of its own children. All four calls resolve a path through the same lookup, so from a given section they accept the same paths, and `pcall(tasks.spawn, '../Missing')` and `pcall(call, '../Missing')` fail with the same error text.
 
@@ -293,9 +293,9 @@ For the prompt above, this is what `Main` can name with a relative path:
 
 A section's visible set never includes the section itself, so a section cannot run itself through `call`, `jump`, or the `tasks` functions. `Self` running `call('../Self')` or `jump('../Self')` fails the run with an error whose message says `not found`, because a section is not its own sibling.
 
-A section can run a child one level below it, not just its siblings. `Sub` can `jump('S1')` to its child `S1`, and `Parent` can run `tasks.fanout('Worker', ...)` on its child `Worker`.
+A section can run a child one level below it as well as its siblings. `Sub` can `jump('S1')` to its child `S1`, and `Parent` can run `tasks.fanout('Worker', ...)` on its child `Worker`.
 
-The prompt reads and `require` are not held to the visible set, because neither one runs a section as part of the walk. A read takes a path from the top beside the relative forms, so `Main` reads its grandchild with `prompt.section('/Main/Kid/Grand')` and its sibling's child with `prompt.section('/Other/Niece')` (see [Which sections a read can name](03-blocks-and-prose.md#which-sections-a-read-can-name)). `require` takes only a path from the top (see [How `require` finds and caches libraries](03-blocks-and-prose.md#how-require-finds-and-caches-libraries)).
+The prompt reads and `require` reach past the visible set, because both leave the walk where it is. A read takes a path from the top beside the relative forms, so `Main` reads its grandchild with `prompt.section('/Main/Kid/Grand')` and its sibling's child with `prompt.section('/Other/Niece')` (see [Which sections a read can name](03-blocks-and-prose.md#which-sections-a-read-can-name)). `require` takes only a path from the top (see [How `require` finds and caches libraries](03-blocks-and-prose.md#how-require-finds-and-caches-libraries)).
 
 ### What a nested section can name
 
@@ -347,17 +347,17 @@ X:grand-ran Y
 
 `A` jumps into its child `X`, which starts a [child walk](#child-walks). `X` then calls its own child `Grand` and jumps to its own sibling `Y`, both inside its own visible set. This is also how you run a deeper section: a section cannot run its grandchildren directly, so it goes through the direct child that contains them, as `A` reaches `Grand` here through `X`.
 
-A section's grandchildren, its parent, and its parent's siblings are not in its visible set, and no relative path names them:
+A section's grandchildren, its parent, and its parent's siblings lie outside its visible set, out of reach of every relative path:
 
-- A nested section cannot run its parent. Written in `Worker` under `Parent`, `'../Parent'` asks for a sibling of `Worker` named `Parent`, and there is none. So `jump('../Parent')` ends the run with [error code](16-limits-and-errors.md#run-error-codes) `lua_runtime` and a message containing `not found`, and `pcall(call, '../Parent')` fails with `not found`.
+- A nested section cannot run its parent. Written in `Worker` under `Parent`, `'../Parent'` asks for a sibling of `Worker` named `Parent`, and misses. So `jump('../Parent')` ends the run with [error code](16-limits-and-errors.md#run-error-codes) `lua_runtime` and a message containing `not found`, and `pcall(call, '../Parent')` fails with `not found`.
 - A nested section cannot run its parent's siblings, its aunts and uncles. When `X` under `A` runs `jump('../B')` and `B` is a sibling of `A`, the jump fails the run with a `not found` error, because `B` is not a sibling of `X`.
 - A section cannot run the children of its siblings, its nieces and nephews. `A` running `jump('Niece')` while `Niece` sits under the sibling `B` fails the run with a `not found` error, and `Main` running `tasks.fanout('Niece', {'x'})` while `Niece` sits under `Other` fails the same way.
 
-A relative path that would need a section outside the visible set behaves exactly like a path to a section that does not exist, because only the visible set is searched. `X` running `jump('../B')` fails with `not found` even though the prompt has a `B`.
+A relative path that would need a section outside the visible set misses exactly like a path to a section the prompt lacks, because only the visible set is searched. `X` running `jump('../B')` fails with `not found` even though the prompt has a `B`.
 
 ### The not-found error
 
-The not-found error is the Lua error a well-formed section path raises when it names no section:
+The not-found error is the Lua error a well-formed section path raises when it misses:
 
 ````markdown
 ---
@@ -402,15 +402,15 @@ section `{path}` not found: {where}
 | `'/Other/Missing'` | ``section `/Other/Missing` not found: `/Other` has no child `Missing` `` |
 | `'/Othr/Kid'` | ``section `/Othr/Kid` not found: the top level has no section `Othr` `` |
 
-A path from the top reports the step where it stopped, so the last row names `Othr` and never looks for `Kid`. A relative path written in the preamble is searched from the preamble, which has no name and no path, so the message says `the preamble`: `call('Kid')` written there gives ``section `Kid` not found: the preamble has no child `Kid` `` and `jump('../Missing')` gives ``section `../Missing` not found: the preamble has no sibling `Missing` ``.
+A path from the top reports the step where it stopped, so the last row names `Othr`, and the lookup stops before `Kid`. A relative path written in the preamble is searched from the preamble, whose section name is empty, so the message says `the preamble` in place of a path: `call('Kid')` written there gives ``section `Kid` not found: the preamble has no child `Kid` `` and `jump('../Missing')` gives ``section `../Missing` not found: the preamble has no sibling `Missing` ``.
 
 The message tells the two relative forms apart, which makes two common mistakes easy to read. A sibling written without `../`, as in `call('Other')` from `Main`, reports that `/Main` has no child `Other`. A child written with `../`, as in `call('../Kid')`, reports that `/Main` has no sibling `Kid`.
 
 A relative path is searched from the section its code is written in, so that is the section the message names. For code written in a library, it is the library (see [A library names its own sections](03-blocks-and-prose.md#a-library-names-its-own-sections)).
 
-The message names only the section it searched. It lists no other section, so a not-found message never shows the rest of the prompt's structure.
+The message names only the section it searched, so a not-found message keeps the rest of the prompt's structure hidden.
 
-Each call treats a path that names no section in one of two ways:
+Each call treats a miss in one of two ways:
 
 - `call`, `jump`, `tasks.spawn`, `tasks.fanout`, `require`, and `prompt.section` raise the not-found error. For the same path searched from the same section, all of them raise the same text, so the `tasks.spawn` message is exactly the one `call` produces.
 - `prompt.section_or` returns `nil` without raising. So in a fanout worker section, `pcall(call, '../Parent')` fails with `not found` while `prompt.section_or('../Parent')` reads `nil`.
@@ -499,7 +499,7 @@ Each time `Draft` runs, it appends a `D`, and `Review` jumps back while the trai
 
 ### What a jump ends
 
-Code after a `jump` call in the same `lua` block never runs, because `jump` does not return to the jumper. A jump also skips every remaining block of the jumping section, so that section's later `lua` blocks never run:
+Code after a `jump` call in the same `lua` block never runs, because `jump` ends the block where it is called. A jump also skips every remaining block of the jumping section, its later `lua` blocks included:
 
 ````markdown
 ---
@@ -533,7 +533,7 @@ return 'checked: ' .. var.checked
 checked: yes
 ````
 
-`jump` checks that its argument is a string, records the target, and ends the block right there. A non-string argument fails with `section target must be a string, got {type}`. To end the block, `jump` raises its transfer marker: an error that unwinds the block from the point of the call. When the block ends, the recorded target takes precedence over that error. A `jump` is a control transfer, not a failure, so the jumping block reports success, not an error. `jump` is not a [suspending call](05-lua-environment.md#lua-blocks-section-vms-and-engine-globals), so nothing waits on the Harness when a block jumps.
+`jump` checks that its argument is a string, records the target, and ends the block right there. A non-string argument fails with `section target must be a string, got {type}`. To end the block, `jump` raises its transfer marker: an error that unwinds the block from the point of the call. When the block ends, the recorded target takes precedence over that error. A `jump` is a control transfer, not a failure, so the jumping block reports success. `jump` is not a [suspending call](05-lua-environment.md#lua-blocks-section-vms-and-engine-globals), so the Engine makes the transfer on its own when a block jumps.
 
 ### What crosses a jump
 
@@ -684,7 +684,7 @@ After `Q`, the H4 level runs out, so the walk resumes after its jumper, `X`, at 
 
 ### Returning from a child walk
 
-A `return` inside a jump-started child walk ends the whole chain (see [Returning values](04-how-a-prompt-runs.md#returning-values)), so neither the child level's remaining sections nor the parent walk's next sibling run. Change `X` in the first prompt of this section to return a value:
+A `return` inside a jump-started child walk ends the whole chain (see [Returning values](04-how-a-prompt-runs.md#returning-values)), so the child level's remaining sections and the parent walk's next sibling are both skipped. Change `X` in the first prompt of this section to return a value:
 
 ````markdown
 ### X
@@ -698,7 +698,7 @@ return 'x-value'
 x-value
 ````
 
-Neither `Y` nor `B` runs, and the run result is `x-value`. A `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value) ends the chain the same way: with a bare `return` in `X`, neither `Y` nor `B` runs, and the run result is `done`.
+Both `Y` and `B` are skipped, and the run result is `x-value`. A `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value) ends the chain the same way: with a bare `return` in `X`, `Y` and `B` are skipped too, and the run result is `done`.
 
 ## When a jump is refused or fails
 
@@ -742,25 +742,25 @@ C saw ok=false
 | --- | --- | --- |
 | `jump` inside `pcall` | the jump still lands | `jump transfer`, returned to `pcall` |
 | A non-string target | the `jump` call raises | `section target must be a string, got {type}` |
-| A path that names no section | the run fails after the block ends | the not-found error |
+| A path that misses | the run fails after the block ends | the not-found error |
 | A malformed section path | the run fails after the block ends | the matching message from [Malformed section paths](#malformed-section-paths) |
 | Inside an adhoc tool handler | `jump` is refused | the adhoc tool handler refusal |
 | While a library loads | `jump` is refused | the message in [Jumps while a library loads](#jumps-while-a-library-loads) |
 
 ### Catching a jump with `pcall`
 
-Each Lua block starts with no pending jump, so a `jump` affects only the block that recorded it and never spills over from one block into the next.
+The Engine clears any recorded jump before each Lua block starts, so a `jump` affects only the block that recorded it and never spills over from one block into the next.
 
-`pcall` cannot cancel a jump. A `jump` made inside `pcall`, directly or in a function that `pcall` runs, still records its target. `pcall(jump, path)` returns `false`, the error it returns holds the text `jump transfer`, and the rest of the block keeps running after the `pcall`. How the block ends then makes no difference:
+`pcall` cannot cancel a jump. A `jump` made inside `pcall`, directly or in a function that `pcall` runs, still records its target. `pcall(jump, path)` returns `false`, the error it returns holds the text `jump transfer`, and the rest of the block keeps running after the `pcall`. The jump wins however the block then ends:
 
 - When the block ends normally, the jump wins and the block's return value is discarded. After `local ok = pcall(jump, '../C')`, a later `return 'never the result'` is dropped and the walk moves to `C`.
 - When the block ends with an error, the jump wins and the error is discarded, so the walk moves to the recorded target instead of failing on the block's error.
 
 ### Lookup after the block ends
 
-At the call itself, `jump` checks only that its target is a string. The section path is looked up only after the jumping block has ended, and the walk then continues at the section it names. The jumping section closes as completed, with its final `var` saved, before the path is looked up, so it still reports that its section finished even when the target fails to resolve. Because the lookup runs after the jumping section has closed, a bad `jump` target never raises an error inside the jumping block, and `pcall` there cannot catch it.
+At the call itself, `jump` checks only that its target is a string. The section path is looked up only after the jumping block has ended, and the walk then continues at the section it names. The jumping section closes as completed, with its final `var` saved, before the path is looked up, so it still reports that its section finished even when the target fails to resolve. Because the lookup runs after the jumping section has closed, a bad `jump` target raises its error after the jumping block has ended, where a `pcall` in that block cannot catch it.
 
-A `jump` whose path names no section fails the run with the not-found error, ``section `{path}` not found: {where}``, followed by ` (at {file}:{line})` with the line of the `jump` call (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). The message names the section the jump started from, so a failed `jump('../Parent')` in the fanout worker section `Worker` under `Parent` reports that `/Parent/Worker` has no sibling `Parent`.
+A `jump` whose path misses fails the run with the not-found error, ``section `{path}` not found: {where}``, followed by ` (at {file}:{line})` with the line of the `jump` call (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). The message names the section the jump started from, so a failed `jump('../Parent')` in the fanout worker section `Worker` under `Parent` reports that `/Parent/Worker` has no sibling `Parent`.
 
 A `jump` whose section path is malformed, such as a path with an empty name, a relative path with more than one name, or a path from the top, also fails the run after the jumping block has ended, with the matching message from [Malformed section paths](#malformed-section-paths). Every failed `jump` lookup has code `lua_runtime` and points at the line of the `jump` call.
 
@@ -772,9 +772,9 @@ An [adhoc tool](12-tools.md#how-adhoc-tool-handlers-run)'s handler cannot jump. 
 jump is unavailable inside an adhoc tool handler: return a value from the handler and call jump from the block after the tool call returns
 ````
 
-So the handler returns a value, and the block calls `jump` after the tool call returns. The run fails if nothing catches the refusal. The rules around it:
+So the handler returns a value, and the block calls `jump` after the tool call returns. An uncaught refusal fails the run. The rules around it:
 
-- `jump` is refused while an adhoc tool's handler runs, whether you called the tool with [`tools.call`](12-tools.md#calling-tools-from-lua-and-counting-calls) or the model called it during [`models.loop`](11-conversations.md#starting-a-conversation), and no jump lands in either case.
+- `jump` is refused while an adhoc tool's handler runs, whether you called the tool with [`tools.call`](12-tools.md#calling-tools-from-lua-and-counting-calls) or the model called it during [`models.loop`](11-conversations.md#starting-a-conversation), and in both cases the walk stays where it is.
 - The refusal holds even when the handler calls `jump` through a reference saved before the adhoc tool was defined, such as `local j = jump` followed by `j('../Other')`. The error still holds `jump is unavailable inside an adhoc tool handler`.
 - A refusal the handler does not catch fails the handler and is raised where the tool was called. So `pcall(tools.call, ...)` in the block catches it, returns `false` with the refusal text, and the block keeps running.
 - `jump` stays refused in an outer handler after a nested handler it called has returned. After the outer handler's `tools.call('adhoc/inner', {})` returns, where `adhoc/inner` is the id of another adhoc tool, named `inner`, `pcall(jump, '../Other')` inside the outer handler still fails with the refusal message.
@@ -934,9 +934,9 @@ return var.trail .. 'S2'
 B saw: S1 S2
 ````
 
-`S1` has no `return`, so the contained chain falls through to `S2`. Within a called chain, `var` rolls forward across the chain's sections as it does on the main walk, so the `var.trail` that `S1` stores is readable in `S2`. `S2`'s return ends the chain, `call` returns `S1 S2` to `A`, and the walk resumes at `B`.
+`S1` ends without a `return`, so the contained chain falls through to `S2`. Within a called chain, `var` rolls forward across the chain's sections as it does on the main walk, so the `var.trail` that `S1` stores is readable in `S2`. `S2`'s return ends the chain, `call` returns `S1 S2` to `A`, and the walk resumes at `B`.
 
-A `return value` inside a called chain ends only that chain, not the run (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The value becomes what `call` returns, the chain's remaining sections are skipped, and the outer walk keeps going. `call` returns the final reply of its contained chain from whichever section ends it with a return, even when that section is a later sibling of the target rather than the section you named, so a call to `Sub` that falls through to a `Tail` returning `'tail-reply'` gives `tail-reply`. A called chain that runs off its last section without returning has no text to give back, so `call` returns `nil`, and so does one that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value), such as a bare `return` or `return nil`. A chain that returns the empty string on purpose, with `return ''`, gives `call` that string. [A call that gets no text](#a-call-that-gets-no-text) shows what the calling block can do with the `nil`.
+A `return value` inside a called chain ends only that chain, not the run (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The value becomes what `call` returns, the chain's remaining sections are skipped, and the outer walk keeps going. `call` returns the final reply of its contained chain from whichever section ends it with a return, even when that section is a later sibling of the section you named, so a call to `Sub` that falls through to a `Tail` returning `'tail-reply'` gives `tail-reply`. A called chain that runs off its last section without returning gives `call` `nil`, and so does one that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value), such as a bare `return` or `return nil`. A chain that returns the empty string on purpose, with `return ''`, gives `call` that string. [A call that gets no text](#a-call-that-gets-no-text) shows what the calling block can do with the `nil`.
 
 A section can `call` any other sibling at its level, earlier or later in the file, even one that sits past other sections, such as `A` calling a `Sub` that sits after `B`.
 
@@ -1014,7 +1014,7 @@ var.note = 'ran'
 nil|fallback|loud
 ````
 
-`Quiet` has no `return` and is the last section of its chain, so the chain ends with no text, and `quiet` is `nil`. `Loud` returns, so `loud` is the string `loud`. A `nil` tells the calling block that the chain gave it nothing, where the empty string would look like a reply:
+`Quiet` ends without a `return` and is the last section of its chain, so the chain ends with no text, and `quiet` is `nil`. `Loud` returns, so `loud` is the string `loud`. A `nil` tells the calling block that the chain ended with no text, where the empty string would look like a reply:
 
 - Test the value, as in `if quiet then`, which is false for a chain that ended with no text.
 - Give it a fallback with `or`, as in `quiet or 'fallback'`.
@@ -1117,17 +1117,17 @@ return 'peer-ran'
 main:peer-ran
 ````
 
-When a `jump` inside a call chain moves to a later sibling, the sections between the jumping section and the target do not run, as `Skipped` shows. After the jump, the chain continues from the target under the normal fall-through rules, so a target with no return falls through to its next sibling, and the chain's final reply is the call's return value. A called section can also `jump` to one of its own children, which starts a child walk inside the call that falls through the child's following siblings, and that level's final return becomes the result of `call`: when `Sub` runs `jump('S1')` and `S2` returns `'s2-result'`, the caller gets `s2-result`.
+When a `jump` inside a call chain moves to a later sibling, the sections between the jumping section and the target do not run, as `Skipped` shows. After the jump, the chain continues from the target under the normal fall-through rules, so a target that ends without a return falls through to its next sibling, and the chain's final reply is the call's return value. A called section can also `jump` to one of its own children, which starts a child walk inside the call that falls through the child's following siblings, and that level's final return becomes the result of `call`: when `Sub` runs `jump('S1')` and `S2` returns `'s2-result'`, the caller gets `s2-result`.
 
-The outer walk never moves while a called chain runs. Wherever the chain ends, even after a `jump` inside it to a section past the caller, the caller resumes and the walk continues at the section after the caller.
+The outer walk stays at the caller while a called chain runs. Wherever the chain ends, even after a `jump` inside it to a section past the caller, the caller resumes and the walk continues at the section after the caller.
 
 ### How a called chain runs
 
 A `call` runs its target as a new child chain of the caller, one call level deeper (see [How call depth counts](#how-call-depth-counts)) and with the caller's next child `sys.id`. The Engine drives it the same way it drives the walk.
 
-`call` suspends its caller. The calling block pauses at `call` while the target runs in its own section VM, so the caller and the called chain never interleave, and the called chain's model rounds come before the caller's later ones. A called section can make its own model rounds with [`models.infer`](10-models.md#running-a-round-with-modelsinfer), each a separate model round of the run, and it can return a model's reply, which reaches the caller unchanged. When `Inner` does `return models.infer('inner ask')`, a caller that runs `local inner = call('../Inner')` gets the model's reply in `inner`. The called section starts on a copy of its caller's current model, taken when the `call` is made, so a `models.use` inside it never reaches the caller (see [Children and fanout arms](10-models.md#children-and-fanout-arms)).
+`call` suspends its caller. The calling block pauses at `call` while the target runs in its own section VM, so the whole called chain runs inside that pause, and its model rounds come before the caller's later ones. A called section can make its own model rounds with [`models.infer`](10-models.md#running-a-round-with-modelsinfer), each a separate model round of the run, and it can return a model's reply, which reaches the caller unchanged. When `Inner` does `return models.infer('inner ask')`, a caller that runs `local inner = call('../Inner')` gets the model's reply in `inner`. The called section starts on a copy of its caller's current model, taken when the `call` is made, so a `models.use` inside it never reaches the caller (see [Children and fanout arms](10-models.md#children-and-fanout-arms)).
 
-A called chain has no inbox of its own: it runs inside its caller's task, so it uses its caller's inbox, through every level of nested calls. A `tasks.receive()` in a section the main chain runs with `call` takes the operator's next message (see [Messages that arrive first](05-lua-environment.md#messages-that-arrive-first)), and one in a section a task runs with `call` takes the next message the task's owner sends, while a `tasks.reply` there replies for that task (see [Messages between tasks](15-tasks.md#messages-between-tasks)). A message sent to the caller's chain also reaches a `models.loop` running inside the call (see [Messages that arrive while the loop runs](11-conversations.md#messages-that-arrive-while-the-loop-runs)).
+A called chain runs inside its caller's task, so it uses its caller's inbox, through every level of nested calls. A `tasks.receive()` in a section the main chain runs with `call` takes the operator's next message (see [Messages that arrive first](05-lua-environment.md#messages-that-arrive-first)), and one in a section a task runs with `call` takes the next message the task's owner sends, while a `tasks.reply` there replies for that task (see [Messages between tasks](15-tasks.md#messages-between-tasks)). A message sent to the caller's chain also reaches a `models.loop` running inside the call (see [Messages that arrive while the loop runs](11-conversations.md#messages-that-arrive-while-the-loop-runs)).
 
 A function from a `require`d library that runs `call` resolves the path from the library section, whichever section calls the function, so it runs the library's own child. When a library defines `later()` with `call('mine')` inside, and the library has a child `mine` that does `return 'mine'`, the `call` returns `mine` for every section that calls `later()`. The chain still runs as a child chain of the section that called the function. A library that means a section of the one using it writes `_G.call` (see [A library names its own sections](03-blocks-and-prose.md#a-library-names-its-own-sections)).
 
@@ -1168,7 +1168,7 @@ A call's arguments are what you pass as the second argument to `call`: a table o
 
 A [placeholder](07-substitution.md#placeholders-in-prose) such as `{{ args.text }}` inside a called chain renders the call's arguments instead of the run's. In a run started with the arguments `{"text":"run-args"}`, `call('../Sub', 'chain-args')` makes the chain's model round receive `chain-args` and not `run-args`. A `call` with arguments of its own leaves the caller's `args` as they were, so the calling section's `args` still holds its own arguments after the call.
 
-You build a pipeline by passing a string one section produced as the next section's arguments, as `Main` does above with `return call('../Deliver', draft)`. The run's own arguments make no difference: when `Refine` ends with `return call('../Deliver', messages[#messages].content)`, the run's result is `delivered: refined text`, even though the run itself started with the arguments `{"text":"quantum"}`.
+You build a pipeline by passing a string one section produced as the next section's arguments, as `Main` does above with `return call('../Deliver', draft)`. The passed string takes the place of the run's own arguments: when `Refine` ends with `return call('../Deliver', messages[#messages].content)`, the run's result is `delivered: refined text`, even though the run itself started with the arguments `{"text":"quantum"}`.
 
 ### Inheriting the caller's arguments
 
@@ -1251,7 +1251,7 @@ Inside `Sub`, `args.query` reads `chain` from the call, not `run` from the run's
 | A table of named fields | the fields of that table |
 | A string | one field, `text`, that holds the string |
 
-The Engine does not check a call's arguments against the prompt's `args:` declaration, and it fills no defaults in them, because the declaration describes what a caller passes the prompt, not what one section passes another. Under the declaration above, `call('../Sub', { query = 5, extra = true })` starts the chain all the same, and there `args.query` is the integer `5` and `args.extra` is `true`. A string arrives as `args.text` under that declaration too, though it declares no `text`. Sent as the arguments of the run, the same fields end the run at its first step (see [Argument errors](06-arguments.md#argument-errors)). An `execute` is checked too, against the declaration of the prompt it runs, because there the caller passes arguments to another prompt (see [Arguments for an executed prompt](#arguments-for-an-executed-prompt)).
+The Engine does not check a call's arguments against the prompt's `args:` declaration, and it leaves the declared defaults out of them, because the declaration describes what a caller passes the prompt, not what one section passes another. Under the declaration above, `call('../Sub', { query = 5, extra = true })` starts the chain all the same, and there `args.query` is the integer `5` and `args.extra` is `true`. A string arrives as `args.text` under that declaration too, though `text` is undeclared there. Sent as the arguments of the run, the same fields end the run at its first step (see [Argument errors](06-arguments.md#argument-errors)). An `execute` is checked too, against the declaration of the prompt it runs, because there the caller passes arguments to another prompt (see [Arguments for an executed prompt](#arguments-for-an-executed-prompt)).
 
 Every section of the chain reads the same `args`: the target, each section the chain falls through to, and the target of a `jump` inside the chain, because a jump stays in its chain. When the chain ends, the caller's `args` are what they were before the call. Here a call gives `Sub` a `query` of its own, `Sub` jumps to `Peer`, and each of the three sections reports the `query` and the `limit` it reads:
 
@@ -1295,7 +1295,7 @@ Run it with the arguments `{"query":"run"}`:
 Sub:chain,nil | Peer:chain,nil | Main:run,10
 ````
 
-`Sub` and `Peer` read the same `chain`, before the jump and after it. Neither reads a `limit`, because the call passed none, and the Engine fills the default of `10` in the arguments of the run and never in the arguments of a `call`. After the chain ends, `Main` reads its own `run` and `10`.
+`Sub` and `Peer` read the same `chain`, before the jump and after it. In both, `limit` is absent, because the call left it out, and the Engine fills the default of `10` in the arguments of the run and never in the arguments of a `call`. After the chain ends, `Main` reads its own `run` and `10`.
 
 ### Call args errors
 
@@ -1306,11 +1306,11 @@ The second argument of `call` is a table of named fields, a string, `nil`, or le
 - A table that holds a value with no JSON form fails with a message that names the value by its path. `call('../Sub', { f = function() end })` fails with `args: value.f must be JSON data, got function`.
 - A string that is not valid UTF-8 fails with `args must be a valid UTF-8 string`.
 
-An unmarked empty table, a plain `{}`, is the empty object, not a list, so `call('../Sub', {})` starts the chain, and the chain reads an `args` with no fields.
+An unmarked empty table, a plain `{}`, is the empty object, not a list, so `call('../Sub', {})` starts the chain, and the chain reads an empty `args`.
 
 ### The `var` snapshot
 
-Every `call` gives the called chain a `var` snapshot: a plain deep copy of the caller's `var` data, taken at the moment of the call. There is nothing to pass, since every `call` takes the copy on its own:
+Every `call` gives the called chain a `var` snapshot: a plain deep copy of the caller's `var` data, taken at the moment of the call. The copy is automatic, since every `call` takes it on its own:
 
 ````markdown
 ---
@@ -1342,9 +1342,9 @@ sub saw caller
 
 A section run through `call` reads the `var` values the caller set before the call, because it receives a copy of the caller's `var`: a caller `var` holding `k = 1` arrives in the chain holding `k = 1`. This holds through nesting too, so a `Leaf` reached through a `call` inside a task reads a `var.who` that only the main section set. A `tasks.fanout` takes the same copy.
 
-Writes the called chain makes to its copy of `var` stay in the chain and are discarded when it ends, so they never reach the caller. That is why `assert(var.child_write == nil)` still passes in `Main` after the call. A child section entered with `call` also starts without the Lua globals its parent defined, so with `greet` defined in `Parent`, `tostring(greet)` in `Child` renders `nil`.
+Writes the called chain makes to its copy of `var` stay in the chain and are discarded when it ends, so they never reach the caller. That is why `assert(var.child_write == nil)` still passes in `Main` after the call. The Lua globals a parent defined stay behind as well when its child section is entered with `call`, so with `greet` defined in `Parent`, `tostring(greet)` in `Child` renders `nil`.
 
-Because a called chain's `var` writes never reach the caller, pass results back as the chain's return value, which `call` hands to the caller, as `local r = call('../Sub')` gets `sub saw caller` from the `return` in `Sub`.
+Because a called chain's `var` writes end with the chain, pass results back as the chain's return value, which `call` hands to the caller, as `local r = call('../Sub')` gets `sub saw caller` from the `return` in `Sub`.
 
 The snapshot needs the `var` global itself to stay in place. After you reassign the `var` global, as in `var = 5`, the next `call` or `tasks.fanout` fails at the call when it takes its copy of `var`, with an [error value](05-lua-environment.md#error-values) of kind `lua` whose message holds this refusal after the file and line of the call:
 
@@ -1393,10 +1393,10 @@ You catch a failing `call` by writing `pcall(call, '../Section')`, which returns
 A `pcall` around a `call` catches each of these, and each comes back to the calling block as the call's ordinary error instead of ending the run:
 
 - A call refused by the recursion depth cap (see [The recursion depth cap](#the-recursion-depth-cap)).
-- A call whose path names no section in the visible set, which fails with an error containing `not found`.
+- A call whose path misses in the visible set, which fails with an error containing `not found`.
 - A call whose called chain ends in an error, such as one whose error value has `err.kind == 'tasks_live'` when the called chain ends with a live task (see [Task events and task errors](15-tasks.md#task-events-and-task-errors)).
 
-Path errors from `call` are raised at the call site as the call's own error, so a `pcall` inside the calling block catches them. That covers a non-string target, as when `pcall(call, 42)` fails with `section target must be a string`, a malformed path, and a path that names no section, which fails with a message that contains `not found` and names the path.
+Path errors from `call` are raised at the call site as the call's own error, so a `pcall` inside the calling block catches them. That covers a non-string target, as when `pcall(call, 42)` fails with `section target must be a string`, a malformed path, and a path that misses, which fails with a message that contains `not found` and names the path.
 
 ### What the caught error value holds
 
@@ -1486,9 +1486,9 @@ caught lua
 
 Call depth is how many nested calls deep a section runs. A top-level section runs at call depth 0, which is why `Alpha` first runs at depth 0. Call depth accumulates through nested calls: each `call` runs the called section at its caller's depth plus one, and that called section keeps its depth, while the main walk of top-level sections always starts at depth 0. An [`execute`](#executing-another-prompt) counts the same way: every section of the executed prompt runs at the caller's depth plus one. The [main walk](04-how-a-prompt-runs.md#the-section-walk) runs every top-level section, the preamble included, at the root call depth of 0, so `call` nesting and its cap count from there.
 
-The cap is 8. A section or fanout arm may run at depth 8, but nothing it starts may run at depth 9, so an arm already running at depth 8 cannot `call`. The cap is fixed and cannot be configured.
+The cap is 8. A section or fanout arm may run at depth 8, but whatever it starts would run at depth 9 and is refused, so a `call` from an arm already running at depth 8 fails. The cap is fixed and cannot be configured.
 
-A `jump` never adds a level of call depth. A descent into a child level is not a call, so the child walk shares the chain's call depth, and jumping into children spends no depth. When `Main` does `jump('X')` and then `X` and `Y` ping-pong with `call`, nine section entries run before the cap trips, in the order `x`, `y`, `x`, `y`, `x`, `y`, `x`, `y`, `x`, where a descent that spent depth would allow only eight.
+A `jump` never adds a level of call depth. A descent into a child level is not a call, so the child walk shares the chain's call depth, and jumping into children leaves the depth where it was. When `Main` does `jump('X')` and then `X` and `Y` ping-pong with `call`, nine section entries run before the cap trips, in the order `x`, `y`, `x`, `y`, `x`, `y`, `x`, `y`, `x`, where a descent that spent depth would allow only eight.
 
 ### Depth across tasks and fanout arms
 
@@ -1506,7 +1506,7 @@ Each `tasks.fanout` arm runs one call level deeper than the section that called 
 
 Call depth accumulates across a fanout boundary, so fanning out does not reset the depth, and a section already at the cap cannot fan out, because its arms would run one level deeper still. In a ping-pong like the one above where `Alpha`, on its fifth run at depth 8, does `return tasks.fanout('../W', {'x'})` instead of calling `Beta`, the run fails with a `call_depth_exceeded` error whose message is `recursion exceeded cap of 8` followed by the location of that `tasks.fanout`. Calling `tasks.fanout('Worker', {'x'})` from any section at depth 8 fails the same way, since its arms would run at depth 9.
 
-A fanout whose arms would pass the cap starts no arm. Every arm would run at the same depth, so the first arm's start is refused, the fanout stops, and it raises the depth cap error, which `pcall` reads as kind `lua`. Its text is `recursion exceeded cap of 8`, the same as for a `call`, and it reaches the run unchanged through every enclosing `call` level, with no Lua runtime-error prefix or traceback. Even after eight nested `call` levels, the run's message is `recursion exceeded cap of 8 (at {file}:{line})`, with the line of the `tasks.fanout` in the chain that went too deep.
+A fanout whose arms would pass the cap is refused before its first arm starts. Every arm would run at the same depth, so the first arm's start is refused, the fanout stops, and it raises the depth cap error, which `pcall` reads as kind `lua`. Its text is `recursion exceeded cap of 8`, the same as for a `call`, and it reaches the run unchanged through every enclosing `call` level, with no Lua runtime-error prefix or traceback. Even after eight nested `call` levels, the run's message is `recursion exceeded cap of 8 (at {file}:{line})`, with the line of the `tasks.fanout` in the chain that went too deep.
 
 Tasks started by `tasks.spawn` run one call level deeper than the section that spawned them, count toward the same cap as `call`, and share `call`'s target resolution too. A task refused at the cap reads `recursion exceeded cap of 8`, the same text as for `call`, whether `tasks.spawn` started it or it is a fanout arm. A `tasks.spawn` refused at the cap is the spawn's own answer, so `pcall(tasks.spawn, ...)` catches it in the spawning block instead of ending the run. With `local ok, err = pcall(tasks.spawn, '../Beta')` followed by `log(tostring(err))`, the deepest section logs this message, whose line is that of the refused `tasks.spawn`:
 
@@ -1514,17 +1514,17 @@ Tasks started by `tasks.spawn` run one call level deeper than the section that s
 {file}:{line}: recursion exceeded cap of 8. Calls nest deeper than the cap allows. Nest `call`, `execute`, `tasks.spawn`, and `tasks.fanout` less deeply.
 ````
 
-The run then ends with the `done` fallback or a `tasks_live` error rather than with the cap error. When nothing catches the refusal and it ends the run, it is a `call_depth_exceeded` error.
+The run then ends with the `done` fallback or a `tasks_live` error rather than with the cap error. Uncaught, the refusal ends the run as a `call_depth_exceeded` error.
 
 The `depth` field of [`tasks.status`](15-tasks.md#checking-on-a-task-with-tasksstatus-tasksready-and-tasksnote) reports a task's call depth, the same count the cap checks, so `tasks.status(t).depth` reads 1 for a task spawned from the main walk.
 
 ### The `CallDepthExceeded` failure
 
-`CallDepthExceeded` is the dedicated depth cap error. Its text holds the cap and nothing else, in the form `recursion exceeded cap of {cap}`, so it reads `recursion exceeded cap of 8` whether a `call`, an `execute`, a `tasks.spawn`, or a `tasks.fanout` arm went too deep. The error points at the line of the `call`, `execute`, `tasks.spawn`, or `tasks.fanout` that would have started a chain past the cap.
+`CallDepthExceeded` is the dedicated depth cap error. Its text holds the cap alone, in the form `recursion exceeded cap of {cap}`, so it reads `recursion exceeded cap of 8` whether a `call`, an `execute`, a `tasks.spawn`, or a `tasks.fanout` arm went too deep. The error points at the line of the `call`, `execute`, `tasks.spawn`, or `tasks.fanout` that would have started a chain past the cap.
 
 Going past the cap fails with the text `recursion exceeded cap of 8`, exactly, whichever of the four went too deep.
 
-Caught with `pcall`, the depth cap error is an error value of kind `lua`, the same kind as any Lua-phase failure, with no dedicated kind of its own, so a `pcall` handler that already branches on the `lua` kind keeps working, and its `code` is `call_depth_exceeded`. Its message is the file and line of the call that went too deep, then the text, then the fixed prose for the cap, as the logged message above shows, and the error value has no field for the depth reached or for the cap.
+Caught with `pcall`, the depth cap error is an error value of kind `lua`, the same kind as any Lua-phase failure, so a `pcall` handler that already branches on the `lua` kind keeps working, and its `code` is `call_depth_exceeded`. Its message is the file and line of the call that went too deep, then the text, then the fixed prose for the cap, as the logged message above shows, and the error value's fields leave out the depth reached and the cap.
 
 Uncaught, the depth cap error reaches the run's result unchanged through every calling section, so you see the specific depth cap error and its message rather than a generic wrapper, still pointing at the line where it happened. It fails the run with code `call_depth_exceeded`, whichever construct went too deep. So a `call` that would nest past the cap ends the run with code `call_depth_exceeded` and a message that names the cap and the line of that `call`, as `recursion exceeded cap of 8 (at ping-pong.md:10)` does for the prompt at the top of this section.
 
@@ -1564,9 +1564,9 @@ The [preamble](02-file-structure.md#the-preamble) is the text between the frontm
 
 ### The preamble's visible set
 
-The preamble's visible set is every other top-level section, and no nested section. The preamble is a top-level section itself, so a relative path written there starts at the preamble, whose siblings are the sections under the top-level headings, and code there writes `call('../Answer')` and `jump('../Target')` with `../` in front. The preamble has no children, so a bare `'Name'` names nothing there. Code in the preamble can `jump` to or `call` any other top-level section, and only top-level sections are valid `jump` targets from the preamble. The `tasks` functions take the same paths there, as in `tasks.spawn('../Task')`.
+The preamble's visible set is every other top-level section, and every nested section is outside it. The preamble is a top-level section itself, so a relative path written there starts at the preamble, whose siblings are the sections under the top-level headings, and code there writes `call('../Answer')` and `jump('../Target')` with `../` in front. Every nested section sits under one of those siblings, so a bare `'Name'` misses there. Code in the preamble can `jump` to or `call` any other top-level section, and only top-level sections are valid `jump` targets from the preamble. The `tasks` functions take the same paths there, as in `tasks.spawn('../Task')`.
 
-The preamble has no name, and every name in a section path has at least one character, so no section path names the preamble. No `jump` or `call` leads back to it, and it runs once, as the first section of the run.
+The preamble's section name is empty, and every name in a section path has at least one character, so the preamble is out of reach of every section path. That puts it out of reach of `jump` and `call`, and it runs once, as the first section of the run.
 
 The prompt reads work from the preamble too. `prompt.section('../Main')` reads the top-level `Main`, `prompt.section_or('../Kid')` is `nil` for a nested `Kid`, and a path from the top, such as `prompt.section('/Main/Kid')`, reads any section. With a top-level `Nums` section whose list holds `one`, `two`, and `three`, `table.concat(prompt.section('../Nums', 'list').items, ',')` in the preamble gives `one,two,three`.
 
@@ -1610,7 +1610,7 @@ The jump ends the preamble as it ends any section: the rest of the jumping block
 
 In the preamble, `call('../Name')` runs a top-level section as a contained chain and returns whatever that chain returns, as `var.answer = call('../Answer')` gets `called from the preamble` in the first prompt of this section. A chain that ends with no text gives the preamble's block `nil`, as it does in any block (see [A call that gets no text](#a-call-that-gets-no-text)).
 
-To compute a value once before the sections under the headings run, call a section from the preamble, keep the result in `var`, and place the call target after the section that returns. In that prompt, `Result` returns `var.answer` and sits before `Answer`, so the walk never runs `Answer` on its own.
+To compute a value once before the sections under the headings run, call a section from the preamble, keep the result in `var`, and place the call target after the section that returns. In that prompt, `Result` returns `var.answer` and sits before `Answer`, so the walk ends before it reaches `Answer`.
 
 The preamble and the sections after it are entries of one root chain, so calls made in any of them share a child counter and take consecutive child ids. A `call` made in the preamble is child `0.0`, and the next `call` on the walk is child `0.1`:
 
@@ -1670,7 +1670,7 @@ The run fails with code `lua_runtime`. Its message is the not-found error's text
 section `Answer` not found: the preamble has no child `Answer` (at preamble-miss.md:8)
 ````
 
-The preamble has no children, so every child path written there misses with `the preamble has no child`: `jump('Answer')` and `tasks.fanout('Answer', {'a', 'b'})` in that block fail with this same message. The sibling path `'../Answer'` names the section, and with `return call('../Answer')` in the block the run ends with `answer`. A sibling path that names no top-level section misses with the sibling form. Change the block to `jump('../Missing')` and the run fails with:
+Every section after the preamble is its sibling or sits under one, so every child path written there misses with `the preamble has no child`: `jump('Answer')` and `tasks.fanout('Answer', {'a', 'b'})` in that block fail with this same message. The sibling path `'../Answer'` names the section, and with `return call('../Answer')` in the block the run ends with `answer`. A sibling path with an unmatched name misses with the sibling form. Change the block to `jump('../Missing')` and the run fails with:
 
 ````text
 section `../Missing` not found: the preamble has no sibling `Missing` (at preamble-miss.md:8)
@@ -1680,15 +1680,15 @@ section `../Missing` not found: the preamble has no sibling `Missing` (at preamb
 
 | From the preamble | Where it fails | A `pcall` in the block |
 | --- | --- | --- |
-| `call` or `tasks.fanout` with a path that names no section | at the call site | catches it |
-| `jump` with a path that names no section | after the preamble's block ends | cannot catch it |
+| `call` or `tasks.fanout` with a path that misses | at the call site | catches it |
+| `jump` with a path that misses | after the preamble's block ends | cannot catch it |
 | `jump` with a malformed path | after the preamble's block ends | cannot catch it |
 
-When `call` in the preamble is given a path that names no top-level section, such as `call('../Nope')`, it raises the not-found error, whose text is ``section `../Nope` not found: the preamble has no sibling `Nope` ``. It raises at the call site, so `pcall` catches it: `local ok, err = pcall(call, '../Nope'); return tostring(ok) .. ':' .. tostring(err)` gives a result that starts with `false:` and contains `Nope`.
+When `call` in the preamble is given a path that misses, such as `call('../Nope')`, it raises the not-found error, whose text is ``section `../Nope` not found: the preamble has no sibling `Nope` ``. It raises at the call site, so `pcall` catches it: `local ok, err = pcall(call, '../Nope'); return tostring(ok) .. ':' .. tostring(err)` gives a result that starts with `false:` and contains `Nope`.
 
 An uncaught not-found error raised from the preamble ends the whole run, and you see it as the run's failure message. The run ends with code `lua_runtime`, and its message is the not-found error's text, followed by the line of the `call` or `tasks.fanout` that failed.
 
-When a `jump` from the preamble is given a path that names no top-level section, such as `jump('../Nope')`, the run fails with a `lua_runtime` not-found error whose message names the path and points at the line of the `jump`. The path is looked up after the preamble's block has finished, so a `pcall` around the `jump` does not catch the failure (see [Lookup after the block ends](#lookup-after-the-block-ends)). A malformed path given to `jump` in the preamble ends the run with code `lua_runtime` the same way.
+When a `jump` from the preamble is given a path that misses, such as `jump('../Nope')`, the run fails with a `lua_runtime` not-found error whose message names the path and points at the line of the `jump`. The path is looked up after the preamble's block has finished, so a `pcall` around the `jump` does not catch the failure (see [Lookup after the block ends](#lookup-after-the-block-ends)). A malformed path given to `jump` in the preamble ends the run with code `lua_runtime` the same way.
 
 ## Jump and call in arms, tasks, and tool handlers
 
@@ -1787,7 +1787,7 @@ jump('../Parent')
 ```
 ````
 
-A `jump` from an arm cannot reach a section outside the worker visible set, such as the top-level `Parent` that called `tasks.fanout`. No relative path written in `Worker` names `Parent`, so the jump fails the run with code `lua_runtime` and a not-found message that names the worker section it searched:
+A `jump` from an arm cannot reach a section outside the worker visible set, such as the top-level `Parent` that called `tasks.fanout`. `Parent` sits above everything a relative path written in `Worker` can name, so the jump fails the run with code `lua_runtime` and a not-found message that names the worker section it searched:
 
 ````text
 section `../Parent` not found: `/Parent/Worker` has no sibling `Parent`
@@ -1797,13 +1797,13 @@ section `../Parent` not found: `/Parent/Worker` has no sibling `Parent`
 
 `jump` works in the Lua blocks of any section, including a section running as a fanout arm. Calling `jump(path)` inside an arm ends the worker section's code at that point, so the lines after the `jump` never run, as the `error` in `Worker` in the first prompt of this section shows.
 
-A `jump` from an arm to a sibling of the worker section runs the target section and then falls through to the target's following sibling sections, and the last reply of that walk becomes the arm's text, or the empty string when no section in the walk replies. With the headings above, `Worker` runs `jump('../Target')`, then `Target` and `Tail` run in that order, and when `Tail` returns `'tail-reply'`, the arm's text is `tail-reply`. When `Target` has no `return` and no later section replies, the arm's text is `""`.
+A `jump` from an arm to a sibling of the worker section runs the target section and then falls through to the target's following sibling sections, and the last reply of that walk becomes the arm's text, or the empty string when the walk ends with no text. With the headings above, `Worker` runs `jump('../Target')`, then `Target` and `Tail` run in that order, and when `Tail` returns `'tail-reply'`, the arm's text is `tail-reply`. When `Target` ends without a `return` and the walk ends with no text, the arm's text is `""`.
 
 An arm can also `jump` into one of the worker section's own children. `jump('Child')` runs that child and then falls through to the worker section's later children, so `Child` and `ChildTail` run in that order, and when `ChildTail` returns `'child-tail-reply'`, the arm's text is `child-tail-reply`.
 
 ### Calling inside an arm
 
-`call` inside an arm runs a contained chain over the worker visible set and returns that chain's final reply as the value of the `call`, as in `local got = call('../Sub')`, where `Sub` is a sibling of the worker section. A chain started by `call` from an arm falls through from the called section to its following siblings, and the last section's return value becomes the `call` result. When `Sub` sets `var.leaves` and has no `return`, `Target` has none either, and `Tail` does this:
+`call` inside an arm runs a contained chain over the worker visible set and returns that chain's final reply as the value of the `call`, as in `local got = call('../Sub')`, where `Sub` is a sibling of the worker section. A chain started by `call` from an arm falls through from the called section to its following siblings, and the last section's return value becomes the `call` result. When `Sub` sets `var.leaves` and ends without a `return`, `Target` ends the same way, and `Tail` does this:
 
 ````lua
 return 'tail-reply:' .. var.leaves
@@ -1811,7 +1811,7 @@ return 'tail-reply:' .. var.leaves
 
 then `got` holds `tail-reply:` followed by the value `Sub` stored, such as `tail-reply:x!y!`. When the chain ends with no text, `got` is `nil`, as for a `call` in any block (see [A call that gets no text](#a-call-that-gets-no-text)), while the arm's own text is still the empty string when the arm ends with no text.
 
-A `call` from an arm whose path names no section in the worker visible set raises a not-found error that the arm can catch with `pcall`:
+A `call` from an arm whose path misses in the worker visible set raises a not-found error that the arm can catch with `pcall`:
 
 ````lua
 local ok_call, err_call = pcall(call, '../Parent')
@@ -1821,9 +1821,9 @@ local ok_call, err_call = pcall(call, '../Parent')
 
 ### Calls stay inside the calling task
 
-A section run with `call` runs as a chain inside the calling task, not as a new task. It emits no [task events](15-tasks.md#task-events-and-task-errors) of its own, and its effects and events are reported under the task that made the call. The main walk is task `0`, and in a two-arm fanout whose arm makes a `call`, only the two arms, `0.0` and `0.1`, report as succeeded tasks.
+A section run with `call` runs as a chain inside the calling task, not as a new task. The run's [task events](15-tasks.md#task-events-and-task-errors) leave it out, and its effects and events are reported under the task that made the call. The main walk is task `0`, and in a two-arm fanout whose arm makes a `call`, only the two arms, `0.0` and `0.1`, report as succeeded tasks.
 
-A section run with `call` starts with the same [concurrency limit](14-fanout.md#concurrency-and-the-admission-window) as the section that called it, so the tasks it spawns run within the caller's share. It takes no concurrency slot of its own, and while it waits on tasks it spawned, it gives back the slot of the task it runs inside. So a section called from an arm can still fan out after the section that started the fanout set `tasks.concurrency(1)`. When `Parent` runs `tasks.concurrency(1)` and fans out to `Worker`, the worker section runs `call('../Sub')`, and `Sub` fans out over its own child `Leaf`, the run completes, with `worker:tail-reply:x!y!:alpha` as its text.
+A section run with `call` starts with the same [concurrency limit](14-fanout.md#concurrency-and-the-admission-window) as the section that called it, so the tasks it spawns run within the caller's share. Inside a spawned task or a fanout arm, it runs in the concurrency slot that the task or arm holds, and while it waits on tasks it spawned, it gives that slot back. So a section called from an arm can still fan out after the section that started the fanout set `tasks.concurrency(1)`. When `Parent` runs `tasks.concurrency(1)` and fans out to `Worker`, the worker section runs `call('../Sub')`, and `Sub` fans out over its own child `Leaf`, the run completes, with `worker:tail-reply:x!y!:alpha` as its text.
 
 A `call` made after a fanout takes the caller's next child number after the arms, because called sections, executed prompts, spawned tasks, and each timed wait's internal timer share one child counter. In the main walk after a two-arm fanout, the arms are children 0 and 1, the called section is child 2, and a `Sub` that returns `sys.id` returns `0.2.0`.
 
@@ -1887,7 +1887,7 @@ Hello, Ada! Welcome aboard.
 
 The `prompts:` key of the frontmatter lists the prompts that this prompt's Lua may execute (see [The `prompts` key](02-file-structure.md#the-prompts-key)). Each entry is a prompt's file as the Host names it, which is the name an error's location shows (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). In this guide's examples a prompt's file is named after its frontmatter `name`, so the `greet` prompt is `greet.md`.
 
-Listed prompts are found and parsed together with the prompt that lists them, before any run starts. Parsing `welcome.md` also parses `greet.md`, then every prompt that `greet.md` lists, and so on, each prompt once. So a run never looks a prompt up, and a problem with a listed prompt shows when the prompt loads, whether or not a run would reach the `execute`:
+Listed prompts are found and parsed together with the prompt that lists them, before any run starts. Parsing `welcome.md` also parses `greet.md`, then every prompt that `greet.md` lists, and so on, each prompt once. So a run starts with every listed prompt already parsed, and a problem with a listed prompt shows when the prompt loads, whether or not a run would reach the `execute`:
 
 - A listed prompt that the Host does not have fails the parse with the Host's not-found failure, such as `no prompt named farewell.md`, placed on the `prompts:` line of the prompt that lists the name.
 - A listed prompt that does not parse fails the parse with its own parse error, placed in its own file.
@@ -1965,7 +1965,7 @@ steps gave: preamble > First > Second
 
 `execute('steps.md')` runs the preamble of `steps.md`, then `First`, then `Second`, whose `return` ends the executed prompt, so `Never` does not run. A `return` in an executed prompt ends that prompt and not the run: the caller's block goes on with the returned text, and here the walk of `runner.md` continues to `Report`. `execute` suspends its caller as `call` does, so the caller and the executed prompt never interleave.
 
-Every `execute` runs the prompt again from its first section. The executed prompt runs as a child chain of the caller, one call level deeper (see [How call depth counts](#how-call-depth-counts)) and with the caller's next child [`sys.id`](05-lua-environment.md#section-entry-ids). The first `execute` on the main walk runs the executed prompt's first section as entry `0.0.0` and its second as `0.0.1`, and a second `execute` starts at `0.1.0`. The executed prompt is not a task: its sections report under the caller's task, so `sys.taskid` reads `0` there when the main walk made the `execute`. `sys.section_count` counts the executed prompt's own top-level sections.
+Every `execute` runs the prompt again from its first section. The executed prompt runs as a child chain of the caller, one call level deeper (see [How call depth counts](#how-call-depth-counts)) and with the caller's next child [`sys.id`](05-lua-environment.md#section-entry-ids). The first `execute` on the main walk runs the executed prompt's first section as entry `0.0.0` and its second as `0.0.1`, and a second `execute` starts at `0.1.0`. The executed prompt runs inside the caller's task: its sections report under that task, so `sys.taskid` reads `0` there when the main walk made the `execute`. `sys.section_count` counts the executed prompt's own top-level sections.
 
 ### An execute that gets no text
 
@@ -2061,7 +2061,7 @@ return seen .. ' | ' .. var.note .. ' | ' .. tostring(var.extra)
 reader saw note=nil topic=tea | kept by handoff | nil
 ````
 
-`reader.md` reads `nil` for `var.note`, and after it ends `handoff.md` still reads its own `var.note` and no `var.extra`. This is where `execute` differs most from `call`:
+`reader.md` reads `nil` for `var.note`, and after it ends `handoff.md` still reads its own `var.note`, with `var.extra` still unset. This is where `execute` differs most from `call`:
 
 | | A called chain | An executed prompt |
 | --- | --- | --- |
@@ -2121,7 +2121,7 @@ return first .. ' | ' .. tostring(ok) .. ' ' .. err.kind .. ' ' .. err.code
 tea x3 | false lua args_invalid
 ````
 
-The first `execute` passes a `query` and no `limit`, and `search.md` reads the `limit` of `3` that its declaration defaults to. The second passes an integer where the declaration wants a string. The Engine refuses it at the `execute`, before `search.md` starts, so no section of `search.md` runs. The refusal is an [error value](05-lua-environment.md#error-values) of kind `lua` whose `code` is `args_invalid`, and `tostring(err)` gives:
+The first `execute` passes a `query` and leaves `limit` out, and `search.md` reads the `limit` of `3` that its declaration defaults to. The second passes an integer where the declaration wants a string. The Engine refuses it at the `execute`, before `search.md` starts, so the sections of `search.md` never run. The refusal is an [error value](05-lua-environment.md#error-values) of kind `lua` whose `code` is `args_invalid`, and `tostring(err)` gives:
 
 ````text
 lookup.md:13: argument `query` must be a string, got integer. The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.
@@ -2191,13 +2191,13 @@ return 'outer helper'
 outer helper | inner helper | outer helper
 ````
 
-Both prompts have a `Main` and a `Helper`, and each `call('../Helper')` runs the `Helper` of its own file. Nothing in a prompt can name a section of another prompt: `call`, `jump`, `require`, `tasks.spawn`, `tasks.fanout`, and the `prompt` reads all look a path up in the prompt whose file holds the code. An executed prompt that runs `call('../Notes')` for a `Notes` section that only its caller has misses in its own sections, with the usual [not-found error](#the-not-found-error):
+Both prompts have a `Main` and a `Helper`, and each `call('../Helper')` runs the `Helper` of its own file. The sections of another prompt are out of reach of every section path: `call`, `jump`, `require`, `tasks.spawn`, `tasks.fanout`, and the `prompt` reads all look a path up in the prompt whose file holds the code. An executed prompt that runs `call('../Notes')` for a `Notes` section that only its caller has misses in its own sections, with the usual [not-found error](#the-not-found-error):
 
 ````text
 section `../Notes` not found: `/Main` has no sibling `Notes`
 ````
 
-So two prompts never have to agree on section names, and `execute` is the only way for one prompt to run any part of another.
+So each prompt chooses its section names on its own, and `execute` is the only way for one prompt to run any part of another.
 
 ### Catching a failed execute
 
@@ -2207,7 +2207,7 @@ A `pcall` around an `execute` also catches the three refusals raised at the call
 
 ### Prompts that execute each other
 
-Prompts may list each other, and a prompt may list itself, so one prompt can execute another that executes the first again. Each `execute` adds one level of call depth, the count that `call`, `tasks.spawn`, and fanout arms add to, and the cap of 8 ends a recursion that no Lua condition ends (see [The recursion depth cap](#the-recursion-depth-cap)):
+Prompts may list each other, and a prompt may list itself, so one prompt can execute another that executes the first again. Each `execute` adds one level of call depth, the count that `call`, `tasks.spawn`, and fanout arms add to, and the cap of 8 ends an unbounded recursion (see [The recursion depth cap](#the-recursion-depth-cap)):
 
 ````markdown
 ---
@@ -2236,7 +2236,7 @@ return args.count .. ' ' .. execute('countdown.md', { count = args.count - 1 })
 3 2 1 liftoff
 ````
 
-`countdown.md` lists itself and executes itself with a smaller `count` each time, three levels deep. Started with the arguments `{"count":9}`, it reaches the cap first: the ninth nested `execute` is refused, and the run fails with code `call_depth_exceeded` and the message `recursion exceeded cap of 8 (at countdown.md:19)`. Two prompts that execute each other with no condition end the same way. When `ping.md` runs `return execute('pong.md')` and `pong.md` runs `return execute('ping.md')`, a run of `ping.md` fails with `recursion exceeded cap of 8 (at ping.md:12)`.
+`countdown.md` lists itself and executes itself with a smaller `count` each time, three levels deep. Started with the arguments `{"count":9}`, it reaches the cap first: the ninth nested `execute` is refused, and the run fails with code `call_depth_exceeded` and the message `recursion exceeded cap of 8 (at countdown.md:19)`. Two prompts that execute each other unconditionally end the same way. When `ping.md` runs `return execute('pong.md')` and `pong.md` runs `return execute('ping.md')`, a run of `ping.md` fails with `recursion exceeded cap of 8 (at ping.md:12)`.
 
 ### One run, shared limits
 
@@ -2248,7 +2248,7 @@ An executed prompt is part of its caller's run, not a run of its own. It runs un
 
 While the executed prompt runs, its caller waits as it waits on a `call`. For a task that waits on an `execute`, the `blocked` field of [`tasks.status`](15-tasks.md#checking-on-a-task-with-tasksstatus-tasksready-and-tasksnote) reads `call`. A cancel of the run ends the executed prompt with it, and so does a cancel of the task that made the `execute`.
 
-An executed prompt has no inbox of its own, as a called chain has none (see [How a called chain runs](#how-a-called-chain-runs)). It runs inside the task that made the `execute`, so a `tasks.receive()` there takes that task's next message, and a `tasks.reply` there replies for that task.
+An executed prompt uses the inbox of the task it runs inside, as a called chain does (see [How a called chain runs](#how-a-called-chain-runs)). It runs inside the task that made the `execute`, so a `tasks.receive()` there takes that task's next message, and a `tasks.reply` there replies for that task.
 
 ### Where `execute` works
 
