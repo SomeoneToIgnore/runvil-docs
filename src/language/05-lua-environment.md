@@ -24,7 +24,7 @@ Run with the arguments `{"text":"hi"}`, the run result is:
 HI
 ````
 
-The block calls `string.upper`, a function from Lua's standard `string` library, on `args.text`. `args` is a global the Engine installs: a read-only table that holds the run's checked arguments (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)), and a prompt with no `args:` key, like this one, takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). Both `string.upper` and `args` are in place when the block starts. Every `lua` fence in a prompt runs real PUC Lua 5.5, with the Harness's work, the run's metadata, and the operator one plain function call away.
+The block calls `string.upper`, a function from Lua's standard `string` library, on `args.text`. `args` is a global the Engine installs: a read-only table that holds the run's checked arguments (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)), and a prompt that leaves the `args:` key out, like this one, takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). Both `string.upper` and `args` are in place when the block starts. Every `lua` fence in a prompt runs real PUC Lua 5.5, with the Harness's work, the run's metadata, and the operator one plain function call away.
 
 ### Real Lua 5.5 in every block
 

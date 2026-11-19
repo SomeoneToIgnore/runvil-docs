@@ -252,7 +252,7 @@ The model lookup lists the Host's models and finds the one the Host selected, or
 
 The version check is the first start check (see [The `runvil` version key](02-file-structure.md#the-runvil-version-key)). Version `0` proceeds, and any other version is refused as unsupported, with a message that ends with ` (at {file}:{line})`, the line of the `runvil:` key. A missing version fails with the message `not a runvil prompt: no runvil version (prompt {name})`, where `{name}` is the prompt's frontmatter `name`. Either way, a prompt with an unsupported or missing version stops before its first section runs. The check reads the run's own prompt first and then each listed prompt, so when `careful.md` lists a prompt `other.md` that declares `runvil: 2`, a run of `careful.md` is refused with `unsupported runvil version: 2 (this build supports major 0) (at other.md:4)`, which points at the `runvil:` line of `other.md`.
 
-The argument check is the second start check. The arguments of a run are one JSON object, which the caller, whoever starts the run, passes as text. The check reads that argument text as one JSON object and checks the object against the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). A prompt with no `args:` key takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). This prompt declares one argument, `query`, and requires it:
+The argument check is the second start check. The arguments of a run are one JSON object, which the caller, whoever starts the run, passes as text. The check reads that argument text as one JSON object and checks the object against the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). A prompt that leaves the `args:` key out takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). This prompt declares one argument, `query`, and requires it:
 
 ````markdown
 ---
@@ -419,7 +419,7 @@ When prepare builds the run, the Engine fills the five model roles from the role
 
 The run checks a role's requirements against the model that fills that role. With a one-model map, every role is filled by that model, so `fast` and `strong` both read the same model here. A map that gives `strong` an entry of its own, which only a caller that drives the Engine directly passes, checks the `strong` requirement against that model and checks the other roles against the `default` entry's model. A name other than the five roles, or a key other than `min_context` and `thinking`, fails the parse (see [Mistakes inside `models:`](10-models.md#mistakes-inside-models)).
 
-A prompt whose only declaration is a role with no requirements, `models: { fast: {} }`, passes the requirements check when the Host supplies a model. A prompt with no `models:` key passes the role checks on any model; a prompt whose frontmatter declares only `uses: [web]` has that one Pack requirement to meet. When the Host gives no model, the map is empty and every role stays unfilled, so the run skips the role checks. A prompt that never calls a model still runs to completion on such a Host, and a model round fails with `model binding required for section {section}` (see [When the role map is empty](10-models.md#when-the-role-map-is-empty)).
+A prompt whose only declaration is a role with no requirements, `models: { fast: {} }`, passes the requirements check when the Host supplies a model. A prompt with no `models:` key passes the role checks on any model; a prompt whose frontmatter declares only `uses: [web]` has that one Pack requirement to meet. When the Host starts a run without a model, the map is empty and every role stays unfilled, so the run skips the role checks. A prompt that never calls a model still runs to completion on such a Host, and a model round fails with `model binding required for section {section}` (see [When the role map is empty](10-models.md#when-the-role-map-is-empty)).
 
 ### The model role check
 
@@ -571,7 +571,7 @@ When the context window of the model filling a role is smaller than the role's `
 
 An unmet `thinking` requirement gives the line `- role '{role}': requires '{required}'; the thinking capability of the model filling it is {actual}`, where `{required}` is `thinking: true` or `thinking: false`. `{actual}` reads `Never` for an unmet `thinking: true` and `Always` for an unmet `thinking: false`, capitalized as shown, and a `Switchable` model meets both. A role with `thinking: false` on a model that always thinks gives `- role '{role}': requires 'thinking: false'; the thinking capability of the model filling it is Always`.
 
-Only `min_context` and `thinking` can add these role lines, and the one other model line is the `default` line that [A role map with entries needs a default entry](#a-role-map-with-entries-needs-a-default-entry) describes. The notice lists only the roles that fall short and leaves out roles the model meets. When the Host gives no model, role lines stay out of the notice, because the run skips the role checks.
+Only `min_context` and `thinking` can add these role lines, and the one other model line is the `default` line that [A role map with entries needs a default entry](#a-role-map-with-entries-needs-a-default-entry) describes. The notice lists only the roles that fall short and leaves out roles the model meets. When the Host starts a run without a model, role lines stay out of the notice, because the run skips the role checks.
 
 ### The order of the lines
 
@@ -957,7 +957,7 @@ error('no section runs after the preamble returns')
 early
 ````
 
-The preamble is a section of the main walk, and a `return` in any section of the main walk ends the chain and the run with it (see [A return ends the chain](#a-return-ends-the-chain)). The returned value becomes the run result, every later section is skipped, and the `error` inside `Never` never fires. Returning `models.infer(prose)` from the preamble works the same way: the model's reply becomes the run result. A `return` that gives [no value](#a-bare-return-and-return-nil) ends the run too: with a bare `return` in place of `return 'early'`, `Never` is still skipped, and the run result is `done`.
+The preamble is a section of the main walk, and a `return` in any section of the main walk ends the chain and the run with it (see [A return ends the chain](#a-return-ends-the-chain)). The returned value becomes the run result, every later section is skipped, and the `error` inside `Never` never fires. Returning `models.infer(prose)` from the preamble works the same way: the model's reply becomes the run result. [A bare `return` or a `return` of `nil`](#a-bare-return-and-return-nil) ends the run too: with a bare `return` in place of `return 'early'`, `Never` is still skipped, and the run result is `done`.
 
 The preamble finishes normally on that exit, like any section that returns: it reports `section_finished`, and then the run reports `run_succeeded` (see [Section boundaries](#section-boundaries)).
 
@@ -1490,7 +1490,7 @@ Returns from other chains go back to the code that started them instead. A value
 
 ### The `done` fallback
 
-When the main walk ends with no result, the run's result is `done`. A walk whose last section falls through still ends the run as completed, and so does a `return` on the main walk that gives [no value](#a-bare-return-and-return-nil). A prompt whose whole body is a preamble of commentary finishes at once with the result `done` (see [A body that is all preamble](#a-body-that-is-all-preamble)). A prompt whose sections hold only prose ends the same way:
+When the main walk ends with no result, the run's result is `done`. A walk whose last section falls through still ends the run as completed, and so does [a bare `return` or a `return` of `nil`](#a-bare-return-and-return-nil) on the main walk. A prompt whose whole body is a preamble of commentary finishes at once with the result `done` (see [A body that is all preamble](#a-body-that-is-all-preamble)). A prompt whose sections hold only prose ends the same way:
 
 ````markdown
 ---
