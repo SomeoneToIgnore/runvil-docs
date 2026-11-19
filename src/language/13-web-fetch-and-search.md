@@ -509,7 +509,7 @@ Because fetch drops a `#fragment` from the `url` argument before the request (se
 
 ### Search failures
 
-A `web/search` call whose arguments are accepted can still fail on the network or at the gateway, and every search failure is a hard failure that fails the call. A failed `web/search` call has a tool error kind that tells the causes apart:
+A `web/search` call whose arguments are accepted can still fail on the network or at the gateway, and every search failure is a hard failure that fails the call. A failed `web/search` call has a tool error kind that tells the causes apart. Results that the tool cannot render as JSON text fail the call with tool error kind `Other` and the message `web_search: the results could not be rendered`, and every other failure has one of these three kinds:
 
 | Tool error kind | Cause |
 |---|---|
@@ -812,7 +812,7 @@ return tools.call('web/fetch', { url = 'https://example.com/' })
 ```
 ````
 
-This is `fetch-page` from [What the web Pack gives a prompt](#what-the-web-pack-gives-a-prompt). Its request goes over HTTPS to port 443, carries the header `User-Agent: harness-webfetch/0.0`, and leaves out cookies, the `Authorization` header, and the `Referer` header. Each of those facts comes from the fetch policy.
+This is `fetch-page` from [What the web Pack gives a prompt](#what-the-web-pack-gives-a-prompt). Its request goes over HTTPS to port 443, carries the header `User-Agent: harness-webfetch/0.0`, and leaves out cookies, the `Authorization` header, and the `Referer` header. The scheme, the port, and the `User-Agent` header come from the fetch policy, and the fetch client leaves the other three out under every fetch policy.
 
 ### What a fetch policy sets
 
@@ -1359,7 +1359,7 @@ The tool parses its arguments first, and four kinds of mistake fail at that stag
 - a missing `query`
 - a `freshness` or `safesearch` value other than the exact lowercase values listed
 
-The `web_search: invalid arguments` message reads the same for every parse failure, whichever argument is at fault and whatever the reason, and the error keeps that parse failure only as its underlying cause, not in the message text. Because parsing comes before any bounds check, a call that fails to parse and also breaks a bound reports only `web_search: invalid arguments`.
+The `web_search: invalid arguments` message reads the same for every parse failure, whichever argument is at fault and whatever the reason, and the tool keeps the detail of that parse failure in its own error, while the Engine builds what Lua, the model, and a failed run read from the message alone. Because parsing comes before any bounds check, a call that fails to parse and also breaks a bound reports only `web_search: invalid arguments`.
 
 ### Errors from the search bounds checks
 
@@ -1403,7 +1403,7 @@ The Gateway provider is the search provider Workshop supplies. Under it, each se
 | The gateway answered with an error status and the connection dropped while its error body was read | `Backend` | `web_search: backend returned {code}, and its error body could not be read` |
 | A successful response was larger than 256 KiB (262,144 bytes) | `Backend` | `web_search: response body exceeded 262144 bytes` |
 | A successful response was not valid UTF-8 | `Backend` | `web_search: response body was not valid UTF-8` |
-| A successful response was not JSON, lacked the `results` array, had a row without a string `url`, or had a known field of the wrong type | `Backend` | `web_search: malformed search response` |
+| A successful response was not JSON, lacked the `query` string or the `results` array, had a row without a string `url`, or had a known field of the wrong type | `Backend` | `web_search: malformed search response` |
 
 Workshop's gateway is unusable when it is missing, when it is reported down, or when Workshop cannot use its endpoint or key.
 
