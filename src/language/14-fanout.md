@@ -183,7 +183,7 @@ The call raises an error value of kind `lua` whose message has the form ``{file}
 
 ### Child worker sections and top-level worker sections
 
-You usually place the worker section as a `###` child under the calling `##` section. The walk skips a section's children when it falls through (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)), so a child worker section runs only as a fanout arm and never on its own.
+You usually place the worker section as a `###` child under the calling `##` section. The walk skips a section's children when it falls through (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)), so it passes a child worker section by, and that section runs as a fanout arm, or as a plain section when a `call` or a `jump` names it.
 
 A top-level worker section is also a section of the main walk, which reaches it in order unless an earlier section returns or jumps. So you place a top-level worker section after a caller that returns. In `sibling-worker`, `Main` returns, which ends the run before the walk reaches `Worker`.
 
@@ -1260,7 +1260,7 @@ Under the default run limit of 8, this returns:
 
 The limit governs the tasks the chain spawns from then on, so calling `tasks.concurrency` before a fanout lowers the limit for that fanout's arms. You pass a positive whole number, such as `1` or `16`. A whole-number float such as `2.0` or `8.0` works too: `tasks.concurrency` treats it as the integer `2` or `8`, sets that limit, and returns it exactly as an integer argument would, so `local set = tasks.concurrency(2.0)` passes `assert(set == 2)`. `tasks.concurrency()` with no argument returns the chain's current effective limit without changing it, which is why `c` above reads 2.
 
-A limit set with `tasks.concurrency` is clamped to the parent chain's current limit, or, in the main walk, to the run's concurrency limit that the Harness sets. `tasks.concurrency(n)` sets the limit to the smaller of `n` and the parent's limit, so asking for more than that is never an error: the call clamps silently and returns the clamped value. That is why `a` above reads 8, and with the Harness's limit at 4 the same prompt returns `4|2|2|4`. A prompt that requests a high limit therefore stays portable to Hosts with a tighter limit, and runs within the limit of whatever runs it.
+A limit set with `tasks.concurrency` is clamped to the parent chain's current limit, or, in the main walk, to the run's concurrency limit that the Harness sets. `tasks.concurrency(n)` sets the limit to the smaller of `n` and the parent's limit, so asking for more than that succeeds for any whole number below 2^64: the call clamps silently and returns the clamped value. That is why `a` above reads 8, and with the Harness's limit at 4 the same prompt returns `4|2|2|4`. A prompt that requests a high limit therefore stays portable to Hosts with a tighter limit, and runs within the limit of whatever runs it.
 
 After lowering the limit, you can raise it again with a later `tasks.concurrency(n)` call, up to the parent's limit, as `d` does. Tasks already running keep running when the limit is lowered, and the lower limit only gates tasks admitted afterward.
 
@@ -1656,7 +1656,7 @@ An arm whose `models.loop` hits the round cap still reports a `Task failed` even
 
 When the run is already canceled as a fanout starts, the run ends with the error whose code is `canceled` instead of running the fanout's arms (see [Cancellation and stops](16-limits-and-errors.md#cancellation-and-stops)).
 
-If the Host cancels the run while arms are waiting on model replies, the run ends at once with code `canceled`. The waiting arms' pending model requests are dropped without waiting for their replies, and every arm that has not finished ends with the run. Each started arm reports one `Task abandoned` event naming the run's end, in place of a `Task canceled` or `Task failed` event.
+If the Host cancels the run while arms are waiting on model replies, the run ends at once with code `canceled`. The waiting arms' pending model requests are dropped without waiting for their replies, and every arm that has not finished ends with the run. Each started arm reports one `Task abandoned` event, in place of a `Task canceled` or `Task failed` event, with the reason `run_terminated` for an arm that the run's end stranded directly and `owner_aborted` for an arm nested under another task, such as an arm of a nested fanout.
 
 ## Collection and argument errors
 
