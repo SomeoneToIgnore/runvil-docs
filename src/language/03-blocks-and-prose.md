@@ -28,7 +28,7 @@ After.
 hello
 ````
 
-The section `Main` holds three blocks in file order: a prose block `Before.`, a Lua block, and a prose block `After.`. The Lua block returns `hello`, which becomes the run result (see [Returning values](04-how-a-prompt-runs.md#returning-values)), and neither prose block runs anything or calls a model.
+The section `Main` holds three blocks in file order: a prose block `Before.`, a Lua block, and a prose block `After.`. The Lua block returns `hello`, which becomes the run result (see [Returning values](04-how-a-prompt-runs.md#returning-values)), and both prose blocks stay unread.
 
 A Lua fence is a fenced block that opens with a line of three backticks followed by `lua` and closes with a line of three backticks, and you usually place one under a section heading. A Lua block is the code one Lua fence holds, run as one unit (see [A Markdown file that is a program](01-what-a-prompt-is.md#a-markdown-file-that-is-a-program)). A prose block is a run of Markdown text outside the fences: before the first fence, between two fences, or after the last one.
 
@@ -128,7 +128,7 @@ This prompt loads cleanly. When the run reaches `Fallback`, the section's prose 
 
 Every Lua block, in the preamble or in a section, is compiled as its own Lua program when the prompt loads, before any block runs. Inside a section, every fence labeled exactly `lua` is compiled wherever it sits around the section's prose: a fence before the prose becomes the section's prologue and a fence after it becomes the epilog, as [Prologue, prose, and epilog](#prologue-prose-and-epilog) explains, so a section with a prologue and an epilog compiles two programs.
 
-When the run reaches a section (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)), its blocks run in file order. Each Lua block runs when its place in that order comes, and a prose block runs nothing and calls no model on its own.
+When the run reaches a section (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)), its blocks run in file order. Each Lua block runs when its place in that order comes, and a prose block only holds text for the next Lua block to read.
 
 Because compiling happens at load, a Lua syntax error in any block, in the preamble or a section, fails the prompt load with parse error kind `Lua` before any block runs:
 
@@ -174,13 +174,13 @@ return models.infer(prose)
 ```
 ````
 
-In `Explain`, the first fence is the section's prologue, the prose after it is the section prose, and the second fence is the epilog, so the block sequence is exactly Lua, prose, Lua. The prompt has no `models:` block, so the epilog's `models.infer` runs on the model of the `default` role, which is the model the Host supplies (see [The current model](10-models.md#the-current-model)). The model is asked `Explain tides in one sentence.`, and its reply is the run result.
+In `Explain`, the first fence is the section's prologue, the prose after it is the section prose, and the second fence is the epilog, so the block sequence is exactly Lua, prose, Lua. The prompt leaves out the `models:` block, so the epilog's `models.infer` runs on the model of the `default` role, which is the model the Host supplies (see [The current model](10-models.md#the-current-model)). The model is asked `Explain tides in one sentence.`, and its reply is the run result.
 
 This is the common section shape. The prologue runs before the prose and stores a value in `var` (see [Keeping state in `var`](05-lua-environment.md#keeping-state-in-var)). The prose uses that value through a `{{ var.topic }}` placeholder. The epilog runs after the prose, reads the pending prose through `prose`, and sends the finished prose to a model with `return models.infer(prose)` (see [Running a round with `models.infer`](10-models.md#running-a-round-with-modelsinfer)).
 
 A prologue is a `lua` fence that opens a section, before any prose, and it runs before the prose. Blank lines before it are fine: blank lines and lines holding only spaces or tabs between the section heading and the first fence are discarded, and that fence is still the prologue. The prose after a prologue stays a separate prose block, and the section has an epilog only when a fence follows that prose.
 
-An epilog is a `lua` fence after a section's prose, the trailing Lua block that ends the section, and it runs after the prose. When no fence comes before the prose, the section has no prologue. A section can have a prologue alone, an epilog alone, or both, and when it has both, the prologue runs first.
+An epilog is a `lua` fence after a section's prose, the trailing Lua block that ends the section, and it runs after the prose. When the prose comes first, the section starts with a prose block in the prologue's place. A section can have a prologue alone, an epilog alone, or both, and when it has both, the prologue runs first.
 
 ### Section shapes
 
@@ -197,7 +197,7 @@ Where the fences sit decides which blocks a section has and which of them are th
 | Prose, a fence, prose | prose, Lua, prose | none | none |
 | Fences with prose between them | Lua, prose, Lua, and so on | first fence | last fence |
 
-A section with no `lua` fence is a single prose block with no prologue and no epilog. A section whose only content is one `lua` fence, including a library section (see [Sharing code with `require`](#sharing-code-with-require)), treats that fence as its prologue and has no epilog, because an epilog needs prose before it, even empty prose. A `lua` fence with prose on both sides becomes its own Lua block in the middle of the section and is neither the prologue nor the epilog. Blank lines before a leading fence and empty text after the last fence are discarded.
+A section with no `lua` fence is a single prose block. A section whose only content is one `lua` fence, including a library section (see [Sharing code with `require`](#sharing-code-with-require)), holds a single Lua block, its prologue, because an epilog needs prose before it, even empty prose. A `lua` fence with prose on both sides becomes its own Lua block in the middle of the section, a middle fence. Blank lines before a leading fence and empty text after the last fence are discarded.
 
 ### Back-to-back and empty fences
 
@@ -227,7 +227,7 @@ prologue-epilog
 
 The same holds when only blank lines or lines of spaces and tabs sit between the two fences. Prose made only of spaces, tabs, and blank lines is trimmed to empty, so the next fence reads `prose` as an empty string.
 
-A prologue does not have to do anything. An empty `lua` fence, an opener followed directly by its closer, is valid: it still produces a Lua block, with empty source, that does nothing, and it can stand as a section's prologue. A fence that holds only a Lua comment, such as `-- prologue`, is a valid prologue too:
+A prologue does not have to do anything. An empty `lua` fence, an opener followed directly by its closer, is valid: it still produces a Lua block, with empty source, and it can stand as a section's prologue. A fence that holds only a Lua comment, such as `-- prologue`, is a valid prologue too:
 
 ````markdown
 ---
@@ -255,7 +255,7 @@ You can leave the prologue fence empty and do the section's work in the epilog, 
 
 ### Several fences in one section
 
-You can place several `lua` fences in one section, interleaved with prose, to split the section's work. They run top to bottom in file order as separate blocks of that one section. In a section that opens and closes with a fence, the first fence is the prologue, the last fence is the epilog, and every fence between them is neither:
+You can place several `lua` fences in one section, interleaved with prose, to split the section's work. They run top to bottom in file order as separate blocks of that one section. In a section that opens and closes with a fence, the first fence is the prologue, the last fence is the epilog, and every fence between them is a middle fence:
 
 ````markdown
 ---
@@ -343,7 +343,7 @@ return 'saved'
 saved
 ````
 
-The epilog sends `Name one ocean.` to the model, writes the reply to `reply.txt` in the store, and returns `saved`. A Lua block can also call a tool with `tools.call` and end with no `return`, and the section then continues with the prose that follows.
+The epilog sends `Name one ocean.` to the model, writes the reply to `reply.txt` in the store, and returns `saved`. A Lua block can also call a tool with `tools.call` and end without a `return`, and the section then continues with the prose that follows.
 
 The prologue and the epilog run as two separate Lua blocks, each with its own `lua_chunk_started` and `lua_chunk_succeeded` events, and a `models.infer` call in the epilog reports its model round between the epilog's own pair of events.
 
@@ -361,7 +361,7 @@ Error messages name each Lua block with a location label that says where the blo
 
 `{name}` is the section name, the heading text without the `#` marks, and `{heading_abs_line}` is the file line of the section's own heading (see [Sections that share a section name](05-lua-environment.md#sections-that-share-a-section-name)). `{ordinal}` is the block's 1-based place among the section's Lua blocks, counting the prologue as 1, so the third Lua block of `lib` is ``section `lib` lua 3``, as in the library error in [Where a library error points](#where-a-library-error-points). In a section of just two back-to-back fences, the second fence is labeled `epilog`, because the empty prose between them counts as prose. A malformed epilog makes the prompt fail to parse with parse error kind `Lua` and a message that names the section and its epilog, as in ``section `Transform` epilog`` in [When Lua blocks compile and run](#when-lua-blocks-compile-and-run).
 
-The preamble is unnamed (see [The preamble](02-file-structure.md#the-preamble)), so its labels say `preamble` where a heading's section says ``section `{name}` ``. In the `plan` prompt in [Where Lua and prose go](#where-lua-and-prose-go), the preamble's two Lua blocks are `preamble prologue` and `preamble epilog`, and an `error('not ready')` written in place of `local second = 2` fails the run with a message that starts `preamble epilog:14: runtime error: preamble epilog:14: not ready` and ends with ` (at plan.md:14)`.
+The preamble's section name is empty (see [The preamble](02-file-structure.md#the-preamble)), so its labels say `preamble` where a heading's section says ``section `{name}` ``. In the `plan` prompt in [Where Lua and prose go](#where-lua-and-prose-go), the preamble's two Lua blocks are `preamble prologue` and `preamble epilog`, and an `error('not ready')` written in place of `local second = 2` fails the run with a message that starts `preamble epilog:14: runtime error: preamble epilog:14: not ready` and ends with ` (at plan.md:14)`.
 
 ## Pending prose and the `prose` global
 
@@ -454,7 +454,7 @@ return models.infer(prose)
 
 `models.infer(prose)` sends the pending prose above the current Lua block to the model, so this epilog sends `Say "Hello, world!"` as the message and returns the reply (see [Running a round with `models.infer`](10-models.md#running-a-round-with-modelsinfer)). The epilog runs after the section's prose and can call `models.infer(prose)` to send that prose to the model, and any other Lua block can do the same, as in `var.first = models.infer(prose)` in a middle fence.
 
-Prose never calls a model on its own and only feeds the next Lua block. The prose reaches a model only when Lua passes it to an explicit `models.infer`, and only that call needs a configured model. Prose written above a fence waits in the pending buffer, so you use it only by passing `prose` to an explicit infer such as `var.draft = models.infer(prose)`, and the prose itself adds no model request beyond that call. A section with two prose paragraphs and two `models.infer(prose)` calls makes exactly two model rounds, one for each call.
+Prose never calls a model on its own and only feeds the next Lua block. The prose reaches a model only when Lua passes it to an explicit `models.infer`, and only that call needs a configured model. Prose written above a fence waits in the pending buffer, so you use it only by passing `prose` to an explicit infer such as `var.draft = models.infer(prose)`, and that call is what makes the model request. A section with two prose paragraphs and two `models.infer(prose)` calls makes exactly two model rounds, one for each call.
 
 The preamble and each section collect their own pending prose, so each part's prose reaches the model only through its own `models.infer(prose)` call, and those calls run in source order:
 
@@ -480,7 +480,7 @@ return models.infer(prose)
 ```
 ````
 
-The prompt asks `Name one planet.` first, from the preamble, and then `Name one ocean.` from `Answer`, and the result is the ocean reply. The preamble and each section keep separate pending prose buffers, so each reads only its own prose through `prose`, and prose written between `lua` fences in the preamble collects into a buffer that `prose` reads the same way. Preamble prose never drives inference on its own: on a Host that supplies no model, a prompt whose preamble prose stays unread still runs, while a preamble block running `return models.infer(prose)` fails there because the chain has no model (see [When a section has no model](10-models.md#when-a-section-has-no-model)).
+The prompt asks `Name one planet.` first, from the preamble, and then `Name one ocean.` from `Answer`, and the result is the ocean reply. The preamble and each section keep separate pending prose buffers, so each reads only its own prose through `prose`, and prose written between `lua` fences in the preamble collects into a buffer that `prose` reads the same way. Preamble prose never drives inference on its own: on a Host that supplies no model, a prompt whose preamble prose stays unread still runs, while a preamble block running `return models.infer(prose)` fails there because its round needs a model (see [When a section has no model](10-models.md#when-a-section-has-no-model)).
 
 ### What resets pending prose
 
@@ -546,7 +546,7 @@ ok
 
 Every piece of prose in this prompt is commentary:
 
-- A preamble that holds no `lua` fence is commentary as a whole (see [The preamble](02-file-structure.md#the-preamble)): it sits outside the sections and stays unread, so a placeholder like `{{ var.omit }}` is safe in it. It stays out of every model request, so it needs no model, and notes meant only for human readers can sit there.
+- A preamble that holds no `lua` fence is commentary as a whole (see [The preamble](02-file-structure.md#the-preamble)): it sits outside the sections and stays unread, so a placeholder like `{{ var.omit }}` is safe in it. It stays out of every model request, so notes meant only for human readers can sit there.
 - Prose at the end of a section with no Lua fence after it is discarded unrendered when the section ends, so a placeholder naming a missing value, such as `{{ var.missing }}`, is discarded with it and the run goes on.
 - A block that never reads `prose` is untouched even by an unclosed `{{` in the prose above it.
 - Markdown left after the final `lua` fence of a body is inert trailing commentary: it stays unread, its placeholders stay unfilled, and it never raises an error, so `Trailing {{ var.missing }} commentary.` leaves the result `ok`. Prose left pending after a section's last fence parses cleanly too.
@@ -774,7 +774,7 @@ A section can contain any number of thematic breaks, and only the Markdown below
 
 ### A break never ends a section
 
-Resetting pending prose is all a break does. It has no control-flow meaning, and the section's or the preamble's content continues below it, so `lua` fences, prose, and headings below it parse and run as usual:
+Resetting pending prose is all a break does. The section's or the preamble's content continues below it, so `lua` fences, prose, and headings below it parse and run as usual:
 
 ````markdown
 ---
@@ -802,7 +802,7 @@ return prose
 Below the break.
 ````
 
-A `lua` fence below a break is still part of its section's content and stays live, because a break resets prose capture only and makes nothing reader-only, and prose below a break is ordinary pending Markdown. You can put a `---` break as a section's first content, as here, and the section runs like any other. A section body that holds a break followed by a `lua` fence still runs that fence when the section is called with `call` (see [Calling a section](08-jump-and-call.md#calling-a-section)), and a break inside a fanout worker section (see [Choosing the worker section](14-fanout.md#choosing-the-worker-section)) only resets its pending prose, as in any section. A heading below a break still starts a new section.
+A `lua` fence below a break is still part of its section's content and stays live, because a break resets prose capture only, and prose below a break is ordinary pending Markdown. You can put a `---` break as a section's first content, as here, and the section runs like any other. A section body that holds a break followed by a `lua` fence still runs that fence when the section is called with `call` (see [Calling a section](08-jump-and-call.md#calling-a-section)), and a break inside a fanout worker section (see [Choosing the worker section](14-fanout.md#choosing-the-worker-section)) only resets its pending prose, as in any section. A heading below a break still starts a new section.
 
 A break stays in its section's raw Markdown, and the section continues past it, so [`prompt.section`](#reading-sections-with-promptsection-and-promptsection_or) returns the `---` line and the text on both sides of it verbatim, even though prose capture drops what sits above it. A [selector read](#reading-one-block-with-a-selector) sees the break as a block of its own, of kind `rule`.
 
@@ -954,7 +954,7 @@ A Lua block's source is every line between its opener and the first line that is
 
 ### Fences with other labels
 
-Only a fence labeled exactly `lua` becomes an executable Lua block, and `lua` is the only Lua fence label: everything else in the preamble and section content is prose. A fenced code block with no label, or with a label that does not start with `lua` in any letter case, such as `text`, `json`, `text lua`, or `moonlua`, is ordinary Markdown. It stays in the section's prose verbatim, fence lines and contents included, compiles no Lua, and creates no prologue or epilog, and the next Lua block reads it through `prose`:
+Only a fence labeled exactly `lua` becomes an executable Lua block, and `lua` is the only Lua fence label: everything else in the preamble and section content is prose. A fenced code block with no label, or with a label that does not start with `lua` in any letter case, such as `text`, `json`, `text lua`, or `moonlua`, is ordinary Markdown. It stays in the section's prose verbatim, fence lines and contents included, and the next Lua block reads it through `prose`:
 
 ````markdown
 ---
@@ -986,7 +986,7 @@ print(1)
 
 ### Showing a `lua` fence as an example
 
-Lines inside the body of any other fenced code block are exempt from the Lua fence rules. To show a `lua` fence to a reader or a model as an example, even a near miss such as `` ```lua extra ``, nest it inside a longer fence, such as a four-backtick `markdown` fence or a tilde fence. It stays prose, with no Lua compiled and no `Fence` error, and near-miss lines inside the outer fence stay prose without errors too. A section that opens with such an outer fence starts with a prose block, and the whole fence stays in the section's prose:
+Lines inside the body of any other fenced code block are exempt from the Lua fence rules. To show a `lua` fence to a reader or a model as an example, even a near miss such as `` ```lua extra ``, nest it inside a longer fence, such as a four-backtick `markdown` fence or a tilde fence. It stays prose, uncompiled and free of `Fence` errors, and near-miss lines inside the outer fence stay prose without errors too. A section that opens with such an outer fence starts with a prose block, and the whole fence stays in the section's prose:
 
 ````markdown
 ---
@@ -1055,7 +1055,7 @@ unrecognized fence label `lua extra`; the only Lua fence label is `lua`
 
 The parse fails with parse error kind `Fence`, and the message `` unrecognized fence label `{label}`; the only Lua fence label is `lua` `` names the offending label as written. The label is the whole info string the Markdown parser reports after the backticks, so a label that starts with `lua` but adds more, such as `luau`, `lua extra`, or an attribute after `lua`, breaks the Label rule rather than being read as plain code. The `lua` label is case-sensitive, so a fence labeled `Lua` or `LUA`, in the preamble or a section, fails the same way.
 
-Fence detection follows CommonMark as the Markdown parser reads it, so any line the parser treats as a fence opener is checked against the Label rule. When the parser reads a line as a fence opener, a near-miss label gets the label error whatever the opener's shape, rather than the opener error: a four-backtick fence with a near-miss label, closed by four backticks, fails with the unrecognized-label error, and so does a fence indented by one space. A near-miss label is reported even when the fence's closing line does not match its opener. The same line indented four spaces is no fence at all, and it gets the opener message as a lookalike, as [The Lookalike rule](#the-lookalike-rule) describes.
+Fence detection follows CommonMark as the Markdown parser reads it, so any line the parser treats as a fence opener is checked against the Label rule. When the parser reads a line as a fence opener, a near-miss label gets the label error whatever the opener's shape, rather than the opener error: a four-backtick fence with a near-miss label, closed by four backticks, fails with the unrecognized-label error, and so does a fence indented by one space. A near-miss label is reported even when the fence's closing line does not match its opener. The same line indented four spaces is past the indent CommonMark accepts for a fence, and it gets the opener message as a lookalike, as [The Lookalike rule](#the-lookalike-rule) describes.
 
 The label check covers every part of the body: the preamble, which is the text between the frontmatter and the first heading, including a fence that follows a whitespace-only line; and fences inside a section body after the section's prose. A near-miss label fails the same way whether its fence opens the preamble or follows an intro paragraph.
 
@@ -1318,12 +1318,12 @@ The Engine answers a read itself, from the text of the prompt. The pending prose
 
 | Selector | Picks | Fields of the block |
 |---|---|---|
-| `'prose'` | a run of ordinary Markdown: paragraphs, block quotes, and anything that is no other kind | `text` |
+| `'prose'` | a run of ordinary Markdown: paragraphs, block quotes, and whatever falls outside the other kinds | `text` |
 | `'fence'` | a fenced code block | `lang`, `info`, `text` |
 | `'fence markdown'` | a fence whose language is `markdown`, and likewise for any other language | `lang`, `info`, `text` |
 | `'fence ""'` | a fence with no language | `lang`, `info`, `text` |
 | `'list'` | a bulleted or numbered list | `ordered`, `items` |
-| `'rule'` | a thematic break | none |
+| `'rule'` | a thematic break | only the fields every block has |
 | `'*'` | a block of any kind | the fields of its kind |
 
 The block comes back as a plain Lua table built for the call, and you read its fields by name, as `prompt.section('Template', 'fence markdown').text` does in the first prompt. Every block also has `kind`, the kind's name as a string, `line`, the line of the prompt file the block starts on, and `source`, the block's lines exactly as the section holds them, with the blank lines after them. These are the blocks [`markdown.parse`](05-lua-environment.md#parsing-markdown-with-markdown) produces, and that section gives the full rules for each kind and for [`source`](05-lua-environment.md#the-source-of-a-block).
@@ -1491,11 +1491,11 @@ From `Main`:
 - `Niece` is a child of the sibling `Other`, and `'/Other/Niece'` reads it.
 - `'/Main'` is the running section itself. A section can read its own text, and its ancestors', by a path from the top. `'../Main'` misses, because a section is not its own sibling.
 
-A read is not held to the [visible set](08-jump-and-call.md#the-visible-set) that `call` and `jump` are, because a read only looks a section up and leaves the walk where it is. A shared section therefore has one path at every depth: a worker nested anywhere reads a top-level `Templates` section as `prompt.section('/Templates', 'fence markdown')`. `prompt` has no read for the preamble or the frontmatter.
+A read is not held to the [visible set](08-jump-and-call.md#the-visible-set) that `call` and `jump` are, because a read only looks a section up and leaves the walk where it is. A shared section therefore has one path at every depth: a worker nested anywhere reads a top-level `Templates` section as `prompt.section('/Templates', 'fence markdown')`. `prompt` reads sections that have a heading, and the preamble and the frontmatter stay outside its reach.
 
 ### Reads from the preamble and from libraries
 
-Both reads work in the preamble too. There a relative path names a top-level section as a sibling, with `../`, since the preamble has no children (see [Jump and call from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble)), and a path from the top names any section:
+Both reads work in the preamble too. There a relative path names a top-level section as a sibling, with `../`, since the top-level sections are the preamble's siblings (see [Jump and call from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble)), and a path from the top names any section:
 
 ````markdown
 ---
@@ -1540,7 +1540,7 @@ A read written in a [library](#sharing-code-with-require) section starts at the 
 
 ### What a read does on a miss
 
-When its path names no section, `prompt.section` raises the [not-found error](08-jump-and-call.md#the-not-found-error), the same error `call` raises for the same path. `prompt.section_or` returns `nil` instead:
+When its path misses, `prompt.section` raises the [not-found error](08-jump-and-call.md#the-not-found-error), the same error `call` raises for the same path. `prompt.section_or` returns `nil` instead:
 
 ````markdown
 ---
@@ -1570,8 +1570,8 @@ The selector forms treat a missing block the same way:
 
 | Outcome | `prompt.section` | `prompt.section_or` |
 |---|---|---|
-| The path names no section | raises | `nil` |
-| The selector matches no block, or fewer blocks than the index asks for | raises | `nil` |
+| The path misses | raises | `nil` |
+| The selector misses, or the index runs past the last match | raises | `nil` |
 | The selector matches several blocks and the index is left out | raises | raises |
 | The path, selector, or index is malformed | raises | raises |
 
@@ -1581,7 +1581,7 @@ A name built at run time can act as a key: `prompt.section_or('/Vendors/' .. ven
 
 ### Errors a read raises
 
-An empty section is not a miss. `prompt.section` on it returns the empty string `''`, and a selector finds no block in it.
+An empty section is not a miss. `prompt.section` on it returns the empty string `''`, and a selector misses in it.
 
 Each row below raises a Lua error that [`pcall`](05-lua-environment.md#raising-and-catching-errors) can catch. The last two are misses, which only `prompt.section` raises. Every other row raises from `prompt.section_or` too, with `prompt.section_or` in place of `prompt.section` at the start of the message:
 
@@ -1723,9 +1723,9 @@ return 'never reached'
 ran then second
 ````
 
-A block that ends with no `return` lets the next block run, and the block that returns is the last one to run. The rule is the one a section follows (see [Returning values](04-how-a-prompt-runs.md#returning-values)): a `return` ends the library whatever it returns. A block that returns `false` ends the library, and `require` returns `false`. A block that returns `nil`, or returns with no value, ends the library too, and `require` then returns `true`, as Lua's own `require` does for a module that returns no value. A library whose blocks all end with no `return` gives `true` to `require` as well. So a `silent` section with the blocks `quiet = 1` and `return nil` makes `tostring(require '/silent')` read `true`, and a third block written after them never runs.
+A block that ends without a `return` lets the next block run, and the block that returns is the last one to run. The rule is the one a section follows (see [Returning values](04-how-a-prompt-runs.md#returning-values)): a `return` ends the library whatever it returns. A block that returns `false` ends the library, and `require` returns `false`. A block that returns `nil`, or returns with no value, ends the library too, and `require` then returns `true`, as Lua's own `require` does for a module that returns no value. A library whose blocks all end without a `return` gives `true` to `require` as well. So a `silent` section with the blocks `quiet = 1` and `return nil` makes `tostring(require '/silent')` read `true`, and a third block written after them never runs.
 
-A library loads successfully whether its code ends in a `return` value or is plain code with no `return`, such as `loaded = true`. Either way the run records `Lua library load succeeded: /lib` for a top-level library named `lib`.
+A library loads successfully whether its code ends in a `return` value or is plain code without a `return`, such as `loaded = true`. Either way the run records `Lua library load succeeded: /lib` for a top-level library named `lib`.
 
 ### Library code runs in the caller's environment
 
@@ -1915,7 +1915,7 @@ return args.text:upper()
 # Title|REVIEW|none
 ````
 
-`kit` reads `Template` while it loads and calls `Shout` from a function that runs later, and both paths name `kit`'s own children whether `Research` or `Review` is using the library. Neither of those sections has a `Template` or a `Shout`, and neither needs one.
+`kit` reads `Template` while it loads and calls `Shout` from a function that runs later, and both paths name `kit`'s own children whether `Research` or `Review` is using the library. Both of those sections reach `Template` and `Shout` through the library, and those two children of the library are all that either section needs.
 
 The rule covers every function that takes a relative path, with one exception:
 
@@ -1925,7 +1925,7 @@ The rule covers every function that takes a relative path, with one exception:
 
 A name is resolved where it is used, not where it came from. A section that passes the string `'Worker'` to a function of a library gets the library's `Worker`, and when the library has none, the [not-found error](08-jump-and-call.md#the-not-found-error) names the library: ``section `Worker` not found: `/kit` has no child `Worker` ``. A function keeps the place it was written in, though. A function that a section passes to a library still names the section's own neighbors, and an [adhoc tool](12-tools.md#how-adhoc-tool-handlers-run) handler written in a library names the library's.
 
-Inside a library, the `_G` table still holds the running section's own functions. `_G.prompt`, `_G.call`, and `_G.tasks` resolve from whichever section is using the library, which is how `kit.topics` reads the `Topics` list of `Research` and finds none under `Review`. The `_G` at the call shows a reader that the line depends on the user. A library that does this relies on its user to have that section, so it reads with `_G.prompt.section_or` when the section is optional. `_G.prompt.section('Topics')` in its place raises and names the user: ``section `Topics` not found: `/Review` has no child `Topics` ``. In a section's own blocks, a plain name and its `_G` name are the same function.
+Inside a library, the `_G` table still holds the running section's own functions. `_G.prompt`, `_G.call`, and `_G.tasks` resolve from whichever section is using the library, which is how `kit.topics` reads the `Topics` list of `Research` and misses under `Review`, where it returns its fallback text. The `_G` at the call shows a reader that the line depends on the user. A library that does this relies on its user to have that section, so it reads with `_G.prompt.section_or` when the section is optional. `_G.prompt.section('Topics')` in its place raises and names the user: ``section `Topics` not found: `/Review` has no child `Topics` ``. In a section's own blocks, a plain name and its `_G` name are the same function.
 
 The chain a library's `call` starts, and the tasks its `tasks.spawn` and `tasks.fanout` start, still belong to the section that is running, as [Effects a library makes belong to the caller](#effects-a-library-makes-belong-to-the-caller) describes. Only the place a path starts from is the library's.
 
@@ -2225,7 +2225,7 @@ The other functions that take a section path start at the library when they are 
 
 ### When `require` cannot find a section
 
-A prompt whose `require` path is malformed or names no section still parses and runs, and `require` raises the error as a Lua error when the call runs, which [`pcall`](05-lua-environment.md#raising-and-catching-errors) can catch:
+A prompt whose `require` path is malformed or misses still parses and runs, and `require` raises the error as a Lua error when the call runs, which [`pcall`](05-lua-environment.md#raising-and-catching-errors) can catch:
 
 ````markdown
 ---
@@ -2264,7 +2264,7 @@ end
 false
 ````
 
-`deep` sits under `other`, so its path is `/other/deep`, and no top-level section is named `deep`. A well-formed `require` path that names no section fails with the [not-found error](08-jump-and-call.md#the-not-found-error), which names the path and the step where the lookup stopped. Here the error's text is:
+`deep` sits under `other`, so its path is `/other/deep`, and the name `deep` is unmatched at the top level. A well-formed `require` path that misses fails with the [not-found error](08-jump-and-call.md#the-not-found-error), which names the path and the step where the lookup stopped. Here the error's text is:
 
 ````text
 section `/deep` not found: the top level has no section `deep`
@@ -2272,7 +2272,7 @@ section `/deep` not found: the top level has no section `deep`
 
 Caught as it is here, the error value's message holds that text after `require_miss.md:10: `, the line of the `pcall`, and before the default text for a Lua failure (see [Where a caught error's message points](16-limits-and-errors.md#where-a-caught-errors-message-points)).
 
-A miss below the top level names the section that was searched. From anywhere in the tree above, `require '/Grand/Missing'` gives `` section `/Grand/Missing` not found: `/Grand` has no child `Missing` ``. The message lists no other section.
+A miss below the top level names the section that was searched. From anywhere in the tree above, `require '/Grand/Missing'` gives `` section `/Grand/Missing` not found: `/Grand` has no child `Missing` ``. The searched section is the only one the message names.
 
 Passing anything other than a string to `require` raises a Lua runtime error that names the argument's Lua type, before any section lookup. For a number, the error's text is:
 
@@ -2443,7 +2443,7 @@ false|loaded|2
 A `require` fails in one of five ways, and each one raises a Lua error in the requiring block:
 
 - The argument is not a string. [When `require` cannot find a section](#when-require-cannot-find-a-section) gives the message.
-- The path is malformed, is relative, or names no section. The same place gives the not-found message, and [One path for each library](#one-path-for-each-library) gives the message for a relative path.
+- The path is malformed, is relative, or misses. The same place gives the not-found message, and [One path for each library](#one-path-for-each-library) gives the message for a relative path.
 - The library's code raises an error while it loads.
 - The library's code calls `jump` while it loads.
 - The library is already loading, which makes a require cycle.
