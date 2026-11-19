@@ -735,7 +735,7 @@ Each arm's Lua return value becomes that arm's entry in the fanout result. Here 
 
 ### What an arm returns
 
-A `return value` in the worker section's prologue ends the arm with that value as its result. The worker section's prose after the fence is never sent to a model, and such an arm is done once its Lua returns, so in `arm-return` the prose `Do work.` goes unused. A worker section that is pure Lua and returns right away runs on Lua alone, so that kind of fanout stays fast. The 1025-arm `many-members` prompt runs with no model configured and returns `m1025`.
+A `return value` in the worker section's prologue ends the arm with that value as its result. The worker section's prose after the fence is never sent to a model, and such an arm is done once its Lua returns, so in `arm-return` the prose `Do work.` is dropped unread. A worker section that is pure Lua and returns right away runs on Lua alone, so that kind of fanout stays fast. The 1025-arm `many-members` prompt runs with no model configured and returns `m1025`.
 
 A worker section's return hands its value back to `tasks.fanout` as the arm's result, and the run continues, because a return ends the run only from the main walk (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The calling section, such as `Parent`, goes on to check the results, and its own return, such as `'ok'`, becomes the run's text.
 

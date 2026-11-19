@@ -1066,7 +1066,7 @@ The cap never abandons the task it closes, because that task's owner is still li
 Two run events report inboxes, each under the provenance of the chain whose inbox it is, so a task's inbox events report under its own task id (see [Run events and records](04-how-a-prompt-runs.md#run-events-and-records)):
 
 - `inbox_message` reports each message that enters an inbox, with the message in its `text` field. For a `tasks.send`, the step that applies the message reports it under the receiving task, in the section the task is in. A message sent to a task that has not started yet is reported right after the task's [`TaskStarted`](#the-taskstarted-event) event, in the section the task starts at, one event per message, oldest first, and not at all when the task is canceled or abandoned before it starts. A message the Host sends to the main chain is reported when the Host hands it over, ahead of the step that applies it, and the record holds the events of the answers that landed before the message ahead of its `inbox_message`, so a model reply that came first is recorded first.
-- `inbox_waiting` reports a chain parking in `tasks.receive()` or `tasks.reply` with its inbox empty, in the step where it parks. A read that finds a message waiting goes unreported.
+- `inbox_waiting` reports a chain parking in `tasks.receive()` or `tasks.reply` with its inbox empty, in the step where it parks. A read that finds a message waiting is not reported.
 
 A `tasks.send` that returns `false` skips both events. On the main chain, task `0`, a Host reads `inbox_waiting` as the run waiting for the operator, and `inbox_message` as the operator's message reaching it.
 
@@ -1885,7 +1885,7 @@ A wait with a time limit starts an internal timer, which the wait keeps so it ca
 
 - `tasks.pending()` and a status table's `tasks` list both leave it out.
 - The run's task events leave it out, so each one you observe belongs to a real member (see [Task events and task errors](#task-events-and-task-errors)).
-- When a member ends before the timeout, the wait cancels the timer silently as its own bookkeeping, and that cancel goes unreported.
+- When a member ends before the timeout, the wait cancels the timer silently as its own bookkeeping, and that cancel is not reported.
 - The timer ends with its owner like a task, but the run's events leave that end out, and `tasks_live` leaves the timer out when its section ends.
 - When the Engine refuses a timed wait, for example with `task_not_owned`, the wait stops its timer before raising, so every timer ends by the time its wait does.
 

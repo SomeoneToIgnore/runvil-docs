@@ -547,7 +547,7 @@ ok
 Every piece of prose in this prompt is commentary:
 
 - A preamble that holds no `lua` fence is commentary as a whole (see [The preamble](02-file-structure.md#the-preamble)): it sits outside the sections and is never read, so a placeholder like `{{ var.omit }}` is safe in it. It stays out of every model request, so notes meant only for human readers can sit there.
-- Prose at the end of a section with no Lua fence after it is discarded unrendered when the section ends, so a placeholder naming a missing value, such as `{{ var.missing }}`, is discarded with it and the run goes on.
+- Prose at the end of a section with no Lua fence after it is discarded when the section ends, without being rendered, so a placeholder naming a missing value, such as `{{ var.missing }}`, is discarded with it and the run goes on.
 - A block that never reads `prose` is untouched even by an unclosed `{{` in the prose above it.
 - Markdown left after the final `lua` fence of a body is inert trailing commentary: it is never read, its placeholders are never filled, and it never raises an error, so `Trailing {{ var.missing }} commentary.` leaves the result `ok`. Prose left pending after a section's last fence parses cleanly too.
 

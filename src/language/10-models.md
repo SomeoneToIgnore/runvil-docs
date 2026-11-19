@@ -1189,7 +1189,7 @@ local ok, text = pcall(function() return models.infer('hi') end)
 
 An infer round only sends the prompt and returns the reply:
 
-- Each `models.infer` call sends a single round with the tools left out, even when the prompt declares tools, so the round never dispatches a tool, and a reply that comes back with tool calls anyway is refused (see [Errors from the model backend](#errors-from-the-model-backend)). When a Lua block needs a model round that can use tools, it runs a section with `call` instead (see [Calling a section](08-jump-and-call.md#calling-a-section)).
+- Each `models.infer` call sends a single round that leaves the tool list out of its request, even when the prompt declares tools, so the round never dispatches a tool, and a reply that comes back with tool calls anyway is refused (see [Errors from the model backend](#errors-from-the-model-backend)). When a Lua block needs a model round that can use tools, it runs a section with `call` instead (see [Calling a section](08-jump-and-call.md#calling-a-section)).
 - The reply comes back whole as the call's return value, and the run's live output leaves it out while the model is still writing.
 - The returned value holds only the reply text, and any reasoning text the model backend supplies stays out of it.
 - A round cut off at the generation cap, such as one limited by a `max_tokens` option, still returns the text the model produced up to that point.
@@ -1245,7 +1245,7 @@ So an extra argument after the prompt, such as an options table, gets the first 
 
 ### Errors from the model backend
 
-An infer call leaves the tools out of its request, so it never dispatches tools. A model that replies to an infer round with tool calls fails the call with an error value of kind `model_failure` whose message is the file and line of the `models.infer` call, then this text:
+An infer call leaves the tool list out of its request, so it never dispatches tools. A model that replies to an infer round with tool calls fails the call with an error value of kind `model_failure` whose message is the file and line of the `models.infer` call, then this text:
 
 ````text
 the model backend sent a reply that could not be understood: the round sent tool calls, but no tools were advertised

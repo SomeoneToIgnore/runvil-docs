@@ -358,7 +358,7 @@ the environment cannot satisfy this prompt:
 - user is unavailable: this run has no user
 ````
 
-That notice leaves out `missing required Pack: user`, because every Host has the Pack. A run refused this way ends before any of the prompt's Lua runs and records zero effects.
+That notice leaves out `missing required Pack: user`, because every Host has the Pack. A run refused this way ends before any of the prompt's Lua runs and before its first effect.
 
 Whether a declared `user` is met depends only on the run. The same prompt text runs to completion when the Host launches it with a user and is refused in a run without one. A prompt that leaves `user` undeclared is never refused for it, and it can check `tools.packs.get('user')`, which reads `nil` in a run with no user, before it waits for the operator.
 
