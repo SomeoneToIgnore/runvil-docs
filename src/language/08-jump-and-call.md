@@ -758,7 +758,7 @@ The Engine clears any recorded jump before each Lua block starts, so a `jump` af
 
 ### Lookup after the block ends
 
-At the call itself, `jump` checks only that its target is a string. The section path is looked up only after the jumping block has ended, and the walk then continues at the section it names. The jumping section closes as completed, with its final `var` saved, before the path is looked up, so it still reports that its section finished even when the target fails to resolve. Because the lookup runs after the jumping section has closed, a bad `jump` target raises its error after the jumping block has ended, where a `pcall` in that block cannot catch it.
+At the call itself, `jump` first refuses a call made inside an adhoc tool handler or while a library loads, and then checks only that its target is a string. The section path is looked up only after the jumping block has ended, and the walk then continues at the section it names. The jumping section closes as completed, with its final `var` saved, before the path is looked up, so it still reports that its section finished even when the target fails to resolve. Because the lookup runs after the jumping section has closed, a bad `jump` target raises its error after the jumping block has ended, where a `pcall` in that block cannot catch it.
 
 A `jump` whose path misses fails the run with the not-found error, ``section `{path}` not found: {where}``, followed by ` (at {file}:{line})` with the line of the `jump` call (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). The message names the section the jump started from, so a failed `jump('../Parent')` in the fanout worker section `Worker` under `Parent` reports that `/Parent/Worker` has no sibling `Parent`.
 
@@ -1566,7 +1566,7 @@ The [preamble](02-file-structure.md#the-preamble) is the text between the frontm
 
 The preamble's visible set is every other top-level section, and every nested section is outside it. The preamble is a top-level section itself, so a relative path written there starts at the preamble, whose siblings are the sections under the top-level headings, and code there writes `call('../Answer')` and `jump('../Target')` with `../` in front. Every nested section sits under one of those siblings, so a bare `'Name'` misses there. Code in the preamble can `jump` to or `call` any other top-level section, and only top-level sections are valid `jump` targets from the preamble. The `tasks` functions take the same paths there, as in `tasks.spawn('../Task')`.
 
-The preamble's section name is empty, and every name in a section path has at least one character, so the preamble is out of reach of every section path. That puts it out of reach of `jump` and `call`, and it runs once, as the first section of the run.
+The preamble's section name is empty, and every name in a section path has at least one character, so the preamble is out of reach of every section path. That puts it out of reach of `jump` and `call`, and it runs once each time its prompt starts, as the first section of the run or of an `execute` of that prompt.
 
 The prompt reads work from the preamble too. `prompt.section('../Main')` reads the top-level `Main`, `prompt.section_or('../Kid')` is `nil` for a nested `Kid`, and a path from the top, such as `prompt.section('/Main/Kid')`, reads any section. With a top-level `Nums` section whose list holds `one`, `two`, and `three`, `table.concat(prompt.section('../Nums', 'list').items, ',')` in the preamble gives `one,two,three`.
 
@@ -2203,7 +2203,7 @@ So each prompt chooses its section names on its own, and `execute` is the only w
 
 A failure inside an executed prompt reaches the caller as that prompt's own error value, raised at the `execute`, with its `kind`, its `code`, and its message intact, as a failure inside a called chain does (see [What the caught error value holds](#what-the-caught-error-value-holds)). Its message keeps the file and line where the failure happened, and that file is the executed prompt's. When `reach.md` fails at its line 10 with the not-found error above, `pcall(execute, 'reach.md')` in its caller returns `false` and an error value whose `kind` is `lua`, whose `code` is `lua_runtime`, and whose message starts with `reach.md:10:`. Uncaught, the failure ends the run with that code, and the run's message ends with ` (at reach.md:10)`.
 
-A `pcall` around an `execute` also catches the three refusals raised at the call site: a name the caller does not list, arguments the executed prompt's declaration refuses, and the recursion depth cap. It does not catch a determinism violation inside the executed prompt, which ends the run on the spot (see [What `pcall` cannot catch](#what-pcall-cannot-catch)).
+A `pcall` around an `execute` also catches the refusals raised at the call site: a first argument that is not a string, a second argument of the wrong shape, a name the caller does not list, arguments the executed prompt's declaration refuses, and the recursion depth cap. It does not catch a determinism violation inside the executed prompt, which ends the run on the spot (see [What `pcall` cannot catch](#what-pcall-cannot-catch)).
 
 ### Prompts that execute each other
 
