@@ -60,13 +60,13 @@ The Engine checks the arguments against the declaration at the run's first step,
 argument `limit` must be an integer, got string
 ````
 
-Text that is not JSON, JSON that is not an object, a missing required argument, a value of the wrong type, a value outside its `enum`, and a field the declaration does not list all end the run the same way, with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. So a run's arguments reach its sections only when they match the declaration, and the prompt needs no checks of its own for anything the declaration says. [Argument errors](#argument-errors) gives each message.
+Text that is not JSON, JSON that is not an object, a missing required argument, a value of the wrong type, a value outside its `enum`, and a field the declaration does not list all end the run the same way, with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. So a run's arguments reach its sections only when they match the declaration, and the prompt can take everything the declaration says as already checked. [Argument errors](#argument-errors) gives each message.
 
 The same check, with the same messages, runs on the arguments that a prompt passes when it runs another prompt with `execute`, against the declaration of the prompt it runs. It happens at the `execute`, before that prompt starts, and a mismatch is raised there as an error in the caller's Lua (see [`args` in an executed prompt](#args-in-an-executed-prompt)).
 
 ### The `args` global
 
-Your Lua reads the checked arguments through the `args` global, a table that is present in every section. Each field of the object is a field of the table, so the search prompt reads `args.query`, `args.limit`, and `args.depth`. A field the caller left out reads as its default, or as nil when it has none. [Reading arguments from `args`](#reading-arguments-from-args) covers fields, nested objects, and lists, and [Missing fields and null values](#missing-fields-and-null-values) covers what reads nil.
+Your Lua reads the checked arguments through the `args` global, a table that is present in every section. Each field of the object is a field of the table, so the search prompt reads `args.query`, `args.limit`, and `args.depth`. A field the caller left out reads as its default when it has one, and as nil otherwise. [Reading arguments from `args`](#reading-arguments-from-args) covers fields, nested objects, and lists, and [Missing fields and null values](#missing-fields-and-null-values) covers what reads nil.
 
 ### `args` refuses writes
 
@@ -74,7 +74,7 @@ Your Lua reads the checked arguments through the `args` global, a table that is 
 
 ### A prompt with no `args:` key
 
-A prompt whose frontmatter has no `args:` key takes one optional string argument named `text`. This prompt declares nothing and greets whoever its text names:
+A prompt whose frontmatter has no `args:` key takes one optional string argument named `text`. This prompt leaves the key out and greets whoever its text names:
 
 ````markdown
 ---
@@ -242,11 +242,11 @@ args:
   additionalProperties: true
 ````
 
-Under this declaration the same arguments pass, and `args.n` reads `2`. The Engine checks the declared fields of an open object as usual, and it keeps every other field as the caller sent it, whatever JSON the field holds. The keyword speaks for one object and not for the objects inside it, so a nested object stays closed unless it says `additionalProperties: true` itself. `additionalProperties: false` is the same as leaving the keyword out.
+Under this declaration the same arguments pass, and `args.n` reads `2`. The Engine checks the declared fields of an open object as usual, and it keeps every other field as the caller sent it, whatever JSON the field holds. The keyword speaks for its own object alone, so a nested object stays closed unless it says `additionalProperties: true` itself. `additionalProperties: false` is the same as leaving the keyword out.
 
 ### A prompt that takes no arguments
 
-A root with no `properties` declares an object with no fields, for a prompt that takes no arguments:
+A root with no `properties` declares an empty object, for a prompt that takes no arguments:
 
 ````markdown
 args: { type: object }
@@ -258,11 +258,11 @@ The arguments `{}` pass, and `args` is an empty table. Any field ends the run, a
 argument `n` is not declared; the prompt declares no arguments
 ````
 
-This is not the same as leaving the `args:` key out, which declares one optional `text` argument, as [Prompts with no `args:` key](#prompts-with-no-args-key) explains.
+This differs from leaving the `args:` key out, which declares one optional `text` argument, as [Prompts with no `args:` key](#prompts-with-no-args-key) explains.
 
 ### The order of keywords and fields
 
-The order in which you write the keywords of a node, and the fields of a `properties` map, does not matter. A node can give `required` before `properties` and `type` last. The declared fields are kept in name order, not in the order you write them, so a prompt that writes `zeta` before `alpha` has its arguments ordered `alpha`, then `zeta`: the check visits them in that order, a message that lists the declared arguments lists them in that order, and `pairs(args)` walks them in that order.
+You can write the keywords of a node, and the fields of a `properties` map, in any order. A node can give `required` before `properties` and `type` last. The declared fields are kept in name order, whatever order you write them in, so a prompt that writes `zeta` before `alpha` has its arguments ordered `alpha`, then `zeta`: the check visits them in that order, a message that lists the declared arguments lists them in that order, and `pairs(args)` walks them in that order.
 
 ### What a Host reads from the declaration
 
@@ -312,7 +312,7 @@ Every node must have a `type` keyword, set to one of six lowercase words. Each w
 |---|---|---|
 | `string` | a string | a string |
 | `boolean` | `true` or `false` | a boolean |
-| `integer` | a number with no fractional part that fits in 64 bits | an integer |
+| `integer` | a whole number that fits in 64 bits | an integer |
 | `number` | any number | an integer or a float |
 | `array` | an array | a list that counts from 1 |
 | `object` | an object | a table keyed by field name |
@@ -323,19 +323,19 @@ A value of another type ends the run at its first step. Send `"use_mcp":"no"` in
 argument `use_mcp` must be a boolean, got string
 ````
 
-The message names the type the node needs as `a string`, `a boolean`, `an integer`, `a number`, `an array`, or `an object`, and it names what the caller sent as `string`, `boolean`, `integer`, `number`, `array`, `object`, or `null`. A JSON number counts as `integer` when it is written with no decimal point and no exponent, as `5` is, and as `number` otherwise, as `5.0` and `1e3` are.
+The message names the type the node needs as `a string`, `a boolean`, `an integer`, `a number`, `an array`, or `an object`, and it names what the caller sent as `string`, `boolean`, `integer`, `number`, `array`, `object`, or `null`. A JSON number counts as `number` when it is written with a decimal point or an exponent, as `5.0` and `1e3` are, and as `integer` otherwise, as `5` is.
 
 ### String arguments
 
-`type: string` takes a JSON string, and Lua reads a string with the same text. Nothing is trimmed and nothing is converted: `{"query":"  two words  "}` reads with its spaces, `{"query":"5"}` reads the string `'5'`, and the empty string `""` is a value like any other and reads `''`. A JSON number is never turned into text, so `{"query":5}` is refused.
+`type: string` takes a JSON string, and Lua reads a string with the same text. The string arrives whole and stays a string: `{"query":"  two words  "}` reads with its spaces, `{"query":"5"}` reads the string `'5'`, and the empty string `""` is a value like any other and reads `''`. A JSON number stays a number, so `{"query":5}` is refused.
 
 ### Boolean arguments
 
-`type: boolean` takes JSON `true` or `false`, and Lua reads a boolean. Nothing else stands in for one: `{"use_mcp":1}` fails with ``argument `use_mcp` must be a boolean, got integer``, and `{"use_mcp":"true"}` fails the same way with `got string`.
+`type: boolean` takes JSON `true` or `false`, and Lua reads a boolean. Those two values alone stand for a boolean: `{"use_mcp":1}` fails with ``argument `use_mcp` must be a boolean, got integer``, and `{"use_mcp":"true"}` fails the same way with `got string`.
 
 ### Integer arguments
 
-`type: integer` takes a JSON number that has no fractional part and fits in 64 bits. Lua always reads an integer, a number for which `math.type` returns `integer`, however the caller wrote it:
+`type: integer` takes a JSON number that is whole and fits in 64 bits. Lua always reads an integer, a number for which `math.type` returns `integer`, however the caller wrote it:
 
 | The caller sends | `args.limit` reads |
 |---|---|
@@ -344,7 +344,7 @@ The message names the type the node needs as `a string`, `a boolean`, `an intege
 | `1e3` | `1000` |
 | `-7` | `-7` |
 
-So a section never has to turn a value such as `5.0` into an integer itself. A number with a fractional part, such as `2.5`, is refused:
+So a value such as `5.0` is already an integer when a section reads it. A number with a fractional part, such as `2.5`, is refused:
 
 ````text
 argument `limit` must be an integer, got number
@@ -360,7 +360,7 @@ The largest value that passes is `9223372036854775807`, and the smallest is `-92
 
 ### Number arguments
 
-`type: number` takes any JSON number. Lua reads an integer when the caller wrote the number with no decimal point and no exponent, and a float otherwise:
+`type: number` takes any JSON number. Lua reads a float when the caller wrote the number with a decimal point or an exponent, and an integer otherwise:
 
 | The caller sends | `args.weight` reads | `math.type(args.weight)` |
 |---|---|---|
@@ -371,7 +371,7 @@ The largest value that passes is `9223372036854775807`, and the smallest is `-92
 
 The two forms compare equal, so `args.weight == 5` holds for both `5` and `5.0`. They differ as text: `'weight ' .. args.weight` gives `weight 5` for the first and `weight 5.0` for the second. Declare the node `integer` when the prompt needs a whole number. A whole number too large for 64 bits, which an `integer` node refuses, reads here as a float.
 
-The table shows JSON as a Host writes it. In the arguments of an [`execute`](#args-in-an-executed-prompt) a number is a Lua number, and a float with no fractional part that fits in 64 bits arrives as an integer, so `weight = 5.0` passed that way reads `5`.
+The table shows JSON as a Host writes it. In the arguments of an [`execute`](#args-in-an-executed-prompt) a number is a Lua number, and a float that is whole and fits in 64 bits arrives as an integer, so `weight = 5.0` passed that way reads `5`.
 
 ### Allowed values with `enum`
 
@@ -470,7 +470,7 @@ Run it with the arguments `{"query":"papers","limit":5,"note":"recent"}`:
 Results for papers, limit 5, note: recent
 ````
 
-The first run leaves out `limit` and `note`. `limit` has a default, so `args.limit` reads `3`. `note` has none and is not required, so it stays absent and `args.note` reads nil.
+The first run leaves out `limit` and `note`. `limit` has a default, so `args.limit` reads `3`. `note` is optional and lacks a default, so it stays absent and `args.note` reads nil.
 
 ### Requiring an argument
 
@@ -480,7 +480,7 @@ A required argument is one that the `required` list of its object names. The cal
 argument `query` is required
 ````
 
-A field is optional unless `required` names it, and nothing else makes a field required. Each name in the list must be a field that the same object's `properties` declares, and the list names each field once. `required` belongs to an object and not to a field, so a nested object has a list of its own for its own fields:
+A field is optional unless `required` names it, and that list alone makes a field required. Each name in the list must be a field that the same object's `properties` declares, and the list names each field once. `required` belongs to an object and not to a field, so a nested object has a list of its own for its own fields:
 
 ````markdown
 args:
@@ -499,7 +499,7 @@ A required argument must hold a value, and JSON `null` is not one: the search pr
 
 ### Giving an argument a default
 
-A default is the value a field takes when the caller leaves the field out. You write it with the `default` keyword on the field's node, as `default: 3` on `limit` above. The Engine fills in the default of each missing field before it checks the arguments, so for `{"query":"papers"}` the search prompt reads `args.limit` as `3`, exactly as it would for `{"query":"papers","limit":3}`. Your Lua never applies a default itself.
+A default is the value a field takes when the caller leaves the field out. You write it with the `default` keyword on the field's node, as `default: 3` on `limit` above. The Engine fills in the default of each missing field before it checks the arguments, so for `{"query":"papers"}` the search prompt reads `args.limit` as `3`, exactly as it would for `{"query":"papers","limit":3}`. Your Lua leaves each default to the Engine.
 
 A node without the keyword has no default, and `default: null` says the same thing in writing. A field with no default stays absent when the caller leaves it out, and it reads nil.
 
@@ -551,7 +551,7 @@ The root got `limit`, the `opts` object the caller sent got `depth`, and the fir
 
 ### Defaults inside an object the caller leaves out
 
-An object field with no `default` stays absent when the caller leaves it out, and the defaults inside it are not filled in, because there is no object to hold them. Under the declaration above, the arguments `{}` give:
+An object field with no `default` stays absent when the caller leaves it out, and the defaults inside it go unused, because a default needs an object to hold it. Under the declaration above, the arguments `{}` give:
 
 ````text
 {"limit":3}
@@ -579,7 +579,7 @@ With the arguments `{}`, `json.encode(args)` returns:
 
 A section then reads `args.opts.depth` without testing `args.opts` first. An object's default can hold fields too. With `default: { depth: 2 }` on `opts`, a caller who leaves `opts` out gets `{"depth":2,"mode":"fast"}`, and a caller who sends `{"opts":{}}` gets `{"depth":1,"mode":"fast"}`, the defaults of the fields themselves, because the object's default stands in only for a missing object.
 
-A list takes a default the same way. With `default: []` on an `array` node, a missing list arrives as an empty list, so `#args.files` is `0` and a loop over `ipairs(args.files)` does nothing, with no test for nil.
+A list takes a default the same way. With `default: []` on an `array` node, a missing list arrives as an empty list, so `#args.files` is `0`, a loop over `ipairs(args.files)` ends at once, and the section can leave out the test for nil.
 
 ### A required argument with a default
 
@@ -603,7 +603,7 @@ Without the `required` list, `{"limit":null}` counts as the field left out, and 
 
 ### Describing an argument
 
-A description is text for whoever calls the prompt. You write it with the `description` keyword, which any node takes: the root, a field, a nested object, a list, and an `items` node. It plays no part in the check, and a node without the keyword has no description:
+A description is text for whoever calls the prompt. You write it with the `description` keyword, which any node takes: the root, a field, a nested object, a list, and an `items` node. The check ignores it, and a node without the keyword has no description:
 
 ````markdown
 args:
@@ -619,7 +619,7 @@ args:
 
 ### How `required`, `default`, and `description` combine
 
-The three keywords are independent, and one field can use any of them together. `description` never affects the check. `required` and `default` decide between them what a missing field and a `null` do:
+The three keywords are independent, and one field can use any of them together. The check ignores `description`. `required` and `default` decide between them what a missing field and a `null` do:
 
 | `required` names it | It has a `default` | The caller leaves it out | The caller sends `null` |
 |---|---|---|---|
@@ -630,7 +630,7 @@ The three keywords are independent, and one field can use any of them together. 
 
 ### A default must match its node
 
-A default is checked when the prompt is parsed, against the node that declares it, by the rules the run applies to a caller's value. A default that does not match fails the parse, so a prompt never runs with a default that its own declaration would refuse. This declaration gives an `integer` node a string:
+A default is checked when the prompt is parsed, against the node that declares it, by the rules the run applies to a caller's value. A default that does not match fails the parse, so every default a prompt runs with is one that its own declaration accepts. This declaration gives an `integer` node a string:
 
 ````markdown
 args:
@@ -645,7 +645,7 @@ The parse fails with a message that holds:
 args.properties.limit: the default must be an integer, got string
 ````
 
-The same rules mean that a default follows its node's `enum`, that an object's default holds only declared fields with values of the right types, and that an `integer` node takes the default `3.0` and reads it as `3`. Two nodes take no default at all: the root and an `items` node. [Defaults that do not match](#defaults-that-do-not-match) gives each message.
+The same rules mean that a default follows its node's `enum`, that an object's default holds only declared fields with values of the right types, and that an `integer` node takes the default `3.0` and reads it as `3`. Two nodes refuse a default: the root and an `items` node. [Defaults that do not match](#defaults-that-do-not-match) gives each message.
 
 ## Declaration errors
 
@@ -698,7 +698,7 @@ The rest of this section shows the path and the reason of each message, and leav
 
 ### Unknown keywords
 
-A node takes only the [eight keywords](#the-eight-keywords). Any other key is refused where it stands and is never ignored, so a misspelled keyword cannot slip through, as `tipe` shows above. A JSON Schema keyword outside the eight is refused the same way:
+A node takes only the [eight keywords](#the-eight-keywords). Any other key is refused where it stands and is never ignored, so a misspelled keyword fails the parse, as `tipe` shows above. A JSON Schema keyword outside the eight is refused the same way:
 
 ````markdown
 args:
@@ -738,7 +738,7 @@ args:
 args.properties.query: a node needs a `type`: `string`, `boolean`, `integer`, `number`, `array`, or `object`
 ````
 
-The root is a node too. An `args:` key that gives `properties` and no `type: object` gets the same message with the path `args`, and so does the empty map `args: {}`. A prompt that takes no arguments writes `args: { type: object }`.
+The root is a node too. An `args:` key that gives `properties` and leaves out `type: object` gets the same message with the path `args`, and so does the empty map `args: {}`. A prompt that takes no arguments writes `args: { type: object }`.
 
 `type` takes exactly the six lowercase words. Any other word, such as a capitalized `String`, an alias like `int`, or `text`, is refused, and the path ends in `.type`:
 
@@ -753,7 +753,7 @@ args:
 args.properties.query.type: unknown variant `text`, expected one of `string`, `boolean`, `integer`, `number`, `array`, `object`
 ````
 
-`null` is not a type either. A field that may be absent is simply one that no `required` list names.
+`null` is not a type either. A field that may be absent is simply one that stays off the `required` list of its object.
 
 A node has one type. A list of words, as in `type: [string, integer]`, is refused with:
 
@@ -857,7 +857,7 @@ args:
 args: the root of `args` must be `type: object`, and it is `array`
 ````
 
-The root takes no `default`. With `default: {}` beside its `type: object`, the parse fails with:
+The root refuses a `default`. With `default: {}` beside its `type: object`, the parse fails with:
 
 ````text
 args: the root of `args` takes no `default`
@@ -930,7 +930,7 @@ args.properties.field: the default's `n` is not declared; the declared fields of
 
 When the node has no `properties`, the message ends with `this node declares no fields`. A default is also refused when it leaves out a field that its own node requires and that has no default of its own: an `opts` node with `required: [depth]` and `default: {}` fails with ``args.properties.opts: the default's `depth` is required``.
 
-An `items` node takes no default, because a default is for a field the caller leaves out, and a list has no missing items:
+An `items` node refuses a default, because a default is for a field the caller leaves out, and every item of a list is present:
 
 ````markdown
 args:
@@ -949,7 +949,7 @@ args.properties.files.items: a list item takes no `default`
 
 ### Bad `enum` lists
 
-An `enum` lists at least one value, lists no value twice, and holds only values of its node's type. An empty list, `enum: []`, on a node named `depth` is refused with:
+An `enum` lists at least one value, lists each value once, and holds only values of its node's type. An empty list, `enum: []`, on a node named `depth` is refused with:
 
 ````text
 args.properties.depth: `enum` lists no value
@@ -1058,15 +1058,15 @@ Run it with the arguments `{"limit":"five","n":1}`:
 argument `limit` must be an integer, got string
 ````
 
-These arguments hold three mismatches: `query` is missing, `limit` is not an integer, and `n` is not declared. The run reports one of them and ends at its first step, so `Search` never runs.
+These arguments hold three mismatches: `query` is missing, `limit` is a string, and `n` is undeclared. The run reports one of them and ends at its first step, before `Search` runs.
 
 ### What every argument error shares
 
 Arguments that do not match the declaration end the run with the [error code](16-limits-and-errors.md#run-error-codes) `args_invalid`. The argument check is one of the start checks that the run's first step makes before any section runs, in this order: the `runvil` version, the arguments, and the requirements (see [What the start checks look at](04-how-a-prompt-runs.md#what-the-start-checks-look-at)). Four things follow from that for the arguments of a run:
 
-- No Lua has run when the check fails, so nothing in the prompt can catch the failure. A `pcall` in the preamble never gets its turn.
-- The run reports no [run events](04-how-a-prompt-runs.md#run-events-and-records), not even `run_started`.
-- The error has no file and no line, because the arguments come from the caller and no line of the prompt is at fault. Its message is the text shown here, with nothing after it.
+- The check fails before any Lua runs, so the failure ends the run uncaught. A `pcall` in the preamble never gets its turn.
+- The run ends before it reports any [run events](04-how-a-prompt-runs.md#run-events-and-records), `run_started` included.
+- The error's location is absent, because the arguments come from the caller and the fault lies in them. Its message is exactly the text shown here.
 - A prompt whose `runvil` version is refused fails with the version error whatever its arguments are, because the version is checked first.
 
 Beside its code and its message, the error holds two facts, named values that a Host can read. `Reason` is one of `not_json`, `not_an_object`, `required`, `type`, `enum`, or `undeclared`, and when one argument is at fault, `Name` is that argument's path. The error's prose, the text a model reads for the failure, is the message, a period, and then `The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.` For text that is not JSON, the prose leaves off the JSON parser's reason.
@@ -1242,7 +1242,7 @@ end
 return table.concat(seen, ' ')
 ````
 
-As the Lua block of `Digest`, with the arguments above, this returns `files=table opts=table query=string`. `opts` is there because its default filled it in. `next(args)` returns the first key in the same order, here `files`, and `#args` is `0`, because an object has no list items.
+As the Lua block of `Digest`, with the arguments above, this returns `files=table opts=table query=string`. `opts` is there because its default filled it in. `next(args)` returns the first key in the same order, here `files`, and `#args` is `0`, because an object's fields are keyed by name.
 
 ### Encoding `args` as JSON
 
@@ -1347,11 +1347,11 @@ run chain run run:a.md run:b.md
 
 The first `call` and the task read the run's `query`, the second `call` reads the `query` it was given, and each arm reads the run's `query` beside its own `item`. `args` is read-only in every one of them. A `call` or a spawn can also pass a string in place of a table, and the chain then reads that string as `args.text`.
 
-The Engine does not check the arguments a `call` or a spawn passes against the `args:` declaration, and it fills in no defaults for them: the declaration describes what a caller passes the prompt, not what one section passes another. [`args` in a called chain](08-jump-and-call.md#args-in-a-called-chain) covers the rule in full.
+The arguments a `call` or a spawn passes skip the `args:` declaration, both its check and its defaults: the declaration describes what a caller passes the prompt, not what one section passes another. [`args` in a called chain](08-jump-and-call.md#args-in-a-called-chain) covers the rule in full.
 
 ### `args` in an executed prompt
 
-A prompt can run another prompt with [`execute`](08-jump-and-call.md#executing-another-prompt). Here the caller is the prompt that runs `execute`, and the executed prompt is the prompt it runs. The executed prompt reads the arguments of the `execute` as its `args`, and it reads nothing of the caller's `args`. The Engine checks those arguments against the executed prompt's own `args:` declaration and fills in its defaults, as it does for the arguments of a run. This prompt requires a `query` and gives `limit` a default:
+A prompt can run another prompt with [`execute`](08-jump-and-call.md#executing-another-prompt). Here the caller is the prompt that runs `execute`, and the executed prompt is the prompt it runs. The executed prompt reads the arguments of the `execute` as its `args`, and the caller's `args` stay with the caller. The Engine checks those arguments against the executed prompt's own `args:` declaration and fills in its defaults, as it does for the arguments of a run. This prompt requires a `query` and gives `limit` a default:
 
 ````markdown
 ---
@@ -1405,9 +1405,9 @@ Run it with the arguments `{"query":"run","limit":9}`:
 tea, limit 3 | run, limit 9
 ````
 
-The first `execute` passes a `query` and no `limit`, so `search.md` reads `tea` beside the `3` that its own declaration defaults to, and not the `9` in the caller's `args`. The second passes the caller's `args`, which reach an executed prompt only when the caller passes them and are checked like any others, and `search.md` reads `run` and `9`. An `execute` with no second argument passes the empty object and never the caller's `args`, so `execute('search.md')` is refused here with ``argument `query` is required``.
+The first `execute` passes a `query` and leaves out `limit`, so `search.md` reads `tea` beside the `3` that its own declaration defaults to, and not the `9` in the caller's `args`. The second passes the caller's `args`, which reach an executed prompt only when the caller passes them and are checked like any others, and `search.md` reads `run` and `9`. An `execute` with no second argument passes the empty object and never the caller's `args`, so `execute('search.md')` is refused here with ``argument `query` is required``.
 
-This is where an executed prompt differs from a called chain, a task, and a fanout arm. Those run sections of their caller's own prompt: a chain or a task that is given no arguments reads its caller's `args`, as every arm does, and the arguments that a `call` or a spawn passes are not checked and get no defaults. An executed prompt is another prompt with a declaration of its own, and the prompt that executes it is a caller of it, so the Engine checks what the `execute` passes against that declaration and fills in its defaults. Arguments that do not match are refused at the `execute`, with the messages that [Argument errors](#argument-errors) lists, and [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt) covers those refusals and each form the second argument takes.
+This is where an executed prompt differs from a called chain, a task, and a fanout arm. Those run sections of their caller's own prompt: a chain or a task that is given no arguments reads its caller's `args`, as every arm does, and the arguments that a `call` or a spawn passes skip the check and the defaults. An executed prompt is another prompt with a declaration of its own, and the prompt that executes it is a caller of it, so the Engine checks what the `execute` passes against that declaration and fills in its defaults. Arguments that do not match are refused at the `execute`, with the messages that [Argument errors](#argument-errors) lists, and [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt) covers those refusals and each form the second argument takes.
 
 ### Arguments in prose
 
@@ -1495,11 +1495,11 @@ empty
 
 A field the caller leaves out, with no default, is absent from `args`, and reading it returns nil with no error. That holds at every depth: for `args.note` here, for a missing field of a nested object, and for an index past the end of a list. What does raise an error is reading through a field that is absent. With an optional `opts` object left out, `args.opts` is nil, and `args.opts.depth` raises `attempt to index a nil value (field 'opts')`.
 
-An empty string is not a missing field, as the second run shows. A caller who wants a field unset leaves it out, and does not send `""`.
+An empty string is a value, as the second run shows. A caller who wants a field unset leaves it out, and does not send `""`.
 
 ### `null` for a field that is not required
 
-A JSON `null` sent for a field that is not required counts as the field left out. The field takes its default, or stays absent when it has none, so the `notes` prompt run with the arguments `{"note":null}` returns `absent`. The same holds inside a nested object: when `opts` declares an optional `depth`, the arguments `{"opts":{"depth":null}}` arrive as `{"opts":{}}`. A declared field therefore never holds a null, and `args.note == nil` is the one test for a field that was not sent.
+A JSON `null` sent for a field that is not required counts as the field left out. The field takes its default when it has one, and stays absent otherwise, so the `notes` prompt run with the arguments `{"note":null}` returns `absent`. The same holds inside a nested object: when `opts` declares an optional `depth`, the arguments `{"opts":{"depth":null}}` arrive as `{"opts":{}}`. A declared field therefore never holds a null, and `args.note == nil` is the one test for a field that was not sent.
 
 ### `null` for a required field
 
@@ -1507,7 +1507,7 @@ A `null` sent for a field that `required` names ends the run at its first step, 
 
 ### `null` in a list
 
-A `null` item in a list ends the run, because `null` matches no items node. With `files` declared as a list of strings, the arguments `{"files":["a.md",null]}` fail with:
+A `null` item in a list ends the run, because every items node refuses `null`. With `files` declared as a list of strings, the arguments `{"files":["a.md",null]}` fail with:
 
 ````text
 argument `files[1]` must be a string, got null
@@ -1544,7 +1544,7 @@ Each case reads as a different Lua value, so one comparison tells them apart:
 | sent `false` | `false` | `args.use_mcp == false` |
 | sent `null` in an undeclared field of an open object | `json.null` | `args.extra == json.null` |
 
-A field that has a default never reads nil, and Lua cannot tell a default the Engine filled in from the same value sent by the caller. `if args.note then` passes for every string, the empty one included, and fails only for an absent field. For a boolean, `if not args.use_mcp then` passes both for `false` and for a field left out, so compare with `nil` or with `false` when the two must differ, or give the field a default. `json.null` is a userdata and so it is truthy, which means `if args.extra then` passes for a null.
+A field that has a default never reads nil, and Lua reads a default the Engine filled in just as it reads the same value sent by the caller. `if args.note then` passes for every string, the empty one included, and fails only for an absent field. For a boolean, `if not args.use_mcp then` passes both for `false` and for a field left out, so compare with `nil` or with `false` when the two must differ, or give the field a default. `json.null` is a userdata and so it is truthy, which means `if args.extra then` passes for a null.
 
 ## Prompts with no `args:` key
 
@@ -1581,13 +1581,13 @@ args:
     text: { type: string, description: Freeform text for this prompt }
 ````
 
-The default declaration has one field, `text`, a string with the description `Freeform text for this prompt`. No `required` list names it, it has no default, and the root is closed. So every prompt has a declaration, and every run's arguments are checked against one.
+The default declaration has one field, `text`, a string with the description `Freeform text for this prompt`. The field is optional, because the declaration leaves out `required`. It has no default, and the root is closed. So every prompt has a declaration, and every run's arguments are checked against one.
 
 ### Sending text
 
 A Host with plain text for such a prompt sends the text as the `text` field, as in `{"text":"hello there"}`, and the prompt reads `args.text`. The text alone is not the arguments. The argument text `hello there` fails with `the arguments are not valid JSON: expected value at line 1 column 1`, and `"hello there"`, a JSON string, fails with `the arguments must be a JSON object, got string`.
 
-A prompt that runs such a prompt with `execute` can pass the text as a Lua string, which becomes the `text` field: `execute('echo.md', 'hello')` starts the `echo` prompt with `hello` as its `args.text`, `execute('echo.md')` starts it with no `text`, and a table with any other field is refused (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
+A prompt that runs such a prompt with `execute` can pass the text as a Lua string, which becomes the `text` field: `execute('echo.md', 'hello')` starts the `echo` prompt with `hello` as its `args.text`, `execute('echo.md')` starts it with `text` absent, and a table with any other field is refused (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
 ### Runs with no text
 
@@ -1655,11 +1655,11 @@ Run it with the arguments `{"text":"rust"}`:
 Topic: rust.
 ````
 
-With the arguments `{}` there is no `text` to insert, so the read of `prose` fails with `missing {{ args.text }} [MissingKey at byte 7]`. [Inserting arguments with `args`](07-substitution.md#inserting-arguments-with-args) covers placeholders in full.
+With the arguments `{}` the `text` field is absent, so the read of `prose` fails with `missing {{ args.text }} [MissingKey at byte 7]`. [Inserting arguments with `args`](07-substitution.md#inserting-arguments-with-args) covers placeholders in full.
 
 ### A prompt that needs its text
 
-A prompt that cannot run without its text declares `text` itself and lists it under `required`:
+A prompt that needs its text declares `text` itself and lists it under `required`:
 
 ````markdown
 ---
@@ -1769,7 +1769,7 @@ A write with a key that is neither a string nor an integer names the key's Lua t
 
 `table.insert`, `table.remove`, and `table.sort` write into the list they are given, so on a list inside `args` each raises the field refusal for the first index it tries to set. With the two files above, `table.insert(args.files, 'c.md')` raises `args is read-only: cannot set field 3`, `table.remove(args.files)` raises `args is read-only: cannot set field 2`, and `table.sort(args.files)` raises `args is read-only: cannot set field 1`.
 
-`table.sort` writes only when it has to move an item. On a list that is already in order, such as `["a.md","b.md"]`, it has nothing to set and returns without an error, so do not count on it to raise. Sort a copy instead, as [Keeping a value of your own](#keeping-a-value-of-your-own) shows.
+`table.sort` writes only when it has to move an item. On a list of four or more items it always moves one, and on a shorter list that is already in order, such as `["a.md","b.md"]`, it leaves every item in place and returns normally, so do not count on it to raise. Sort a copy instead, as [Keeping a value of your own](#keeping-a-value-of-your-own) shows.
 
 ### Catching a refused write with `pcall`
 
@@ -1817,11 +1817,11 @@ PAPERS | a.md, b.md | b.md, a.md, c.md | b.md, a.md
 
 `getmetatable(args)` returns the string `args is read-only` in place of a metatable, and so does `getmetatable` on any table inside `args`.
 
-`setmetatable` on `args`, or on any table inside it, raises `cannot change a protected metatable`, the same error `setmetatable` gives on the protected `sys` and `var` tables. `pcall` catches this refusal as a plain string and not as an error value, so it has no `kind` and no `code`: after `local ok, err = pcall(setmetatable, args, {})`, `err` is the string `cannot change a protected metatable`. When the `setmetatable` call sits inside a function of yours, the string has the position of that call in front of the same text.
+`setmetatable` on `args`, or on any table inside it, raises `cannot change a protected metatable`, the same error `setmetatable` gives on the protected `sys` and `var` tables. `pcall` catches this refusal as a plain string and not as an error value, so its `kind` and its `code` read nil: after `local ok, err = pcall(setmetatable, args, {})`, `err` is the string `cannot change a protected metatable`. When the `setmetatable` call sits inside a function of yours, the string has the position of that call in front of the same text.
 
 ### Your own `_G` metatable
 
-A metatable you set on `_G`, as [Giving `_G` a metatable](05-lua-environment.md#giving-_g-a-metatable) describes, cannot free `args` and never sees a read or an assignment of `args`, because the Engine's guard on `_G` handles that name first. After `setmetatable(_G, nil)`, `setmetatable(_G, {})`, or `setmetatable(_G, mt)` with an `__newindex` of yours that captures writes and an `__index` that returns `'author'`, `args.query` still reads the run's value, such as `papers`, and assigning `args` still raises the read-only error. Under a strict `__index` that raises an error for every undefined global, `args` still reads as the arguments.
+A metatable you set on `_G`, as [Giving `_G` a metatable](05-lua-environment.md#giving-_g-a-metatable) describes, leaves `args` read-only, because the Engine's guard on `_G` handles every read and every assignment of `args` itself. After `setmetatable(_G, nil)`, `setmetatable(_G, {})`, or `setmetatable(_G, mt)` with an `__newindex` of yours that captures writes and an `__index` that returns `'author'`, `args.query` still reads the run's value, such as `papers`, and assigning `args` still raises the read-only error. Under a strict `__index` that raises an error for every undefined global, `args` still reads as the arguments.
 
 ### Everything else stays writable
 
