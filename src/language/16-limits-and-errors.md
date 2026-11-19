@@ -586,7 +586,7 @@ An error points at a place in one of three forms:
 - A failed run's message ends with the location in parentheses, such as ` (at {file}:{line})`. [Where a run error's message points](#where-a-run-errors-message-points) gives each form.
 - A parse error has location fields beside its message. [Location fields](#location-fields) lists them.
 
-`{file}` is the prompt's file as the Host names it, or `prompt` when the Host names none. In this guide's examples, a prompt's file is named after its frontmatter `name`, so the `pointer` prompt is `pointer.md`. `{line}` counts from the top of that file, the frontmatter included, so the opening `---` is line 1 (see [Counting lines from the top of the file](#counting-lines-from-the-top-of-the-file)). An example that shows a whole prompt gives the real line, and one that shows only part of a prompt writes `{file}:{line}`.
+`{file}` is the prompt's file as the Host names it when it parses the prompt, and every run of the prompt has that name. In this guide's examples, a prompt's file is named after its frontmatter `name`, so the `pointer` prompt is `pointer.md`. `{line}` counts from the top of that file, the frontmatter included, so the opening `---` is line 1 (see [Counting lines from the top of the file](#counting-lines-from-the-top-of-the-file)). An example that shows a whole prompt gives the real line, and one that shows only part of a prompt writes `{file}:{line}`.
 
 When one prompt [executes](08-jump-and-call.md#executing-another-prompt) another, a run holds several prompts, and `{file}` is the file of the prompt whose line failed, the prompt that the failing section belongs to. A failure inside an executed prompt therefore names that prompt's file and its line there, in a caught error value's message and in the failed run's message alike.
 
@@ -717,7 +717,7 @@ This file fails with parse error kind `Frontmatter` and `invalid frontmatter: {m
 
 A frontmatter YAML failure points at one spot rather than a region: its location starts and ends at the line and column the YAML error gives, or covers that whole line when the YAML error gives a line but no column. A frontmatter failure's line and column come from the YAML error. An invalid-YAML failure reports the 1-based file line that the YAML parser gave, when the parser gave one.
 
-The YAML decoder counts lines from the start of the frontmatter, so the reported line is the decoder's line plus one, to account for the opening `---`. The column passes through unchanged, and each is absent when the decoder gives no position or gives zero. The column counts characters, as the YAML parser does, unlike a body failure's byte column. That is why a YAML slip such as `: : :` on the fourth line of the file is reported at line 4, which is 1-based and counts the opening `---` as line 1. The 1-based file column of the YAML error comes alongside the line, when the column is known.
+The YAML decoder counts lines from the start of the frontmatter, so the reported line is the decoder's line plus one, to account for the opening `---`. The column passes through unchanged, and the failure lacks a location when the decoder gives no position. The column counts characters, as the YAML parser does, unlike a body failure's byte column. That is why a YAML slip such as `: : :` on the fourth line of the file is reported at line 4, which is 1-based and counts the opening `---` as line 1. The 1-based file column of the YAML error comes alongside the line, when the column is known.
 
 A frontmatter decode failure, whether invalid YAML or a value the contract rejects, gives a 1-based line and a 1-based column when the YAML decoder reports a position. For a rejected value, that position is where the value starts, so a rejection inside a contract key points at the line and column of the offending value instead of giving a bare message:
 
@@ -1399,7 +1399,7 @@ Only model failures of completion error kind `RateLimited`, `Overloaded`, `Timeo
 
 ### Nothing retries automatically
 
-Nothing reruns a failed run or resends a failed model round automatically. Each model round is sent once, and a failed round is reported as failed and ends the call with that failure. The run hands its failure back as a result value instead of crashing, so running again after a retryable failure is up to the Host, and a run that fails on a transient model call problem may succeed when run again.
+A failed run stays as it ended, and a failed model round is sent again in one case alone, inside `models.loop`. Each model request is sent once, and a failed round is reported as failed and ends the call with that failure, unless it is a `models.loop` round that fails as `ContextOverflow`: the loop hands that overflow to the compactor, and after a compaction that passes it sends the round again once. The run hands its failure back as a result value instead of crashing, so running again after a retryable failure is up to the Host, and a run that fails on a transient model call problem may succeed when run again.
 
 ### Transient model failures in detail
 
