@@ -1295,7 +1295,7 @@ Run it with the arguments `{"query":"run"}`:
 Sub:chain,nil | Peer:chain,nil | Main:run,10
 ````
 
-`Sub` and `Peer` read the same `chain`, before the jump and after it. In both, `limit` is absent, because the call left it out, and the Engine fills the default of `10` in the arguments of the run and never in the arguments of a `call`. After the chain ends, `Main` reads its own `run` and `10`.
+`Sub` and `Peer` read the same `chain`, before the jump and after it. In both, `limit` reads nil, because the call left it out, and the Engine fills the default of `10` in the arguments of the run and never in the arguments of a `call`. After the chain ends, `Main` reads its own `run` and `10`.
 
 ### Call args errors
 
@@ -2061,7 +2061,7 @@ return seen .. ' | ' .. var.note .. ' | ' .. tostring(var.extra)
 reader saw note=nil topic=tea | kept by handoff | nil
 ````
 
-`reader.md` reads `nil` for `var.note`, and after it ends `handoff.md` still reads its own `var.note`, with `var.extra` still unset. This is where `execute` differs most from `call`:
+`reader.md` reads `nil` for `var.note`, and after it ends `handoff.md` still reads its own `var.note` and reads nil for `var.extra`. This is where `execute` differs most from `call`:
 
 | | A called chain | An executed prompt |
 | --- | --- | --- |

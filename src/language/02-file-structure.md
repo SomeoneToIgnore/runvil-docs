@@ -393,7 +393,7 @@ The `runvil:` key declares which major version of the Engine the file targets. I
 
 ### What the key marks
 
-The `runvil:` key is what marks a Markdown file as a Runvil prompt, and only a file that has it is treated as one. That is a run-time check. A file needs only the `name` and `description` keys to parse, but it needs `runvil: 0` to run, so a file without the `runvil:` key parses but never runs, and every prompt that runs declares `runvil: 0`. A prompt that leaves out `runvil:` still parses, and its major version is then undeclared.
+The `runvil:` key is what marks a Markdown file as a Runvil prompt, and only a file that has it is treated as one. That is a run-time check, not a parse-time one. A file needs only the `name` and `description` keys to parse, but it needs `runvil: 0` to run, so a file without the `runvil:` key parses but never runs, and every prompt that runs declares `runvil: 0`. A prompt that leaves out `runvil:` still parses, and its major version is then undeclared.
 
 ### The active Engine major
 
@@ -584,7 +584,7 @@ Parsing a prompt also finds and parses every prompt it lists, then every prompt 
 
 ### Unknown keys
 
-You spell frontmatter keys exactly as the language defines them. An unknown frontmatter key is any top-level key other than the eight, and it fails the whole file with parse error kind `Frontmatter`, because any other key is treated as a prompt authoring error. The `greeter` prompt above parses with `uses: [web]`, but the same file with that key misspelled fails:
+You spell frontmatter keys exactly as the language defines them. An unknown frontmatter key is any top-level key other than the eight, and it is never ignored: it fails the whole file with parse error kind `Frontmatter`, because any other key is treated as a prompt authoring error. The `greeter` prompt above parses with `uses: [web]`, but the same file with that key misspelled fails:
 
 ````markdown
 ---
@@ -867,13 +867,13 @@ return 'ok'
 ok
 ````
 
-The preamble's fence runs before the prose, and the prose `{{ var.omit }}` goes unread by any later Lua, so the prose stays inert, and the run returns `ok` without needing a model.
+The preamble's fence runs before the prose, and the Lua after it never reads the prose `{{ var.omit }}`, so the prose stays inert, and the run returns `ok` without needing a model.
 
 The preamble ends where the first heading begins, so every section that follows is its sibling or sits under one. The preamble is out of reach of every section path, because every step of a path is a section name and the preamble is unnamed. Its own Lua names the other sections by path as any section's Lua does, and [`jump` and `call` from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble) shows the paths it writes.
 
 ### A preamble without Lua
 
-A preamble without a `lua` fence is commentary. It is not a section and goes unread, so editing notes above the first heading leave the run unchanged:
+A preamble without a `lua` fence is commentary. It is not a section and is never read, so editing notes above the first heading leave the run unchanged:
 
 ````markdown
 ---

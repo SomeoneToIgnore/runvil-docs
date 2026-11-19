@@ -1066,7 +1066,7 @@ Arguments that do not match the declaration end the run with the [error code](16
 
 - The check fails before any Lua runs, so the failure ends the run uncaught. A `pcall` in the preamble never gets its turn.
 - The run ends before it reports any [run events](04-how-a-prompt-runs.md#run-events-and-records), `run_started` included.
-- The error's location is absent, because the arguments come from the caller and the fault lies in them. Its message is exactly the text shown here.
+- The error's message leaves out the prompt's file and line, because the arguments come from the caller and the fault lies in them. It is exactly the text shown here.
 - A prompt whose `runvil` version is refused fails with the version error whatever its arguments are, because the version is checked first.
 
 Beside its code and its message, the error holds two facts, named values that a Host can read. `Reason` is one of `not_json`, `not_an_object`, `required`, `type`, `enum`, or `undeclared`, and when one argument is at fault, `Name` is that argument's path. The error's prose, the text a model reads for the failure, is the message, a period, and then `The arguments do not match what the prompt declares. Send one JSON object that matches its declared arguments.` For text that is not JSON, the prose leaves off the JSON parser's reason.
@@ -1587,7 +1587,7 @@ The default declaration has one field, `text`, a string with the description `Fr
 
 A Host with plain text for such a prompt sends the text as the `text` field, as in `{"text":"hello there"}`, and the prompt reads `args.text`. The text alone is not the arguments. The argument text `hello there` fails with `the arguments are not valid JSON: expected value at line 1 column 1`, and `"hello there"`, a JSON string, fails with `the arguments must be a JSON object, got string`.
 
-A prompt that runs such a prompt with `execute` can pass the text as a Lua string, which becomes the `text` field: `execute('echo.md', 'hello')` starts the `echo` prompt with `hello` as its `args.text`, `execute('echo.md')` starts it with `text` absent, and a table with any other field is refused (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
+A prompt that runs such a prompt with `execute` can pass the text as a Lua string, which becomes the `text` field: `execute('echo.md', 'hello')` starts the `echo` prompt with `hello` as its `args.text`, `execute('echo.md')` starts it with `text` reading nil, and a table with any other field is refused (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
 ### Runs with no text
 
@@ -1655,7 +1655,7 @@ Run it with the arguments `{"text":"rust"}`:
 Topic: rust.
 ````
 
-With the arguments `{}` the `text` field is absent, so the read of `prose` fails with `missing {{ args.text }} [MissingKey at byte 7]`. [Inserting arguments with `args`](07-substitution.md#inserting-arguments-with-args) covers placeholders in full.
+The arguments `{}` lack the `text` field, so the read of `prose` fails with `missing {{ args.text }} [MissingKey at byte 7]`. [Inserting arguments with `args`](07-substitution.md#inserting-arguments-with-args) covers placeholders in full.
 
 ### A prompt that needs its text
 

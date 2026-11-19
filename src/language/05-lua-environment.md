@@ -260,7 +260,7 @@ The sandbox keeps the `io`, `os`, `package`, `coroutine`, and `debug` libraries 
 
 ### Pack preludes
 
-A Pack prelude is Lua source that a Pack the prompt declares contributes, and every section VM of that prompt installs it after the Engine globals and before any block runs. A prelude is how a declared Pack defines Lua globals of its own. The Packs that ship with Runvil have no prelude, so this section uses a made-up third-party Pack, `acme/issue-tracker`, whose tool `issue-tracker/open` opens a ticket and whose prelude defines a `tickets` table (see [Pack preludes](12-tools.md#pack-preludes)):
+A Pack prelude is Lua source that a Pack the prompt declares contributes, and every section VM of that prompt installs it after the Engine globals and before any block runs. A prelude is how a declared Pack defines Lua globals of its own. The Packs that ship with Runvil lack a prelude, so this section uses a made-up third-party Pack, `acme/issue-tracker`, whose tool `issue-tracker/open` opens a ticket and whose prelude defines a `tickets` table (see [Pack preludes](12-tools.md#pack-preludes)):
 
 ````markdown
 ---
@@ -567,7 +567,7 @@ The run result is:
 nil:nil
 ````
 
-`print` and `warn` read nil in a section VM, so a block cannot write to standard output or emit Lua warnings directly. `log(message)` is the output path instead (see [Logging and lifecycle reports](#logging-and-lifecycle-reports)). `print` and `warn` are absent in every kind of Lua VM a prompt runs in, library code and a VM with tools bound included.
+`print` and `warn` read nil in a section VM, so a block cannot write to standard output or emit Lua warnings directly. `log(message)` is the output path instead (see [Logging and lifecycle reports](#logging-and-lifecycle-reports)). `print` and `warn` read nil in every kind of Lua VM a prompt runs in, library code and a VM with tools bound included.
 
 These names all read nil from `_G` in a section VM:
 
@@ -592,7 +592,7 @@ Each absent name closes off one kind of direct work:
 
 The `coroutine` global reads nil in your code as well. The Engine loads the coroutine library only for its own suspending calls and removes the global before section setup ends, so a block cannot create coroutines or yield on its own, and every yield in a run comes from an Engine function (see [Suspending calls](#suspending-calls)).
 
-The raw-access functions are stripped after the Engine guard on `_G` captures `rawequal`, `rawget`, and `rawset` for its own use. With the `debug` library, `rawset`, and code loading all absent, the Engine guard on `_G`, a raw `prose` global, and a raw `args` global stay out of reach of your code in a section VM (see [Giving `_G` a metatable](#giving-_g-a-metatable)).
+The raw-access functions are stripped after the Engine guard on `_G` captures `rawequal`, `rawget`, and `rawset` for its own use. A section VM lacks the `debug` library, `rawset`, and code loading, so the Engine guard on `_G`, a raw `prose` global, and a raw `args` global stay out of reach of your code (see [Giving `_G` a metatable](#giving-_g-a-metatable)).
 
 Calling any of these absent names, for example `print("hi")`, fails with a Lua runtime error because the name holds nil. The message comes either from the Engine guard on `_G` or from stock Lua's error for calling a nil value.
 
@@ -867,7 +867,7 @@ A stateless generic `for k in next, t do ... end` loop walks keys in the same de
 
 ### Changing a table during a `next` loop
 
-`next` accepts a key that is absent from the table, whether it was cleared mid-loop or was never present. The walk resumes at the first key that sorts after that key's position. So during a `next` loop, a scalar key cleared to nil is skipped, and the walk resumes at the first key after the cleared key's sort position.
+`next` accepts a key that is not in the table, whether it was cleared mid-loop or was never present. The walk resumes at the first key that sorts after that key's position. So during a `next` loop, a scalar key cleared to nil is skipped, and the walk resumes at the first key after the cleared key's sort position.
 
 Clearing keys while stepping with `next`, in `for k in next, t` or in a manual `next(t, k)` loop, never loses a key. Clearing array or boolean keys visits each key exactly once:
 
@@ -1347,7 +1347,7 @@ The run result is:
 truthy null absent {"id":7,"note":null}
 ````
 
-Every JSON `null` decodes to `json.null`, and `json.null` is what you put in a table to encode `null`. A field set to `nil` is absent from the table, so `gone` is left out of the encoded object, while `note = json.null` keeps its key. In a list, `json.null` holds its position, so `json.encode({ json.null, 1 })` gives `[null,1]`.
+Every JSON `null` decodes to `json.null`, and `json.null` is what you put in a table to encode `null`. A table drops a field set to `nil`, so `gone` is left out of the encoded object, while `note = json.null` keeps its key. In a list, `json.null` holds its position, so `json.encode({ json.null, 1 })` gives `[null,1]`.
 
 `json.null` is a light userdata, so `type(json.null)` is `userdata`, and most error messages name its type `lightuserdata`. Like every userdata it is truthy, so `if row.note then` passes for a null, as the `truthy` in the result shows. Test for null with `v == json.null`, and for an absent field with `v == nil`.
 
@@ -1425,7 +1425,7 @@ The run result is:
 
 Scalars encode this way:
 
-- `json.null` encodes as `null`, and so does `nil` passed as the whole value, so `json.encode()` gives `null`. Inside a table, a key set to `nil` is absent.
+- `json.null` encodes as `null`, and so does `nil` passed as the whole value, so `json.encode()` gives `null`. Inside a table, a key set to `nil` is dropped.
 - Booleans encode as `true` and `false`.
 - Integers encode as integers. A float with no fractional part, from -2^63 up to but not including 2^63, encodes as an integer too, so `2.0` gives `2`, `-0.0` gives `0`, and `-2^63` gives `-9223372036854775808`, while `2^63` stays a float.
 - Every other finite float is written as the shortest text that reads back as exactly the same number, so `1.5` gives `1.5`, and `1e300` gives `1e+300`.
@@ -2799,7 +2799,7 @@ A checkpoint is attributed to the section whose code called `log`, including a s
 
 The run records each `log` message verbatim, attributed to the section that called it, in call order across blocks. Several `log` calls in one section appear in the trace in the order the Lua made them, and checkpoints from separate Lua blocks in the same section appear in the order the blocks run, as `prepare started` and `prepare finished` do above.
 
-Checkpoints come out in a deterministic order across the preamble, prologues, and epilogs, and a checkpoint comes only from code that runs. In `Finish`, the prologue returns, so the epilog is skipped and `unreachable epilog` goes unrecorded. Checkpoints logged before an early return, such as `finish started`, still appear in the trace.
+Checkpoints come out in a deterministic order across the preamble, prologues, and epilogs, and a checkpoint comes only from code that runs. In `Finish`, the prologue returns, so the epilog is skipped and `unreachable epilog` is never recorded. Checkpoints logged before an early return, such as `finish started`, still appear in the trace.
 
 `log` emits its checkpoint at the moment of the call, through the same channel the runtime's own reports use, so checkpoints sit in call order among chunk, store, and teardown reports. `log` checkpoints, message text included, interleave with Engine operation reports such as [store](09-the-store.md#writing-and-reading-files) reports in program order:
 
@@ -2824,7 +2824,7 @@ local n = 3
 log('items: ' .. tostring(n))
 ````
 
-A call that breaks a message rule raises a Lua error in the block naming the broken rule, and the call's message goes unrecorded:
+A call that breaks a message rule raises a Lua error in the block naming the broken rule, and the call's message is never recorded:
 
 | Rule | Message when the rule is broken |
 |---|---|
@@ -3172,7 +3172,7 @@ local ok, err = pcall(store.read, 'missing.txt')
 return err.kind .. '|' .. err.reason .. '|' .. err.path
 ````
 
-When `missing.txt` is absent from the store, this block returns `store|not_found|missing.txt`.
+When the store lacks `missing.txt`, this block returns `store|not_found|missing.txt`.
 
 A model round fails the same way. A `pcall(models.infer, 'hi')` that runs out of context returns `false` and an error value of kind `context_exhausted` with `reason` set to `provider`, and the value keeps that `reason` wherever you pass it. Every failure the Engine answers to your Lua has a kind, a spent limit included, such as kind `lua` for an exhausted `log` quota, whose message gives `lua log event quota exceeded` as author prose.
 

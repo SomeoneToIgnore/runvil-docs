@@ -177,9 +177,9 @@ A prompt that breaks a Lua fence rule (see [Exact fence rules and fence errors](
 
 ### A prompt that does not parse starts no run
 
-Parsing happens before the run exists. A prompt that does not parse stops at the parse, with its Lua and prose unrun, the model unasked, and the run record unwritten. The Host gets the parse error and reports it. Its code is a parse code such as `fence_invalid`, or `lua_compile` when a Lua block does not compile. Its message is the parse error's full cause chain, followed by where the parse failed (see [Where a run error's message points](16-limits-and-errors.md#where-a-run-errors-message-points)).
+Parsing happens before the run exists. A prompt that does not parse stops at the parse: its Lua and prose never run, the model is never asked, and the run record is never made. The Host gets the parse error and reports it. Its code is a parse code such as `fence_invalid`, or `lua_compile` when a Lua block does not compile. Its message is the parse error's full cause chain, followed by where the parse failed (see [Where a run error's message points](16-limits-and-errors.md#where-a-run-errors-message-points)).
 
-Parsing stays out of the run's events. A run's events begin with `run_started`, which the run reports once it passes its start checks (see [Run events and records](#run-events-and-records)). A run that stops before then leaves a record that holds only the run's own values and the error that ended it. That is the case when a cancel comes before the run or during the model lookup, when the model lookup fails, and when a start check fails on the run's first step.
+Parsing never reports a run event. A run's events begin with `run_started`, which the run reports once it passes its start checks (see [Run events and records](#run-events-and-records)). A run that stops before then leaves a record that holds only the run's own values and the error that ended it. That is the case when a cancel comes before the run or during the model lookup, when the model lookup fails, and when a start check fails on the run's first step.
 
 ## Preparing the run
 
@@ -248,7 +248,7 @@ Before any section runs, the Harness and the run work in a fixed order:
 7. It builds the run with a role map that holds the Host's current model under `default`, which fills the five model roles.
 8. The run's first step checks the `runvil` version, then the arguments, then the requirements, and refuses the run when one of them fails.
 
-The model lookup lists the Host's models and finds the one the Host selected, or takes the first model listed when the Host left the choice open. When the listing fails, the run fails with the model code of that failure, such as `transport`, and when the selected model is absent from the list, the run fails with `requirements_unmet`. The message is the lookup error with its chain of causes, such as ``the selected model `{id}` is absent from the fetched catalog``. A cancel that comes before the run or during the lookup ends the run with the canceled error. A run that ends here never started, so its record is empty of events.
+The model lookup lists the Host's models and finds the one the Host selected, or takes the first model listed when the Host left the choice open. When the listing fails, the run fails with the model code of that failure, such as `transport`, and when the selected model is absent from the list, the run fails with `requirements_unmet`. The message is the lookup error with its chain of causes, such as ``the selected model `{id}` is absent from the fetched catalog``. A cancel that comes before the run or during the lookup ends the run with the canceled error. A run that ends here never started, so its record holds only the run's own values and the error that ended it.
 
 The version check is the first start check (see [The `runvil` version key](02-file-structure.md#the-runvil-version-key)). Version `0` proceeds, and any other version is refused as unsupported, with a message that ends with ` (at {file}:{line})`, the line of the `runvil:` key. A missing version fails with the message `not a runvil prompt: no runvil version (prompt {name})`, where `{name}` is the prompt's frontmatter `name`. Either way, a prompt with an unsupported or missing version stops before its first section runs. The check reads the run's own prompt first and then each listed prompt, so when `careful.md` lists a prompt `other.md` that declares `runvil: 2`, a run of `careful.md` is refused with `unsupported runvil version: 2 (this build supports major 0) (at other.md:4)`, which points at the `runvil:` line of `other.md`.
 
@@ -281,7 +281,7 @@ argument `query` is required
 
 The message names the first mismatch the check finds. It leaves out the file and the line, because the arguments come from the caller, so the fault lies outside the prompt's lines. Argument text that is not one JSON object ends the run the same way, and [Argument errors](06-arguments.md#argument-errors) has the full list of messages. With the arguments `{"query":"papers"}`, the check passes and the run returns `query: papers`.
 
-The requirements check is the third start check and the last. A run that a start check refuses ends before it reports any run event, so its record is empty of events. When the run's cancel flag is set as a start check fails, the run ends with the canceled error instead of the check's own error.
+The requirements check is the third start check and the last. A run that a start check refuses ends before it reports any run event, so its record holds only the run's own values and the error that ended it. When the run's cancel flag is set as a start check fails, the run ends with the canceled error instead of the check's own error.
 
 ### Waiting for Packs and taking the snapshot
 
@@ -497,7 +497,7 @@ An empty map is a different case. It means the Host has no model, and the run sk
 
 An unmet requirement is one shortfall the model role check finds, recorded when the run is built and reported on its first step rather than raised as an error. Because of that, a model that cannot serve a role never surfaces as an error partway through a run. A role `small` that needs `thinking: false` on a model that always thinks gives exactly one unmet requirement, and the run is refused before any section has run.
 
-The check never repairs. A role that fails a `thinking` or context check stays filled by the same model, and its shortfall refuses the run.
+The check never repairs. A role that fails a `thinking` or context check stays filled by the same model, and the run's first step refuses the run for that shortfall.
 
 ## The requirements notice
 
@@ -631,7 +631,7 @@ the environment cannot satisfy this prompt:
 
 ### When a cancel comes first
 
-When the run's cancel flag is set by the time a start check fails, for example because a cancel cut short the wait while a declared Pack was still starting, the notice goes unreported: the cancel decides the run's result, which is the canceled error rather than `requirements_unmet`, as [Waiting for Packs and taking the snapshot](#waiting-for-packs-and-taking-the-snapshot) explains. A failed version or argument check that meets a cancel ends the run with the canceled error in the same way.
+When the run's cancel flag is set by the time a start check fails, for example because a cancel cut short the wait while a declared Pack was still starting, the notice is not reported: the cancel decides the run's result, which is the canceled error rather than `requirements_unmet`, as [Waiting for Packs and taking the snapshot](#waiting-for-packs-and-taking-the-snapshot) explains. A failed version or argument check that meets a cancel ends the run with the canceled error in the same way.
 
 ## The section walk
 
@@ -1597,7 +1597,7 @@ The version and the requirements are those of every prompt the parse read, so a 
 
 A run whose cancel fires first ends with the canceled error instead, even when the cancel comes before the run starts.
 
-A prompt that does not parse is a different case. It stops at the parse, with the run record unwritten, and its parse error goes to the Host (see [A prompt that does not parse starts no run](#a-prompt-that-does-not-parse-starts-no-run)).
+A prompt that does not parse is a different case. It stops at the parse: the run record is never made, and its parse error goes to the Host (see [A prompt that does not parse starts no run](#a-prompt-that-does-not-parse-starts-no-run)).
 
 ## Run events and records
 
@@ -1630,7 +1630,7 @@ This run records these events, in this order, each with the name it carries:
 | 7 | `section_finished` | `Only` |
 | 8 | `run_succeeded` | `loop` |
 
-The run's events open with `run_started` under `loop`, the prompt's frontmatter `name`. Parsing comes before the run and stays out of its events (see [Parsing comes first](#parsing-comes-first)). `Only` is the entry section, so the run goes straight from `run_started` to its `section_started`.
+The run's events open with `run_started` under `loop`, the prompt's frontmatter `name`. Parsing comes before the run and never reports an event (see [Parsing comes first](#parsing-comes-first)). `Only` is the entry section, so the run goes straight from `run_started` to its `section_started`.
 
 ### The order of run events
 
@@ -1672,7 +1672,7 @@ A `log` checkpoint is recorded under the name of the section whose Lua wrote it,
 
 ### Events from a run that ends early
 
-The record of a run that ends before it starts is empty of events: it holds only the values below and the error that ended it. That holds for a run refused by a start check, and for one that ended on a failed model lookup or an early cancel.
+A run that ends before it starts never reports an event, so its record holds only the values below and the error that ended it. That holds for a run refused by a start check, and for one that ended on a failed model lookup or an early cancel.
 
 ### What a run's record holds
 

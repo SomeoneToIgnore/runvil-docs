@@ -28,7 +28,7 @@ After.
 hello
 ````
 
-The section `Main` holds three blocks in file order: a prose block `Before.`, a Lua block, and a prose block `After.`. The Lua block returns `hello`, which becomes the run result (see [Returning values](04-how-a-prompt-runs.md#returning-values)), and both prose blocks stay unread.
+The section `Main` holds three blocks in file order: a prose block `Before.`, a Lua block, and a prose block `After.`. The Lua block returns `hello`, which becomes the run result (see [Returning values](04-how-a-prompt-runs.md#returning-values)), and the two prose blocks are never read.
 
 A Lua fence is a fenced block that opens with a line of three backticks followed by `lua` and closes with a line of three backticks, and you usually place one under a section heading. A Lua block is the code one Lua fence holds, run as one unit (see [A Markdown file that is a program](01-what-a-prompt-is.md#a-markdown-file-that-is-a-program)). A prose block is a run of Markdown text outside the fences: before the first fence, between two fences, or after the last one.
 
@@ -70,7 +70,7 @@ planned
 
 A preamble holds any mix of plain `lua` fences and prose paragraphs before the first heading, and each becomes its own block in file order, so this preamble holds a Lua block, a prose block, and a Lua block. You can place a fence directly after the frontmatter, as here, or inside a section under a heading such as `## Main`, and a Lua block is one `lua` fence in either place.
 
-You can write an explanatory paragraph before the first heading to describe what the prompt does, such as ``Returns its `text` argument verbatim, entirely in Lua, with no model call.``. A preamble that holds no `lua` fence is commentary: the prompt's sections and blocks start at the first heading, and the text above it stays unread. A preamble holding only one `lua` fence is valid and has a single Lua block.
+You can write an explanatory paragraph before the first heading to describe what the prompt does, such as ``Returns its `text` argument verbatim, entirely in Lua, with no model call.``. A preamble that holds no `lua` fence is commentary: the prompt's sections and blocks start at the first heading, and the text above it is never read. A preamble holding only one `lua` fence is valid and has a single Lua block.
 
 ### Writing Lua inside a fence
 
@@ -180,7 +180,7 @@ This is the common section shape. The prologue runs before the prose and stores 
 
 A prologue is a `lua` fence that opens a section, before any prose, and it runs before the prose. Blank lines before it are fine: blank lines and lines holding only spaces or tabs between the section heading and the first fence are discarded, and that fence is still the prologue. The prose after a prologue stays a separate prose block, and the section has an epilog only when a fence follows that prose.
 
-An epilog is a `lua` fence after a section's prose, the trailing Lua block that ends the section, and it runs after the prose. When the prose comes first, the section starts with a prose block in the prologue's place. A section can have a prologue alone, an epilog alone, or both, and when it has both, the prologue runs first.
+An epilog is a `lua` fence after a section's prose, the trailing Lua block that ends the section, and it runs after the prose. When the prose comes first, the section's first block is a prose block. A section can have a prologue alone, an epilog alone, or both, and when it has both, the prologue runs first.
 
 ### Section shapes
 
@@ -197,7 +197,7 @@ Where the fences sit decides which blocks a section has and which of them are th
 | Prose, a fence, prose | prose, Lua, prose | none | none |
 | Fences with prose between them | Lua, prose, Lua, and so on | first fence | last fence |
 
-A section with no `lua` fence is a single prose block. A section whose only content is one `lua` fence, including a library section (see [Sharing code with `require`](#sharing-code-with-require)), holds a single Lua block, its prologue, because an epilog needs prose before it, even empty prose. A `lua` fence with prose on both sides becomes its own Lua block in the middle of the section, a middle fence. Blank lines before a leading fence and empty text after the last fence are discarded.
+A section with no `lua` fence is a single prose block. A section whose only content is one `lua` fence, including a library section (see [Sharing code with `require`](#sharing-code-with-require)), holds a single Lua block, its prologue, because an epilog needs prose before it, even empty prose. A `lua` fence with prose on both sides becomes its own Lua block in the middle of the section. Blank lines before a leading fence and empty text after the last fence are discarded.
 
 ### Back-to-back and empty fences
 
@@ -255,7 +255,7 @@ You can leave the prologue fence empty and do the section's work in the epilog, 
 
 ### Several fences in one section
 
-You can place several `lua` fences in one section, interleaved with prose, to split the section's work. They run top to bottom in file order as separate blocks of that one section. In a section that opens and closes with a fence, the first fence is the prologue, the last fence is the epilog, and every fence between them is a middle fence:
+You can place several `lua` fences in one section, interleaved with prose, to split the section's work. They run top to bottom in file order as separate blocks of that one section. In a section that opens and closes with a fence, the first fence is the prologue, the last fence is the epilog, and every fence between them is its own Lua block in the middle of the section:
 
 ````markdown
 ---
@@ -480,7 +480,7 @@ return models.infer(prose)
 ```
 ````
 
-The prompt asks `Name one planet.` first, from the preamble, and then `Name one ocean.` from `Answer`, and the result is the ocean reply. The preamble and each section keep separate pending prose buffers, so each reads only its own prose through `prose`, and prose written between `lua` fences in the preamble collects into a buffer that `prose` reads the same way. Preamble prose never drives inference on its own: on a Host that supplies no model, a prompt whose preamble prose stays unread still runs, while a preamble block running `return models.infer(prose)` fails there because its round needs a model (see [When a section has no model](10-models.md#when-a-section-has-no-model)).
+The prompt asks `Name one planet.` first, from the preamble, and then `Name one ocean.` from `Answer`, and the result is the ocean reply. The preamble and each section keep separate pending prose buffers, so each reads only its own prose through `prose`, and prose written between `lua` fences in the preamble collects into a buffer that `prose` reads the same way. Preamble prose never drives inference on its own: on a Host that supplies no model, a prompt whose preamble prose is never read still runs, while a preamble block running `return models.infer(prose)` fails there because its round needs a model (see [When a section has no model](10-models.md#when-a-section-has-no-model)).
 
 ### What resets pending prose
 
@@ -514,7 +514,7 @@ Pending prose resets at each section entry, so a section's unconsumed prose is d
 
 ### Commentary
 
-Prose that the Lua blocks leave unread is commentary. It is dropped unread at the end of its section, without being rendered or sent anywhere, so you can keep notes for human readers in it:
+Prose that is never read by a Lua block is commentary. It is dropped unread at the end of its section, without being rendered or sent anywhere, so you can keep notes for human readers in it:
 
 ````markdown
 ---
@@ -546,10 +546,10 @@ ok
 
 Every piece of prose in this prompt is commentary:
 
-- A preamble that holds no `lua` fence is commentary as a whole (see [The preamble](02-file-structure.md#the-preamble)): it sits outside the sections and stays unread, so a placeholder like `{{ var.omit }}` is safe in it. It stays out of every model request, so notes meant only for human readers can sit there.
+- A preamble that holds no `lua` fence is commentary as a whole (see [The preamble](02-file-structure.md#the-preamble)): it sits outside the sections and is never read, so a placeholder like `{{ var.omit }}` is safe in it. It stays out of every model request, so notes meant only for human readers can sit there.
 - Prose at the end of a section with no Lua fence after it is discarded unrendered when the section ends, so a placeholder naming a missing value, such as `{{ var.missing }}`, is discarded with it and the run goes on.
 - A block that never reads `prose` is untouched even by an unclosed `{{` in the prose above it.
-- Markdown left after the final `lua` fence of a body is inert trailing commentary: it stays unread, its placeholders stay unfilled, and it never raises an error, so `Trailing {{ var.missing }} commentary.` leaves the result `ok`. Prose left pending after a section's last fence parses cleanly too.
+- Markdown left after the final `lua` fence of a body is inert trailing commentary: it is never read, its placeholders are never filled, and it never raises an error, so `Trailing {{ var.missing }} commentary.` leaves the result `ok`. Prose left pending after a section's last fence parses cleanly too.
 
 ### When `prose` renders
 
@@ -986,7 +986,7 @@ print(1)
 
 ### Showing a `lua` fence as an example
 
-Lines inside the body of any other fenced code block are exempt from the Lua fence rules. To show a `lua` fence to a reader or a model as an example, even a near miss such as `` ```lua extra ``, nest it inside a longer fence, such as a four-backtick `markdown` fence or a tilde fence. It stays prose, uncompiled and free of `Fence` errors, and near-miss lines inside the outer fence stay prose without errors too. A section that opens with such an outer fence starts with a prose block, and the whole fence stays in the section's prose:
+Lines inside the body of any other fenced code block are exempt from the Lua fence rules. To show a `lua` fence to a reader or a model as an example, even a near miss such as `` ```lua extra ``, nest it inside a longer fence, such as a four-backtick `markdown` fence or a tilde fence. It stays prose, so the parser never compiles it or raises a `Fence` error for it, and near-miss lines inside the outer fence stay prose without errors too. A section that opens with such an outer fence starts with a prose block, and the whole fence stays in the section's prose:
 
 ````markdown
 ---
@@ -1925,7 +1925,7 @@ The rule covers every function that takes a relative path, with one exception:
 
 A name is resolved where it is used, not where it came from. A section that passes the string `'Worker'` to a function of a library gets the library's `Worker`, and when the library has none, the [not-found error](08-jump-and-call.md#the-not-found-error) names the library: ``section `Worker` not found: `/kit` has no child `Worker` ``. A function keeps the place it was written in, though. A function that a section passes to a library still names the section's own neighbors, and an [adhoc tool](12-tools.md#how-adhoc-tool-handlers-run) handler written in a library names the library's.
 
-Inside a library, the `_G` table still holds the running section's own functions. `_G.prompt`, `_G.call`, and `_G.tasks` resolve from whichever section is using the library, which is how `kit.topics` reads the `Topics` list of `Research` and misses under `Review`, where it returns its fallback text. The `_G` at the call shows a reader that the line depends on the user. A library that does this relies on its user to have that section, so it reads with `_G.prompt.section_or` when the section is optional. `_G.prompt.section('Topics')` in its place raises and names the user: ``section `Topics` not found: `/Review` has no child `Topics` ``. In a section's own blocks, a plain name and its `_G` name are the same function.
+Inside a library, the `_G` table still holds the running section's own functions. `_G.prompt`, `_G.call`, and `_G.tasks` resolve from whichever section is using the library, which is how `kit.topics` reads the `Topics` list of `Research` and returns its fallback text under `Review`, where the path misses. The `_G` at the call shows a reader that the line depends on the user. A library that does this relies on its user to have that section, so it reads with `_G.prompt.section_or` when the section is optional. `_G.prompt.section('Topics')` in its place raises and names the user: ``section `Topics` not found: `/Review` has no child `Topics` ``. In a section's own blocks, a plain name and its `_G` name are the same function.
 
 The chain a library's `call` starts, and the tasks its `tasks.spawn` and `tasks.fanout` start, still belong to the section that is running, as [Effects a library makes belong to the caller](#effects-a-library-makes-belong-to-the-caller) describes. Only the place a path starts from is the library's.
 

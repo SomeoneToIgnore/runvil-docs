@@ -155,7 +155,7 @@ Declaring a role does not select it. The run still starts on the `default` role,
 | Key | What it takes | When you leave it out |
 |---|---|---|
 | `min_context` | a whole number of tokens from 1 to 4294967295 | a context window of any size passes |
-| `thinking` | `true` or `false` | any thinking mode passes, and the thinking switch stays unset |
+| `thinking` | `true` or `false` | any thinking mode passes, and the role leaves the thinking switch out of its requests |
 
 Each prompt's `models:` key applies to its own sections. That matters when a prompt runs another prompt with [`execute`](08-jump-and-call.md#executing-another-prompt), where the first is the caller and the second is the executed prompt: a role's thinking switch in a section is the one that the section's own prompt declares (see [The thinking switch](#the-thinking-switch)), and the requirements of both prompts are checked at the run's first step (see [What the run checks](#what-the-run-checks)).
 
@@ -181,7 +181,7 @@ Parsing a `models` declaration checks only its shape. The checks against a real 
 
 ### The `thinking` key
 
-`thinking` takes `true` or `false`. `thinking: true` requires a model that can think and turns thinking on for the role's requests, and `thinking: false` requires a model that can run with thinking turned off and turns it off for the role's requests. With the key left out, a model of any thinking mode can fill the role, and the thinking switch stays unset. Any other value, such as a string or a number, fails the parse with a `Frontmatter` error. [The thinking requirement](#the-thinking-requirement) covers which models meet each value and what the switch does.
+`thinking` takes `true` or `false`. `thinking: true` requires a model that can think and turns thinking on for the role's requests, and `thinking: false` requires a model that can run with thinking turned off and turns it off for the role's requests. With the key left out, a model of any thinking mode can fill the role, and the role leaves the thinking switch out of its requests. Any other value, such as a string or a number, fails the parse with a `Frontmatter` error. [The thinking requirement](#the-thinking-requirement) covers which models meet each value and what the switch does.
 
 ### Flow style
 
@@ -1133,7 +1133,7 @@ return models.infer(prose)
 
 `return models.infer(prose)` sends the section's prose, the rendered Markdown above the block (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)), to the model in one round and makes the reply the section's result. In this one-section prompt, the run result is whatever the model replies. The call leaves the model out, so it runs on the chain's current model, which here is the `default` role's.
 
-Each `models.infer` call is one infer round: a model round on a fresh conversation whose only message is the prompt, sent as a single message with the `user` message role. The model receives that one message alone, with earlier rounds and the rest of the section left out. An infer round never reads or changes the section entry's `messages` list (see [Starting a conversation](11-conversations.md#starting-a-conversation)), leaves tools out of its request, and works inside a loop's tool handlers and compactors, where a loop cannot start.
+Each `models.infer` call is one infer round: a model round on a fresh conversation whose only message is the prompt, sent as a single message with the `user` message role. The model receives that one message alone, with earlier rounds and the rest of the section left out. An infer round never reads or changes the section entry's `messages` list (see [Starting a conversation](11-conversations.md#starting-a-conversation)), leaves the tool list out of its request, and works inside a loop's tool handlers and compactors, where a loop cannot start.
 
 ### Which model an infer round uses
 
