@@ -350,7 +350,7 @@ The run fills its roles once, when it is built, and keeps that fill for its whol
 
 A role's `min_context` and `thinking` are requirements, and at the run's first step, before any section runs, the run checks every declared requirement against the model that fills the role. A role's own entry in the map fills it, and the `default` entry fills every other role, so a requirement on a role with no entry of its own is checked against the `default` model. These two checks are the only role requirements that can refuse the run, and the run makes them only when the Host's map has a `default` entry. A role the prompt does not declare, or declares as `{}`, accepts any model, so it always passes and the notice leaves it out.
 
-An unmet requirement is one shortfall in the refusal that ends the run on its first step with error code `requirements_unmet`, before it reports any run event (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). The run checks a role's `min_context` and its `thinking` as two separate checks, so a role can fail only one of them, and a role that fails both gets one notice line for its context and another for its thinking:
+An unmet requirement is one shortfall in the refusal that ends the run on its first step with error code `requirements_unmet`, before it reports `run_started` (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). The run checks a role's `min_context` and its `thinking` as two separate checks, so a role can fail only one of them, and a role that fails both gets one notice line for its context and another for its thinking:
 
 ````markdown
 ---
