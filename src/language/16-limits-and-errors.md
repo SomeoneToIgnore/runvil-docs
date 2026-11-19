@@ -874,7 +874,7 @@ A prompt that fails to parse fails before any run starts, so before any section 
 
 A prompt [listed under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts) that does not parse fails the parse of the prompt that lists it, with the code of its own parse failure. A listed prompt that the Host does not have fails it with the Host's not-found failure, which keeps the code the Host gave it, such as `not_found`, one of the [store codes](#store-codes).
 
-A file with no `runvil:` key also fails with `structure_invalid`, but its prompt parses: the version check is the first start check on the run's first step, after the wait for Packs and before the argument and requirements checks. The run's record holds only the run's own values and the error that ended it. The message is `not a runvil prompt: no runvil version (prompt {name})`, which ends with the prompt's frontmatter `name`.
+A file with no `runvil:` key also fails with `structure_invalid`, but its prompt parses: the version check is the first start check on the run's first step, after the wait for Packs and before the argument and requirements checks. The run's record holds only the run's own values, the error that ended it, and an `inbox_message` event for each message the Host sent before the run's first step. The message is `not a runvil prompt: no runvil version (prompt {name})`, which ends with the prompt's frontmatter `name`.
 
 A run fails with `unsupported_version` when the prompt's [`runvil:` key](02-file-structure.md#the-runvil-version-key) declares a major version other than `0`, and the message is `unsupported runvil version: {n} (this build supports major 0)` followed by ` (at {file}:{line})`, the line of the `runvil:` key, as `future` shows.
 
@@ -1017,7 +1017,7 @@ Run it with the arguments `{"limit":5}`, which leave out `query`. The run fails 
 argument `query` is required
 ````
 
-The message names the argument at fault and what the declaration requires of it, and it ends there. An `args_invalid` failure of the run's own arguments leaves out the file and the line, because the arguments come from the caller and the fault lies outside the prompt's lines. The argument check is the second start check on the run's first step, after the version check and before the requirements check. So the run is refused before any section runs: the refusal comes before any of the prompt's Lua runs, so the failure is out of the prompt's reach, and the run's record holds only the run's own values and the error that ended it.
+The message names the argument at fault and what the declaration requires of it, and it ends there. An `args_invalid` failure of the run's own arguments leaves out the file and the line, because the arguments come from the caller and the fault lies outside the prompt's lines. The argument check is the second start check on the run's first step, after the version check and before the requirements check. So the run is refused before any section runs: the refusal comes before any of the prompt's Lua runs, so the failure is out of the prompt's reach, and the run's record holds only the run's own values, the error that ended it, and an `inbox_message` event for each message the Host sent before the run's first step.
 
 The check reports the first mismatch only, and it looks in a fixed order: text that is not JSON, then JSON that is not an object, then each object's declared fields in name order, then its undeclared fields in name order. Each of these runs of `lookup` fails with one message:
 
@@ -1399,7 +1399,7 @@ Only model failures of completion error kind `RateLimited`, `Overloaded`, `Timeo
 
 ### Nothing retries automatically
 
-A failed run stays as it ended, and a failed model round is sent again in one case alone, inside `models.loop`. Each model request is sent once, and a failed round is reported as failed and ends the call with that failure, unless it is a `models.loop` round that fails as `ContextOverflow`: the loop hands that overflow to the compactor, and after a compaction that passes it sends the round again once. The run hands its failure back as a result value instead of crashing, so running again after a retryable failure is up to the Host, and a run that fails on a transient model call problem may succeed when run again.
+A failed run stays as it ended, and a failed model round is sent again in one case alone, inside `models.loop`. Each model request is sent once, and a failed round is reported as failed and ends the call with that failure, unless it is a `models.loop` round that fails as `ContextOverflow` or comes back as an empty reply (see [Errors while a round runs](11-conversations.md#errors-while-a-round-runs)): the loop hands that overflow to the compactor, and after a compaction that passes it sends the round again once. The run hands its failure back as a result value instead of crashing, so running again after a retryable failure is up to the Host, and a run that fails on a transient model call problem may succeed when run again.
 
 ### Transient model failures in detail
 
