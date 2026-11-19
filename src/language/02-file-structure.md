@@ -24,7 +24,7 @@ Running this prompt ends with this run result:
 hello
 ````
 
-This prompt runs with only its frontmatter and one `lua` fence (see [Lua fences and prose blocks](03-blocks-and-prose.md#lua-fences-and-prose-blocks)) after it. The YAML between the two `---` lines is the frontmatter (see [A Markdown file that is a program](01-what-a-prompt-is.md#a-markdown-file-that-is-a-program)), and it holds the three keys a prompt needs to run: `name`, `description`, and `runvil: 0`. The `lua` fence after the frontmatter is the preamble (see [The preamble](#the-preamble)), and here the preamble does all the work. The file has no headings, which is allowed: headings are optional.
+This prompt runs with only its frontmatter and one `lua` fence (see [Lua fences and prose blocks](03-blocks-and-prose.md#lua-fences-and-prose-blocks)) after it. The YAML between the two `---` lines is the frontmatter (see [A Markdown file that is a program](01-what-a-prompt-is.md#a-markdown-file-that-is-a-program)), and it holds the three keys a prompt needs to run: `name`, `description`, and `runvil: 0`. The `lua` fence after the frontmatter is the preamble (see [The preamble](#the-preamble)), and here the preamble does all the work. Headings are optional, and this file leaves them out.
 
 ### The three regions in order
 
@@ -58,7 +58,7 @@ A prompt file is one Markdown file, and its parts always come in this fixed orde
 2. The preamble: optional content between the frontmatter and the first heading. Here it is the line `This prompt returns one fixed line.`
 3. The sections: the headings, each with the content under it. Here there is one, `## Answer`, which holds a prose line and a `lua` fence.
 
-Text directly after the frontmatter is read as the preamble, and the first heading after it starts the first section. This preamble holds no `lua` fence, so it is commentary with no effect on the run, and [The preamble](#the-preamble) covers what a preamble can hold. A section such as `## Answer` can hold prose and `lua` fences side by side, and [Lua fences and prose blocks](03-blocks-and-prose.md#lua-fences-and-prose-blocks) teaches what each one does. Running this prompt returns `laid out`.
+Text directly after the frontmatter is read as the preamble, and the first heading after it starts the first section. This preamble lacks a `lua` fence, so it is commentary that leaves the run unchanged, and [The preamble](#the-preamble) covers what a preamble can hold. A section such as `## Answer` can hold prose and `lua` fences side by side, and [Lua fences and prose blocks](03-blocks-and-prose.md#lua-fences-and-prose-blocks) teaches what each one does. Running this prompt returns `laid out`.
 
 A section can hold more than two blocks. A `## Transform` section can hold a `lua` fence, then the prose line `Ask about {{ var.before }}.`, then a second `lua` fence, and the file parses with all three in that order.
 
@@ -90,7 +90,7 @@ return 'second'
 second
 ````
 
-The walk visits sections in file order (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). `## First` runs, has no `return`, and falls through, so `## Second` starts after it, and its `return` gives the run result. A prompt can have as many sections as it needs: one prompt can hold `## Spawner`, `## Sibling`, and `## Child`, where `## Sibling` starts after `## Spawner` falls through, and another can hold `## Only`, `## Child`, and `## Leaf`, each with its own `lua` fence.
+The walk visits sections in file order (see [The section walk](04-how-a-prompt-runs.md#the-section-walk)). `## First` runs, ends without a `return`, and falls through, so `## Second` starts after it, and its `return` gives the run result. A prompt can have as many sections as it needs: one prompt can hold `## Spawner`, `## Sibling`, and `## Child`, where `## Sibling` starts after `## Spawner` falls through, and another can hold `## Only`, `## Child`, and `## Leaf`, each with its own `lua` fence.
 
 After the frontmatter and the preamble, when the prompt has one, come the section headings, such as `## Main`, `## First`, `## Second`, `## Greet`, or `## Only`.
 
@@ -100,7 +100,7 @@ Sections can also nest deeper than `##`. A `### Worker` heading under `## Parent
 
 You write the frontmatter in YAML at the very top of the file. The first line of the file must be `---`, and spaces before or after the dashes on that line are ignored. A file that starts any other way is rejected with the message `file must begin with a --- frontmatter delimiter`, which [Frontmatter delimiters, byte-order mark, and line endings](#frontmatter-delimiters-byte-order-mark-and-line-endings) covers with the other delimiter rules.
 
-The frontmatter declares the prompt's Packs with the `uses` list, its arguments with `args`, and requirements on its model roles with `models`. None of these is needed for a prompt to parse and run. A frontmatter of only `name`, `description`, and `runvil: 0` between the `---` lines is complete:
+The frontmatter declares the prompt's Packs with the `uses` list, its arguments with `args`, and requirements on its model roles with `models`. All three are optional, both to parse and to run. A frontmatter of only `name`, `description`, and `runvil: 0` between the `---` lines is complete:
 
 ````markdown
 ---
@@ -110,7 +110,7 @@ runvil: 0
 ---
 ````
 
-This prompt leaves out `models`, `args`, and `uses`, and it still parses and runs. [Prompts without sections](#prompts-without-sections) explains how a prompt with nothing after its frontmatter ends. The `description` value can be a single character such as `d`, and `runvil: 0` is the version value. A frontmatter of `name: greeter`, `description: says hi`, and `runvil: 0` is just as complete.
+This prompt leaves out `models`, `args`, and `uses`, and it still parses and runs. [Prompts without sections](#prompts-without-sections) explains how a prompt that is frontmatter alone ends. The `description` value can be a single character such as `d`, and `runvil: 0` is the version value. A frontmatter of `name: greeter`, `description: says hi`, and `runvil: 0` is just as complete.
 
 ## Frontmatter delimiters, byte-order mark, and line endings
 
@@ -124,17 +124,17 @@ runvil: 0
 ---
 ````
 
-A frontmatter delimiter is a line of three dashes, `---`, that opens or closes the frontmatter. You write the frontmatter as a YAML block between two delimiter lines at the very top of the prompt file, and the Markdown body is everything after the closing `---` line. In the file above, line 1 opens the frontmatter, lines 2 to 4 are YAML, and line 5 closes it. A body would start on line 6, and this file has none.
+A frontmatter delimiter is a line of three dashes, `---`, that opens or closes the frontmatter. You write the frontmatter as a YAML block between two delimiter lines at the very top of the prompt file, and the Markdown body is everything after the closing `---` line. In the file above, line 1 opens the frontmatter, lines 2 to 4 are YAML, and line 5 closes it. A body would start on line 6, and this file ends at the closing delimiter.
 
 ### The opening line
 
-The opening `---` must be the first line of the file, so nothing can come before it, not even a blank line or a comment. The opening line still counts as the delimiter when it has whitespace before or after the dashes.
+The opening `---` must be the first line of the file, so even a blank line or a comment above it fails the parse. The opening line still counts as the delimiter when it has whitespace before or after the dashes.
 
 Because the opener is file line 1, the YAML keys start on file line 2, and a frontmatter YAML error reports its line in the file. When the fourth line of the file is bad YAML, the error reports line 4, as [When the YAML does not decode](#when-the-yaml-does-not-decode) shows.
 
 ### The closing line
 
-The closing `---` must start at column 0. Whitespace after the dashes is allowed, but an indented `---` never closes the frontmatter. The first column-0 `---` line after the opening one ends the frontmatter, so the YAML itself never contains a `---` line at column 0, such as a second YAML document marker.
+The closing `---` must start at column 0. Whitespace after the dashes is allowed, but an indented `---` stays part of the YAML. The first column-0 `---` line after the opening one ends the frontmatter, so the YAML itself never contains a `---` line at column 0, such as a second YAML document marker.
 
 An indented `---` line inside a YAML block scalar stays part of the value. This frontmatter has a multi-line `description` whose middle line is `---`:
 
@@ -177,7 +177,7 @@ p
 file must begin with a --- frontmatter delimiter
 ````
 
-A frontmatter block with no closing `---` line also fails with parse error kind `Frontmatter`:
+A frontmatter block that lacks its closing `---` line also fails with parse error kind `Frontmatter`:
 
 ````markdown
 ---
@@ -192,7 +192,7 @@ runvil: 0
 frontmatter was not closed with ---
 ````
 
-Both errors point at line 1, where the frontmatter opens or should open, and neither names a prompt, because the prompt's name is not known yet when the error is raised.
+Both errors point at line 1, where the frontmatter opens or should open, and both leave out the prompt's name, because each is raised before that name is known.
 
 ## Writing YAML in the frontmatter
 
@@ -243,7 +243,7 @@ models:
 
 ### Plain values need no quotes
 
-You write string values as plain, unquoted YAML. Free text with spaces, hyphens, commas, periods, and dotted names such as `models.use` needs no quotes, both in `description:` and in nested values. The values in this section's examples are all unquoted, and so is `description: Research a person from the open web and return a concise, factual summary.` Every shipped prompt writes its values this way and parses.
+You write string values as plain, unquoted YAML. Free text with spaces, hyphens, commas, periods, and dotted names such as `models.use` works unquoted, both in `description:` and in nested values. The values in this section's examples are all unquoted, and so is `description: Research a person from the open web and return a concise, factual summary.` Every shipped prompt writes its values this way and parses.
 
 You can also put inline code spans written with backticks partway through an unquoted `description` value, such as `` `lua` `` or `` `~~~lua` ``, and the frontmatter still decodes.
 
@@ -303,7 +303,7 @@ return "hi"
 hi
 ````
 
-The `name` key is the prompt's identifier, and the `description` key is a free-text summary of what the prompt does. They are the only required frontmatter keys: neither has a default, and a frontmatter missing either one fails to parse.
+The `name` key is the prompt's identifier, and the `description` key is a free-text summary of what the prompt does. They are the only required frontmatter keys: both lack a default, and a frontmatter missing either one fails to parse.
 
 ### The `name` key
 
@@ -311,21 +311,21 @@ Every prompt names itself with the `name:` key. Its value is a string, and it be
 
 By convention, prompts write `name` as a lowercase snake_case identifier, with words joined by underscores and digits allowed after the first letter, such as `phase_boundaries`, `require_library`, `store_triad`, `analyst_example`, or `research_person`. The parser does not enforce this format. A name can also be kebab-case, such as `needs-web`, `version-zero`, `frontmatter-only`, or `with-notes`, or a single letter such as `t`.
 
-The `name` value does not have to match the file name. The file `research-person.md` declares `name: research_person`, `analyst-example.md` declares `name: analyst_example`, and `prologue-prose-epilog.md` declares `name: phase_boundaries`.
+The `name` value can differ from the file name. The file `research-person.md` declares `name: research_person`, `analyst-example.md` declares `name: analyst_example`, and `prologue-prose-epilog.md` declares `name: phase_boundaries`.
 
-Every parse error found past the frontmatter, a `Lua` compile failure included, reports the prompt's `name`, beside its line and column when the error has them, so you can tell which prompt failed; only an internal fault reports none. A duplicate `## S` section heading in a prompt with `name: dup` fails with parse error kind `Structure` and names `dup` (see [Sibling name uniqueness](#sibling-name-uniqueness)). A frontmatter failure, such as malformed YAML, fails with parse error kind `Frontmatter` and reports no name.
+Every parse error found past the frontmatter, a `Lua` compile failure included, reports the prompt's `name`, beside its line and column when the error has them, so you can tell which prompt failed; only an internal fault leaves the name out. A duplicate `## S` section heading in a prompt with `name: dup` fails with parse error kind `Structure` and names `dup` (see [Sibling name uniqueness](#sibling-name-uniqueness)). A frontmatter failure, such as malformed YAML, fails with parse error kind `Frontmatter` and leaves the name out.
 
 ### The `description` key
 
 Every prompt declares a `description:` string that summarizes what the prompt does, such as `description: Greet a name using a Lua-computed value` or `description: Writes a note to the store and reads it back.` The value becomes the prompt's description as free text, kept exactly as written, down to its closing period. Even a one-letter value such as `description: d` is accepted.
 
-By convention, the description fits on one line. The parser also accepts a several-line `description: |` block value (see [Multi-line values](#multi-line-values)), so one line is a convention, not a rule.
+By convention, the description fits on one line. The parser also accepts a several-line `description: |` block value (see [Multi-line values](#multi-line-values)), so one line is only a convention.
 
 The Workshop's Run window shows the description as a read-only `description` row under the prompt's `name` row whenever the description is not empty.
 
 ### What a file needs to parse and to run
 
-A file needs only `name` and `description` to parse. A frontmatter holding just those two keys, with no `runvil` key or any other key, passes the frontmatter parse, and the parser moves on to check the body:
+A file needs only `name` and `description` to parse. A frontmatter holding just those two keys, with `runvil` and every other key left out, passes the frontmatter parse, and the parser moves on to check the body:
 
 ````markdown
 ---
@@ -356,7 +356,7 @@ This is the frontmatter of a prompt; its body follows the closing `---`.
 
 ### Missing `name` or `description`
 
-Leaving out `name:` or `description:` fails the frontmatter parse with a missing-field error from the YAML reader, because these are the only two keys with no default:
+Leaving out `name:` or `description:` fails the frontmatter parse with a missing-field error from the YAML reader, because these two keys alone lack a default:
 
 ````markdown
 ---
@@ -393,7 +393,7 @@ The `runvil:` key declares which major version of the Engine the file targets. I
 
 ### What the key marks
 
-The `runvil:` key is what marks a Markdown file as a Runvil prompt, and a file without it is not treated as one. That is a run-time check, not a parse-time one. A file needs only the `name` and `description` keys to parse, but it needs `runvil: 0` to run, so a file without the `runvil:` key parses but never runs, and every prompt that runs declares `runvil: 0`. A prompt that leaves out `runvil:` still parses, and it then has no declared major version.
+The `runvil:` key is what marks a Markdown file as a Runvil prompt, and only a file that has it is treated as one. That is a run-time check. A file needs only the `name` and `description` keys to parse, but it needs `runvil: 0` to run, so a file without the `runvil:` key parses but never runs, and every prompt that runs declares `runvil: 0`. A prompt that leaves out `runvil:` still parses, and its major version is then undeclared.
 
 ### The active Engine major
 
@@ -405,11 +405,11 @@ The `runvil:` value must be a non-negative integer that fits in 32 bits, `0` thr
 
 A file parses whether or not it has a `runvil:` key, and the run checks the declared version on its first step, before any section runs. The run checks the version first, then its arguments, then its requirements, so a prompt with a missing or unsupported version reports the version failure even when the run also has arguments that do not match the prompt's `args:` declaration or an environment that falls short of the prompt.
 
-A prompt whose `runvil` version is missing or unsupported fails before any section runs. None of its sections run, nothing is reported beyond that one failure, and its own `return` never runs.
+A prompt whose `runvil` version is missing or unsupported fails before any section runs. The run skips every section, the prompt's own `return` included, and reports that one failure alone.
 
 ### A missing version
 
-A file with no `runvil:` key still parses, but it is not treated as a Runvil prompt. Here is the `version-zero` prompt without its `runvil: 0` line:
+A file that leaves out the `runvil:` key still parses, but it is not treated as a Runvil prompt. Here is the `version-zero` prompt without its `runvil: 0` line:
 
 ````markdown
 ---
@@ -488,7 +488,7 @@ This table lists the eight keys in the order this chapter teaches them, with wha
 | `models` | no | no requirements on any model role |
 | `prompts` | no | the prompt can execute no other prompt |
 
-Because every key besides `name` and `description` has a default, a frontmatter of just those two parses, and so does a prompt with none of the contract keys. `max_tool_iterations` accepts a value from 1 to 1000, and [Tool rounds and the round cap](11-conversations.md#tool-rounds-and-the-round-cap) covers what it controls. [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key) covers the default declaration of `args`.
+Because every key besides `name` and `description` has a default, a frontmatter of just those two parses, and so does a prompt that leaves out every contract key. `max_tool_iterations` accepts a value from 1 to 1000, and [Tool rounds and the round cap](11-conversations.md#tool-rounds-and-the-round-cap) covers what it controls. [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key) covers the default declaration of `args`.
 
 ### Adding keys a prompt needs
 
@@ -580,11 +580,11 @@ invalid frontmatter: prompt greet.md is listed more than once under prompts
 
 An empty entry, as in `prompts: [greet.md, ""]`, fails it with `invalid frontmatter: a prompts entry must not be empty`. Both are parse errors of kind `Frontmatter`, placed on the line of the `prompts:` key.
 
-Parsing a prompt also finds and parses every prompt it lists, then every prompt those list, each prompt once (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). So a listed prompt that the Host does not have, or one that does not parse, fails the parse of the prompt that lists it. Prompts may list each other, and a prompt may list itself. A prompt that leaves the key out, or gives it an empty list, can execute no prompt.
+Parsing a prompt also finds and parses every prompt it lists, then every prompt those list, each prompt once (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). So a listed prompt that is missing from the Host, or one that fails its own parse, fails the parse of the prompt that lists it. Prompts may list each other, and a prompt may list itself. A prompt that leaves the key out, or gives it an empty list, can execute no prompt.
 
 ### Unknown keys
 
-You spell frontmatter keys exactly as the language defines them. An unknown frontmatter key is any top-level key other than the eight, and it is never ignored: it fails the whole file with parse error kind `Frontmatter`, because any other key is treated as a prompt authoring error. The `greeter` prompt above parses with `uses: [web]`, but the same file with that key misspelled fails:
+You spell frontmatter keys exactly as the language defines them. An unknown frontmatter key is any top-level key other than the eight, and it fails the whole file with parse error kind `Frontmatter`, because any other key is treated as a prompt authoring error. The `greeter` prompt above parses with `uses: [web]`, but the same file with that key misspelled fails:
 
 ````markdown
 ---
@@ -650,7 +650,7 @@ At parse time, the grammar applies to every key of every `properties` map in the
 
 At run time, the Engine enforces the same grammar for the `name` Lua passes to `tools.adhoc`, with the same length, first-character, and later-character rules.
 
-`models.use` and `models.get` apply no grammar. `models.use` compares the name with the five role names, so a name outside the grammar and a well-formed name that is not a role fail with the same message, which [Run-time name errors](#run-time-name-errors) gives. `models.get` does the same unless the Host allows raw model ids. With raw model ids allowed, `models.get` reads a name outside the five as a raw model id instead, the name a gateway model is listed under, because model names can contain `/`, `.`, and `:`, so `models.get('qwen/qwen3-8b')` returns a handle bound to `gateway/qwen/qwen3-8b`, whose `model_id` is `qwen/qwen3-8b`. A role name always resolves as the role, with or without raw model ids.
+`models.use` and `models.get` skip the grammar. `models.use` compares the name with the five role names, so a name outside the grammar and a well-formed name that is not a role fail with the same message, which [Run-time name errors](#run-time-name-errors) gives. `models.get` does the same unless the Host allows raw model ids. With raw model ids allowed, `models.get` reads a name outside the five as a raw model id instead, the name a gateway model is listed under, because model names can contain `/`, `.`, and `:`, so `models.get('qwen/qwen3-8b')` returns a handle bound to `gateway/qwen/qwen3-8b`, whose `model_id` is `qwen/qwen3-8b`. A role name always resolves as the role, with or without raw model ids.
 
 ### Contract maps and duplicate keys
 
@@ -725,7 +725,7 @@ Each grammar, duplicate, and map-type error from `models:` and `args:` puts the 
 
 Each of these errors also reports a file line and column. A key under `models:` that is not a role name is reported at the key itself, and a map-type error at the value. A grammar or duplicate error from a `properties` map, like a duplicate role, is reported where its map starts, which in block style is the map's first key: line 8, column 5 in the `contract_names` prompt above.
 
-Every arg name violation, whether an empty name, a name that is too long, a bad first character, or a bad later character, produces the same single message form. The message shows the grammar but not which rule failed, so check the name against every rule in [The prompt-local alias grammar](#the-prompt-local-alias-grammar).
+Every arg name violation, whether an empty name, a name that is too long, a bad first character, or a bad later character, produces the same single message form. The message shows the grammar and leaves out which rule failed, so check the name against every rule in [The prompt-local alias grammar](#the-prompt-local-alias-grammar).
 
 ### Run-time name errors
 
@@ -803,7 +803,7 @@ The preamble is the text between the frontmatter and the first heading, and in a
 
 ### A preamble with Lua
 
-A preamble that holds at least one `lua` fence is a top-level section that has no heading. So it has no name, and `sys.section_name` there reads the empty string:
+A preamble that holds at least one `lua` fence is a top-level section that lacks a heading. So it is unnamed, and `sys.section_name` there reads the empty string:
 
 ````markdown
 ---
@@ -841,7 +841,7 @@ return 'read: ' .. prose
 read: Keep the answer short.
 ````
 
-Preamble prose that no Lua reads has no effect:
+Preamble prose stays inert unless Lua reads it:
 
 ````markdown
 ---
@@ -867,13 +867,13 @@ return 'ok'
 ok
 ````
 
-The preamble's fence runs before the prose, and no Lua after it reads the prose `{{ var.omit }}`, so the prose stays inert, and the run returns `ok` without needing a model.
+The preamble's fence runs before the prose, and the prose `{{ var.omit }}` goes unread by any later Lua, so the prose stays inert, and the run returns `ok` without needing a model.
 
-The preamble ends where the first heading begins, so it has no child sections. No section path names the preamble, because every step of a path is a section name and the preamble has none. Its own Lua names the other sections by path as any section's Lua does, and [`jump` and `call` from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble) shows the paths it writes.
+The preamble ends where the first heading begins, so it has no child sections. The preamble is out of reach of every section path, because every step of a path is a section name and the preamble is unnamed. Its own Lua names the other sections by path as any section's Lua does, and [`jump` and `call` from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble) shows the paths it writes.
 
 ### A preamble without Lua
 
-A preamble that holds no `lua` fence is commentary. It is not a section, nothing reads it, and it has no effect, so editing notes above the first heading change nothing:
+A preamble that holds no `lua` fence is commentary. It is not a section and goes unread, so editing notes above the first heading leave the run unchanged:
 
 ````markdown
 ---
@@ -899,16 +899,16 @@ The run starts at `Answer`, which is the first top-level section of this prompt.
 
 The strict `lua` fence rule applies in the preamble as it does everywhere in the body, whether or not the preamble holds Lua. A fence there whose label starts like `lua` must be an exact `lua` fence, or the parse fails with parse error kind `Fence` (see [Exact fence rules and fence errors](03-blocks-and-prose.md#exact-fence-rules-and-fence-errors)).
 
-A `lua` fence shown inside a longer fence stays prose, so the preamble can show a Lua fence as an example. A four-backtick `markdown` fence in the preamble can contain a three-backtick `lua extra` opener, and that inner line is never read as a fence of its own, so a preamble of notes that shows Lua this way is still commentary.
+A `lua` fence shown inside a longer fence stays prose, so the preamble can show a Lua fence as an example. A four-backtick `markdown` fence in the preamble can contain a three-backtick `lua extra` opener, and that inner line stays part of the outer fence, so a preamble of notes that shows Lua this way is still commentary.
 
 ### Prompts without sections
 
-A prompt needs no heading at all. Frontmatter and one Lua block is a complete prompt: the block is the preamble, and the preamble does all the work, as in the `one_block` prompt at the start of this chapter, which runs to the result `hello`. Such a prompt runs with or without a Lua `return`:
+Headings are optional. Frontmatter and one Lua block is a complete prompt: the block is the preamble, and the preamble does all the work, as in the `one_block` prompt at the start of this chapter, which runs to the result `hello`. Such a prompt runs with or without a Lua `return`:
 
 - When the preamble's Lua returns a value, that value is the run result, such as `hello`.
 - When the preamble's Lua has no `return`, or returns no value, the run ends with the generic result `done`.
 
-A prompt has no minimum number of sections either. A file with no heading and no `lua` fence has no section at all, and it is still a valid prompt, whose run ends with the same generic result `done`. The `frontmatter-only` prompt under [What the frontmatter holds](#what-the-frontmatter-holds) is one, and so is a file of frontmatter and prose:
+Sections are optional too. A file with no heading and no `lua` fence has no section at all, and it is still a valid prompt, whose run ends with the same generic result `done`. The `frontmatter-only` prompt under [What the frontmatter holds](#what-the-frontmatter-holds) is one, and so is a file of frontmatter and prose:
 
 ````markdown
 ---
@@ -924,7 +924,7 @@ Text.
 done
 ````
 
-However many keys the frontmatter declares, the prompt's work happens in the preamble and the sections, never in the frontmatter.
+However many keys the frontmatter declares, all of the prompt's work happens in the preamble and the sections.
 
 ## Section headings and nesting
 
@@ -1024,7 +1024,7 @@ Each `call` runs one child of `Steps` and gives back the value that child return
 
 ### Child sections
 
-Sections nest by heading level, so a deeper heading belongs to the section above it rather than starting another top-level section. A child section is a section whose heading sits one level below its parent's heading: an H3 after an H2 becomes that H2's child, and an H4 after that H3 becomes the H3's child. A `###` under a `##` is a level-3 child rather than a new top-level section, a `####` under that `###` is a level-4 grandchild, and each one has its own level and prose and can hold its own `lua` block. A child is named by the text of its heading without the `#` markers, so `### Helpers` after `## A` is A's first child, named Helpers. Sibling sections are sections that share a parent.
+Sections nest by heading level, so a deeper heading belongs to the section above it rather than starting another top-level section. A child section is a section whose heading sits one level below its parent's heading: an H3 after an H2 becomes that H2's child, and an H4 after that H3 becomes the H3's child. A `###` under a `##` is a level-3 child, a `####` under that `###` is a level-4 grandchild, and each one has its own level and prose and can hold its own `lua` block. A child is named by the text of its heading without the `#` markers, so `### Helpers` after `## A` is A's first child, named Helpers. Sibling sections are sections that share a parent.
 
 ````markdown
 ---
@@ -1074,15 +1074,15 @@ runvil: 0
 
 ### Section names
 
-A section name is the text of a section's heading without the leading `#` markers. It may contain several words separated by spaces, so `## Gather Background Research Notes` is named `Gather Background Research Notes`. A section name can be any nonblank text, including spaces and punctuation, and no other naming rule applies. A single lowercase word such as `helpers` works, and so do several words with spaces and any letter case, such as `Author note`, `Section Two`, or `Stop Early`.
+A section name is the text of a section's heading without the leading `#` markers. It may contain several words separated by spaces, so `## Gather Background Research Notes` is named `Gather Background Research Notes`. A section name can be any nonblank text, including spaces and punctuation, and that is the whole naming rule. A single lowercase word such as `helpers` works, and so do several words with spaces and any letter case, such as `Author note`, `Section Two`, or `Stop Early`.
 
 The name keeps only the visible text of the heading:
 
 - Whitespace around the heading's text is dropped from the name.
 - Inline code adds its text without the backticks, so the heading ``## Run `fetch` `` is named `Run fetch`.
-- Emphasis and link markup add only their visible text, so a link's URL never enters the name.
+- Emphasis and link markup add only their visible text, so a link's URL stays out of the name.
 
-Headings are read as plain CommonMark with no Markdown extensions, so extension syntax such as a trailing `{#id}` stays part of the section name.
+Headings are read as plain CommonMark, with every Markdown extension off, so extension syntax such as a trailing `{#id}` stays part of the section name.
 
 A section's name is how the section is found at run time: jumps, calls, reads, and fanout name a section by a section path, which is made of section names (see [Section paths](#section-paths)).
 
@@ -1090,9 +1090,9 @@ A section's name is how the section is found at run time: jumps, calls, reads, a
 
 A section's own content is the prose and Lua that follow its heading, up to the next heading of any level. So a parent's own prose and Lua are only the lines before its first child heading. In the `nesting` prompt, `Prepare`'s own prose is only `Gather the subject.`, and `Keep the subject short.` belongs to `### Author note`.
 
-A parent section's content excludes its child sections, and each child section keeps its own prose, separate from its parent's. Text written after a subheading belongs to that subheading, so a parent section's content never resumes after one of its child sections.
+A parent section's content excludes its child sections, and each child section keeps its own prose, separate from its parent's. Text written after a subheading belongs to that subheading, so a parent section's content ends at its first child heading.
 
-Blank lines between a heading and its first content line, and blank lines before the next heading, are not part of the section's content, while indentation on the first content line is kept. A section whose heading is followed only by blank lines has empty content. A section with an empty body is accepted and can still hold child sections, like `## A` and `### X` in the `tree` prompt.
+Blank lines between a heading and its first content line, and blank lines before the next heading, are dropped from the section's content, while indentation on the first content line is kept. A section whose heading is followed only by blank lines has empty content. A section with an empty body is accepted and can still hold child sections, like `## A` and `### X` in the `tree` prompt.
 
 ### What counts as a heading
 
@@ -1170,7 +1170,7 @@ section `Run` is an orphan H2 heading with no parent H1
 
 Here `# Late` makes H1 the top level, and `## Run` has no H1 above it. The error points at `## Run`, on line 7, column 1, and the missing parent level it names is the top level.
 
-A heading with no name text fails with parse error kind `Structure` too, at every level from `#` to `######`, because every heading needs text after trimming, and that text is the name that finds the section at run time. The message names the heading level, in the form `an H{level} section heading must not be empty`, so a bare `##` line reports:
+A heading whose name text is empty fails with parse error kind `Structure` too, at every level from `#` to `######`, because every heading needs text after trimming, and that text is the name that finds the section at run time. The message names the heading level, in the form `an H{level} section heading must not be empty`, so a bare `##` line reports:
 
 ````text
 an H2 section heading must not be empty
@@ -1229,13 +1229,13 @@ duplicate sibling section name `S`: first declared at line 6, again at line 10; 
 
 The message names the section and the lines of both headings. The line numbers count from the top of the prompt file, including the frontmatter, so with this four-line frontmatter the two `## S` headings are at lines 6 and 10. The failure also reports the prompt's frontmatter `name`, here `dup`, and the line and column of the second same-named heading, line 10, column 1. Its location covers that whole heading line and ends at line 11, column 1 (see [Location fields](16-limits-and-errors.md#location-fields)).
 
-This file has no `runvil:` key, which is fine for showing a parse error, because the version is checked only when a run starts.
+This file leaves out the `runvil:` key, which is fine for showing a parse error, because the version is checked only when a run starts.
 
 ### How sibling names are compared
 
 Sibling names are compared exactly as written, so names that differ only in letter case or inner spacing count as different sections. Within one set of siblings each section name is unique, so a section path names at most one section.
 
-The comparison uses section names, not raw heading lines. Because emphasis, link, and code-span markers add nothing to a name (see [Section names](#section-names)), sibling headings that differ only in Markdown markup share one name. So ``## Run `fetch` `` and `## Run fetch` under the same parent fail as duplicate siblings.
+The comparison uses section names, not raw heading lines. Because a name leaves out emphasis, link, and code-span markers (see [Section names](#section-names)), sibling headings that differ only in Markdown markup share one name. So ``## Run `fetch` `` and `## Run fetch` under the same parent fail as duplicate siblings.
 
 ### The sibling rules together
 
@@ -1303,7 +1303,7 @@ A section path has three forms:
 - `../name` names the sibling with that section name, which is another section under the same parent. A top-level section's siblings are the other top-level sections. From the preamble the top-level sections are siblings too, so `call('../Prepare')` written there runs `Prepare` (see [`jump` and `call` from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble)).
 - `/a/b` starts at the top-level sections and names one section per level, so `'/Prepare/Author note'` names the section `Author note` under the top-level section `Prepare`. A path from the top names the same section wherever it is written.
 
-The first two forms are relative paths. A relative path starts at the section its code is written in, and it names a neighbor of that section. The heading level plays no part in any path. A section is found by where it sits, so moving a section and its neighbors to another depth changes none of the paths between them.
+The first two forms are relative paths. A relative path starts at the section its code is written in, and it names a neighbor of that section. A path ignores the heading level. A section is found by where it sits, so moving a section and its neighbors to another depth keeps every path between them the same.
 
 Which forms a call takes depends on what the call does:
 
@@ -1320,7 +1320,7 @@ The four calls that run a section take only the relative forms, so each of them 
 
 ### Exact matching
 
-Each name in a path matches a section name exactly and case-sensitively, so `'worker'` never finds the section `Worker`. A section name can contain spaces, underscores, and punctuation, such as `Author note` or `house_style`, and the path writes it as it is.
+Each name in a path matches a section name exactly and case-sensitively, so `'worker'` misses the section `Worker`. A section name can contain spaces, underscores, and punctuation, such as `Author note` or `house_style`, and the path writes it as it is.
 
 Whitespace works like this:
 
@@ -1333,13 +1333,13 @@ Three characters need a backslash in front of them when they are part of a name:
 - A backslash is written `\\`.
 - The bracket of a name that ends in a bracketed whole number, such as `Appendix [2]`, is written `\[`, because a path over parsed text reads that ending as an index (see [Parsing Markdown with `markdown`](05-lua-environment.md#parsing-markdown-with-markdown)).
 
-A quoted Lua string doubles each backslash, so the section named `Input/Output` is `'Input\\/Output'`. A long-bracket string needs no doubling, as in `[[Input\/Output]]`.
+A quoted Lua string doubles each backslash, so the section named `Input/Output` is `'Input\\/Output'`. A long-bracket string writes each backslash once, as in `[[Input\/Output]]`.
 
 A section whose name is exactly `..` cannot be named by a path.
 
 ### Malformed section paths
 
-A malformed section path is never silently reinterpreted. It raises a Lua error instead (see [Raising and catching errors](05-lua-environment.md#raising-and-catching-errors)), and the message quotes the path, shown as `{path}` here:
+A malformed section path always raises a Lua error (see [Raising and catching errors](05-lua-environment.md#raising-and-catching-errors)), and the message quotes the path, shown as `{path}` here:
 
 | Problem | Message |
 |---|---|
@@ -1356,4 +1356,4 @@ A malformed section path is never silently reinterpreted. It raises a Lua error 
 
 `require` has its own message for a path that is not a string: `require takes a section path such as '/helpers', got {type}`.
 
-A well-formed path that names no section is not malformed. It is a miss, and [The not-found error](08-jump-and-call.md#the-not-found-error) covers what each call does with one.
+A well-formed path that names no section is a miss, and [The not-found error](08-jump-and-call.md#the-not-found-error) covers what each call does with one.
