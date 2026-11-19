@@ -987,7 +987,7 @@ Placeholders in the [pending prose](03-blocks-and-prose.md#pending-prose-and-the
 
 ### Render once
 
-Every placeholder in a block's `prose` renders at most once, on the first read of `prose` during the run, and the result is kept for every later read in that block. This is called render once. With this section in place of `Main` in the `lazy` prompt, the assertion passes and the run result is `The word is one.`:
+Every placeholder in a block's `prose` renders on the first read of `prose` during the run, and once a render succeeds, its result is kept for every later read in that block. This is called render once. With this section in place of `Main` in the `lazy` prompt, the assertion passes and the run result is `The word is one.`:
 
 ````markdown
 ## Main
@@ -1003,7 +1003,7 @@ return prose
 ```
 ````
 
-A block can read `prose` any number of times and always gets the same string, rendered against the section entry's `var`, `sys`, and globals as they stood at the first read. A value assigned only after that read, like `var.word = 'two'` here, never appears in the rendered text.
+A block can read `prose` any number of times, and from the first read that succeeds it always gets the same string, rendered against the section entry's `var`, `sys`, and globals as they stood at that read. A value assigned only after that read, like `var.word = 'two'` here, never appears in the rendered text. The Engine keeps the text only after a render succeeds, so when a `pcall` catches a failed read, the next read of `prose` renders again, against the values as they stand then.
 
 ### Each prose and Lua pair renders on its own
 
@@ -1246,7 +1246,7 @@ A substitution kind classifies a substitution failure, and every failure has exa
 | `NilItem` | `{{ item }}` where no item is seeded | `{{ item }} is nil (no item is seeded into this section)` |
 | `Serialize` | A global that is not JSON data, and `{{ prose }}` | `global '{name}' in {{ {path} }} is not JSON data` |
 
-In the messages, `{path}` stands for the placeholder's path, `{name}` for the global's name, and `{namespace}` for the root you wrote.
+In the messages, `{path}` stands for the placeholder's path and `{name}` for the global's name.
 
 ### Unclosed and EmptySegment
 
@@ -1254,7 +1254,7 @@ Substitution kind `Unclosed` comes from a `{{` with no `}}` anywhere later in th
 
 ### BadPath and UnknownNamespace
 
-Substitution kind `BadPath` comes from `{{ var }}` or `{{ sys }}` with no key, because these two roots always need a key and only bare globals render whole values, and its message names the root you wrote, either `bad path: {{ var }}` or `bad path: {{ sys }}`.
+Substitution kind `BadPath` comes from `{{ var }}` or `{{ sys }}` with no key, because these two roots always need a key, while `{{ args }}`, `{{ item }}`, and a bare global name can each render a whole value. Its message names the root you wrote, either `bad path: {{ var }}` or `bad path: {{ sys }}`.
 
 Substitution kind `UnknownNamespace` comes from a path, bare or dotted, whose first segment is other than a built-in root and names a Lua global that reads as nil, and it fails the read of `prose` as a hard error. The message names the missing segment and the path, so the prose `{{ ghost }} here.` fails with `unknown namespace or global 'ghost' in {{ ghost }}`, a placeholder naming an unset global `x` fails with `unknown namespace or global 'x' in {{ x }}`, and the prose `prefix {{ ghost.x }}` fails with a message that names the path `ghost.x`. `{{ reply }}` with no `reply` global fails the read the same way. A misspelled root, a `local` variable, and a nil global all produce it, because any first segment other than `var`, `sys`, `args`, or `item` is looked up only among Lua globals, which never include a `local`, and a nil global counts as absent.
 
