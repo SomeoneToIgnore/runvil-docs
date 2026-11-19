@@ -462,7 +462,7 @@ Whether a `thinking` requirement is met depends on the thinking capability of th
 
 `thinking: true` fails only on a model that never thinks, and `thinking: false` fails only on a model that always thinks, so a model whose thinking is switchable meets both. A `thinking: false` role on a switchable model prepares and runs, with thinking turned off on its requests, and a `thinking: true` role turns thinking on for its requests (see [The thinking switch](10-models.md#the-thinking-switch)).
 
-The run checks only `min_context` and `thinking`, the two keys a role can declare. A role that leaves both undeclared, such as `fast: {}`, passes the check on every model, even a 32000-token model that never thinks.
+The run checks only `min_context` and `thinking`, the two keys a role can declare. A role that leaves both out, such as `fast: {}`, passes the check on every model, even a 32000-token model that never thinks.
 
 The check covers the `models:` requirements of every listed prompt as well as those of the run's own prompt, each against the model that fills the role in this run. A shortfall in a listed prompt refuses the run in the same way, and its notice lines start with that prompt's name (see [How the gaps are gathered](#how-the-gaps-are-gathered)).
 
@@ -484,7 +484,7 @@ So a `small` role with `thinking: false` on a model that always thinks gives `- 
 
 ### A role map without a default entry
 
-A role map that has entries but lacks one for `default` is missing the model the run falls back on. The run is refused on its first step, the declared role requirements go unchecked, and the notice holds one model line, whatever role requirements the prompt declares:
+A role map that has entries but lacks one for `default` is missing the model the run falls back on. The run is refused on its first step, the declared role requirements are never checked, and the notice holds one model line, whatever role requirements the prompt declares:
 
 ````text
 the environment cannot satisfy this prompt:

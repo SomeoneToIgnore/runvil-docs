@@ -2058,7 +2058,7 @@ Without the first, the result would hold the line `last# B`. Without the second,
 | A `source` is not a string | `markdown.render: blocks[1].source must be a string, got integer` |
 | A section's `blocks` is not a list | `markdown.render: blocks[1].blocks must be a list of blocks, got integer` |
 
-Every other field goes unchecked, and `kind` and `line` are optional.
+The other fields are never checked, and `kind` and `line` are optional.
 
 ### Keeping parsed blocks
 
@@ -2944,7 +2944,7 @@ the environment cannot satisfy this prompt:
 
 The refusal is a guarantee: in a run of a prompt that declares `user`, the main chain always has an operator to answer its `tasks.receive()`, so it can skip any check before it waits.
 
-A prompt that leaves `user` undeclared stays clear of this refusal, unless a prompt that it lists under [`prompts:`](08-jump-and-call.md#listing-prompts-under-prompts), directly or through another listed prompt, declares it. Its main chain can still call `tasks.receive()` in a run with no user, and the call waits all the same, because a Host can send the run messages from its own code.
+A prompt that leaves `user` out of its declared Packs stays clear of this refusal, unless a prompt that it lists under [`prompts:`](08-jump-and-call.md#listing-prompts-under-prompts), directly or through another listed prompt, declares it. Its main chain can still call `tasks.receive()` in a run with no user, and the call waits all the same, because a Host can send the run messages from its own code.
 
 ### Running with or without a user
 

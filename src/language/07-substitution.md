@@ -1074,7 +1074,7 @@ The run result is:
 ok
 ````
 
-Markdown renders only when a Lua block reads it through `prose`, so a malformed or unresolvable placeholder in unread Markdown stays harmless, and the prompt still loads and runs. Both placeholders above the block go unevaluated, because the block never reads `prose`. The same holds for prose after a section's last Lua fence, like the trailing line here, and for prose in a section with no Lua fence after it, such as a section `First` that holds only `{{ var.missing }} is never read here.` The preamble follows the same rule: unread prose there stays unrendered, even when a placeholder in it would fail or render empty, such as `{{ var.omit }}` after `var.omit = ''`.
+Markdown renders only when a Lua block reads it through `prose`, so a malformed or unresolvable placeholder in unread Markdown stays harmless, and the prompt still loads and runs. The two placeholders above the block are never evaluated, because the block never reads `prose`. The same holds for prose after a section's last Lua fence, like the trailing line here, and for prose in a section with no Lua fence after it, such as a section `First` that holds only `{{ var.missing }} is never read here.` The preamble follows the same rule: unread prose there never renders, even when a placeholder in it would fail or render empty, such as `{{ var.omit }}` after `var.omit = ''`.
 
 ### Parsing keeps placeholders
 
@@ -1154,7 +1154,7 @@ An escape is a backslash that makes the character after it literal, and three es
 | `\}}` | `}}` |
 | `\\` | `\` |
 
-`\{{` emits a literal `{{` without starting a placeholder, `\}}` emits a literal `}}`, and `\\` emits a single backslash. Only the two characters `{{` open a placeholder, so a single `{` passes through as literal text, and so does a `}}` that stands outside a placeholder: the prose `Set {x} and close }} here.` comes back exactly as written. That is why the `}}` after `\{{ args` above can stay unescaped.
+`\{{` emits a literal `{{` without starting a placeholder, `\}}` emits a literal `}}`, and `\\` emits a single backslash. Only the two characters `{{` open a placeholder, so a single `{` passes through as literal text, and so does a `}}` that stands outside a placeholder: the prose `Set {x} and close }} here.` comes back exactly as written. That is why the `}}` after `\{{ args` above can stay as written.
 
 A backslash before a single `{` or `}` is consumed too, so `\{` emits `{` and `\}` emits `}`, and the backslash drops out of the rendered text. A backslash before any other character, or a backslash at the very end of the prose, stays as an ordinary backslash, so Windows paths such as `C:\temp\new`, text such as `\n`, and regex text such as `\d+` render as written, and `a\b` renders `a\b`. Where the rendered text needs two backslashes in a row, write `\\\\`, because each `\\` pair becomes one backslash.
 

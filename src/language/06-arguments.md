@@ -551,7 +551,7 @@ The root got `limit`, the `opts` object the caller sent got `depth`, and the fir
 
 ### Defaults inside an object the caller leaves out
 
-An object field with no `default` stays absent when the caller leaves it out, and the defaults inside it go unused, because a default needs an object to hold it. Under the declaration above, the arguments `{}` give:
+An object field with no `default` stays absent when the caller leaves it out, and the defaults inside it are not filled in, because a default needs an object to hold it. Under the declaration above, the arguments `{}` give:
 
 ````text
 {"limit":3}

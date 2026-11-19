@@ -1968,7 +1968,7 @@ While a library block runs, the [`prose` global](#pending-prose-and-the-prose-gl
 Each Lua block in a library section pairs with the prose block right before it, and that Markdown is what the block's `prose` renders from:
 
 - A Lua block with no prose block right before it, including a `lua` fence that directly follows another `lua` fence, pairs with empty prose.
-- Prose after the last Lua block of a library section stays unpaired and is left out of the loaded library.
+- Prose after the last Lua block of a library section is left out of the loaded library.
 
 A library block's `prose` is lazy. It renders from that block's own prose when the block first reads it, at most once, against the live `sys` values at that moment, and prose with no placeholders reads back verbatim. Its [placeholders](07-substitution.md#placeholders-in-prose) render from the calling section's state, meaning its `var`, its live `sys` values, and its globals, never from a separate library state:
 
