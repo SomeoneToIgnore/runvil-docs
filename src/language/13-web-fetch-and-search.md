@@ -509,15 +509,16 @@ Because fetch drops a `#fragment` from the `url` argument before the request (se
 
 ### Search failures
 
-A `web/search` call whose arguments are accepted can still fail on the network or at the gateway, and every search failure is a hard failure that fails the call. A failed `web/search` call has a tool error kind that tells the causes apart. Results that the tool cannot render as JSON text fail the call with tool error kind `Other` and the message `web_search: the results could not be rendered`, and every other failure has one of these three kinds:
+A `web/search` call whose arguments are accepted can still fail on the network or at the gateway, and every search failure is a hard failure that fails the call. A failed `web/search` call has a tool error kind that tells the causes apart:
 
 | Tool error kind | Cause |
 |---|---|
 | `InvalidArguments` | The search refused the call's arguments |
 | `Transport` | The search request failed |
 | `Backend` | The backend failed or sent a malformed response |
+| `Other` | The tool could not render the results as JSON text, and the message is `web_search: the results could not be rendered` |
 
-[Search argument rules and search errors](#search-argument-rules-and-search-errors) gives the message for each search failure.
+[Search argument rules and search errors](#search-argument-rules-and-search-errors) gives the message for each failure of the first three kinds.
 
 ## Calling web tools from Lua and from the model
 
@@ -579,7 +580,7 @@ An uncaught search failure ends the run the same way, with the tool code its too
 
 ### Messages reach you unchanged
 
-A web tool's output and errors reach the caller exactly as the fetch or search tool produces them, and the Pack passes them on as they are. A caught error's message only gains the call's `{file}:{line}: ` in front, and a model reads the message alone. The tools' own messages keep fixed prefixes. Fetch argument errors start with `web_fetch:`, such as `web_fetch: missing url argument`, `web_fetch: max_chars must be a positive integer`, and `web_fetch: raw must be a boolean`. Every search error starts with `web_search:`, such as `web_search: malformed search response: ...` and `web_search: the results could not be rendered`.
+The Pack passes a web tool's output and errors on as the fetch or search tool produces them, and what the caller reads of an error is the tool's message. A caught error's message only gains the call's `{file}:{line}: ` in front, and a model reads the message alone. A cause that the tool keeps beside its message stays in the tool's own error. The tools' own messages keep fixed prefixes. Fetch argument errors start with `web_fetch:`, such as `web_fetch: missing url argument`, `web_fetch: max_chars must be a positive integer`, and `web_fetch: raw must be a boolean`. Every search error starts with `web_search:`, such as `web_search: malformed search response: ...` and `web_search: the results could not be rendered`.
 
 ### Offering a web tool to the model
 
