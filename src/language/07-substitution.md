@@ -190,7 +190,7 @@ This means the same as `Input: {{ args }}`.
 
 ### The segment rules
 
-Every segment must be nonempty, and no segment may start or end with whitespace. Spaces between other characters are fine, and the segment text is used as the key unchanged, so a key that contains a space is reached by writing it as is:
+Every segment must be nonempty, and whitespace at the start or end of a segment is an error. Spaces between other characters are fine, and the segment text is used as the key unchanged, so a key that contains a space is reached by writing it as is:
 
 ````markdown
 ---
@@ -379,11 +379,11 @@ id {{ sys.id }} at {{ sys.when }}
 
 The run decides which `sys` fields exist. A placeholder that names a field that does not exist, such as `{{ sys.bogus }}`, fails like any missing key, with substitution kind `MissingKey` and a message that repeats the placeholder after `missing`, here `missing {{ sys.bogus }}`.
 
-Once the section entry has made its first tool call (see [Calling tools from Lua and counting calls](12-tools.md#calling-tools-from-lua-and-counting-calls)), `{{ sys.model }}` inserts the name part of the model id of the entry's model, without the server namespace, such as `fast` for a model whose id is `gateway/fast` (see [The bound model in `sys.model`](05-lua-environment.md#the-bound-model-in-sysmodel)). Before that call `sys` has no `model` field, so a Lua block that reads `sys.model` first fails with `unknown sys field 'model'`, and the placeholder fails like any missing `sys` field.
+Once the section entry has made its first tool call (see [Calling tools from Lua and counting calls](12-tools.md#calling-tools-from-lua-and-counting-calls)), `{{ sys.model }}` inserts the name part of the model id of the entry's model, without the server namespace, such as `fast` for a model whose id is `gateway/fast` (see [The bound model in `sys.model`](05-lua-environment.md#the-bound-model-in-sysmodel)). The run adds the `model` field to `sys` at that call, when the entry has a model, so before the call a Lua block that reads `sys.model` fails with `unknown sys field 'model'`, and the placeholder fails like any missing `sys` field.
 
 ### The moment `var` and `sys` are read
 
-When a block reads `prose`, each `var` placeholder renders from the section entry's own `var` table as it stands at the first read, so a later change such as `var.word = 'changed'` does not change the text that later reads return. `sys` is read as it stands at that same moment, and the read sees the live `sys`, so a `sys` field the run adds after the Lua block starts but before that first read, such as `sys.model` after a tool call, is visible in the rendered text. [When substitution happens](#when-substitution-happens) covers this timing in full.
+When a block reads `prose`, each `var` placeholder renders from the section entry's own `var` table as it stands at the first read, so later reads return the same text even after a change such as `var.word = 'changed'`. `sys` is read as it stands at that same moment, and the read sees the live `sys`, so a `sys` field the run adds after the Lua block starts but before that first read, such as `sys.model` after a tool call, is visible in the rendered text. [When substitution happens](#when-substitution-happens) covers this timing in full.
 
 ### `var` in preamble prose
 
@@ -454,7 +454,7 @@ Run with the arguments `{"query":"papers","n":2}`, the run result is:
 Whole: {"n":2,"query":"papers"}; Field: papers
 ````
 
-`args` is the root a placeholder reads arguments from, and one line of prose can use both of its forms, as this one does. `{{ args }}` with no key path inserts the whole arguments, the object held in [`args`](06-arguments.md#reading-arguments-from-args). It renders as compact JSON with object keys in sorted order, not the order the arguments list them, so the rendered value has no spaces, `n` comes before `query`, and the integer `2` has no decimal part. `got {{ args }}` with the same arguments renders `got {"n":2,"query":"papers"}`. A field the arguments leave out is not in the object, so with the arguments `{"query":"papers"}` the same prose renders `got {"query":"papers"}`.
+`args` is the root a placeholder reads arguments from, and one line of prose can use both of its forms, as this one does. `{{ args }}` with no key path inserts the whole arguments, the object held in [`args`](06-arguments.md#reading-arguments-from-args). It renders as compact JSON with object keys in sorted order, not the order the arguments list them, so the rendered value has no spaces, `n` comes before `query`, and the integer `2` renders as plain digits. `got {{ args }}` with the same arguments renders `got {"n":2,"query":"papers"}`. A field the arguments leave out is not in the object, so with the arguments `{"query":"papers"}` the same prose renders `got {"query":"papers"}`.
 
 ### Fields at any depth
 
@@ -524,11 +524,11 @@ Here `args.text` equals `'hello there'` in Lua too. With the arguments `{}`, `ar
 
 ### Dotted paths that fail
 
-A dotted `args` path that names a field the arguments do not hold, or that continues past a string, a number, or a boolean, fails with substitution kind `MissingKey` and a message of the form `missing {{ {path} }}`, and it never renders an empty string. So `{{ args.note }}` fails with `missing {{ args.note }}` when the arguments leave the optional field `note` out, and `{{ args.query.x }}` with a string `query` fails with `missing {{ args.query.x }}`. A path does not index a list either: with the list `["a.md","b.md"]` in `files`, `{{ args.files }}` renders the whole list as `["a.md","b.md"]`, and `{{ args.files.1 }}` fails with `missing {{ args.files.1 }}`.
+A dotted `args` path that names a field the arguments do not hold, or that continues past a string, a number, or a boolean, fails with substitution kind `MissingKey` and a message of the form `missing {{ {path} }}`, and it never renders an empty string. So `{{ args.note }}` fails with `missing {{ args.note }}` when the arguments leave the optional field `note` out, and `{{ args.query.x }}` with a string `query` fails with `missing {{ args.query.x }}`. A path that aims a segment at a list element fails the same way: with the list `["a.md","b.md"]` in `files`, `{{ args.files }}` renders the whole list as `["a.md","b.md"]`, and `{{ args.files.1 }}` fails with `missing {{ args.files.1 }}`.
 
 A path that lands on a null fails with substitution kind `NullValue` and a message of the same form. Only an object that says `additionalProperties: true`, which lets it take fields it does not declare, can hold a null, and only in such a field. In a declared field a null counts as the field left out, or ends the run when the field is required (see [Missing fields and null values](06-arguments.md#missing-fields-and-null-values)). So with `extra` declared as such an object, the arguments `{"extra":{"k":null}}` make `{{ args.extra.k }}` fail with `missing {{ args.extra.k }}` and substitution kind `NullValue`, while the arguments `{"note":null}` make `{{ args.note }}` fail with substitution kind `MissingKey`, the same as arguments with no `note` at all.
 
-A field that has a `default` is never missing, because it gets the default when the arguments leave it out (see [Required arguments, defaults, and descriptions](06-arguments.md#required-arguments-defaults-and-descriptions)), so with `default: quick` on a string field `depth`, `{{ args.depth }}` renders `quick` under the arguments `{}`.
+A field that has a `default` is always present, because it gets the default when the arguments leave it out (see [Required arguments, defaults, and descriptions](06-arguments.md#required-arguments-defaults-and-descriptions)), so with `default: quick` on a string field `depth`, `{{ args.depth }}` renders `quick` under the arguments `{}`.
 
 ### Keeping a value of your own in `var`
 
@@ -564,7 +564,7 @@ Query: everything
 
 Run with the arguments `{"query":"papers"}`, the run result is `Query: papers`.
 
-An `args` placeholder reads the same value the section's Lua reads from `args`. No code can change that value, because `args` is read-only in every section (see [`args` is read-only](06-arguments.md#args-is-read-only)), so `{{ args.query }}` renders the `query` the arguments hold, and fails when they hold none. A prompt that builds its own value keeps it in `var` and writes `{{ var.query }}`, as this one does: its preamble copies `args.query` into `var.query` when the arguments hold a query and stores a query of its own when they do not, and the prose of `First` renders whichever value `var` holds.
+An `args` placeholder reads the same value the section's Lua reads from `args`. That value stays fixed, because `args` is read-only in every section (see [`args` is read-only](06-arguments.md#args-is-read-only)), so `{{ args.query }}` renders the `query` the arguments hold, and fails when they leave it out. A prompt that builds its own value keeps it in `var` and writes `{{ var.query }}`, as this one does: its preamble copies `args.query` into `var.query` when the arguments hold a query and otherwise stores a query of its own, and the prose of `First` renders whichever value `var` holds.
 
 ### Arguments in called chains and tasks
 
@@ -647,7 +647,7 @@ Run with the arguments `{"text":"original"}`, the run result is:
 Input: original
 ````
 
-The local hides the `args` global from the Lua after it, and the placeholder still reads the chain's arguments. No block can give the global itself another value, because an assignment such as `args = { text = 'changed' }` raises ``args is read-only: assign to `var` or a section global instead`` (see [`args` is read-only](06-arguments.md#args-is-read-only)). Only placeholder names that are not built-in sources fall through to Lua globals, as [Inserting Lua globals by bare name](#inserting-lua-globals-by-bare-name) describes.
+The local hides the `args` global from the Lua after it, and the placeholder still reads the chain's arguments. The global itself keeps its value in every block, because an assignment such as `args = { text = 'changed' }` raises ``args is read-only: assign to `var` or a section global instead`` (see [`args` is read-only](06-arguments.md#args-is-read-only)). Only placeholder names other than the built-in sources fall through to Lua globals, as [Inserting Lua globals by bare name](#inserting-lua-globals-by-bare-name) describes.
 
 ## Inserting the fanout or task `item`
 
@@ -686,7 +686,7 @@ In a [fanout arm](14-fanout.md#what-an-arm-sees), an `item` placeholder, `{{ ite
 
 ### How an item renders
 
-`{{ item }}` renders the seeded item of a fanout arm or of a task by its type. Every type has a rendering and none of them is an error, so a non-string item renders instead of failing:
+`{{ item }}` renders the seeded item of a fanout arm or of a task by its type. Every type has a rendering, so a non-string item renders instead of failing:
 
 | Item | Renders as |
 |---|---|
@@ -724,11 +724,11 @@ return prose
 
 The collection holds one member, the table `{7, 'x'}`, so the run's single arm reads `Item: [7,"x"].` from `prose`, and the run result is `done`. The `{{` in the Lua block is Lua source, so it is a table constructor and never a placeholder.
 
-In a keyed collection (see [Collections and member order](14-fanout.md#collections-and-member-order)), each member reaches its arm as a table with `key` and `value` fields, and `{{ item }}` renders the whole pair, so the member `{key='alpha', value=1}` renders as `{"key":"alpha","value":1}`. An item holding JSON null renders as the text `null`, while every other root fails on a null value with a message of the form `missing {{ {path} }}`. An `item` that is nil because none is seeded still fails, as [No item outside an arm or task](#no-item-outside-an-arm-or-task) shows.
+In a keyed collection (see [Collections and member order](14-fanout.md#collections-and-member-order)), each member reaches its arm as a table with `key` and `value` fields, and `{{ item }}` renders the whole pair, so the member `{key='alpha', value=1}` renders as `{"key":"alpha","value":1}`. An item holding JSON null renders as the text `null`, while every other root fails on a null value with a message of the form `missing {{ {path} }}`. An `item` that is nil in an unseeded section still fails, as [No item outside an arm or task](#no-item-outside-an-arm-or-task) shows.
 
 ### Where an item is seeded
 
-`{{ item }}` works only where an item is seeded: the first section a fanout arm enters, or the first section of a task started with an `item` option. A spawned chain's first section consumes its seeds, so every later section that chain enters has no item, and neither does any other chain. Each fanout arm is spawned the same way as a task, with the arm's member as its `item`. To seed a task, pass `item` in the options of [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn):
+`{{ item }}` works only where an item is seeded: the first section a fanout arm enters, or the first section of a task started with an `item` option. A spawned chain's first section consumes its seeds, so the item is nil in every later section that chain enters and in any other chain. Each fanout arm is spawned the same way as a task, with the arm's member as its `item`. To seed a task, pass `item` in the options of [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn):
 
 ````lua
 tasks.spawn('../Child', { item = 'alpha' })
@@ -811,11 +811,11 @@ The answer is 42; score 9; raw {"score":9}.
 
 Any placeholder whose first segment is not one of the built-in sources `args`, `item`, `var`, or `sys` reads the section-local Lua global of that name. That is a bare global, a global set without `local`, such as `answer = 42`. `{{ name }}` with no further segments renders the global's whole value, with a table rendered as compact JSON with no spaces, so `{{ data }}` renders `{"score":9}` and the global `row = { a = 1 }` makes `{{ row }}` render `{"a":1}`. This is where bare globals differ from `var` and `sys`, where `{{ var }}` or `{{ sys }}` with no key stays an error.
 
-`{{ name.key }}` indexes into a bare global with the same dotted-path rules `var` and `sys` use, one key per segment, so `{{ data.score }}` inserts one field of the table held in `data`. A longer dotted path walks into nested tables held in the global, so with `row = { a = { b = 2 } }` the prose `cell {{ row.a.b }}` renders `cell 2`. A key that is not there fails with substitution kind `MissingKey`.
+`{{ name.key }}` indexes into a bare global with the same dotted-path rules `var` and `sys` use, one key per segment, so `{{ data.score }}` inserts one field of the table held in `data`. A longer dotted path walks into nested tables held in the global, so with `row = { a = { b = 2 } }` the prose `cell {{ row.a.b }}` renders `cell 2`. A path whose key is absent fails with substitution kind `MissingKey`.
 
 ### Which values a bare global can hold
 
-A bare global that holds data, meaning a string, number, boolean, or table, is converted to its JSON form when a placeholder names it, and a global holding a function, userdata, or coroutine thread is refused. The one userdata that converts is [`json.null`](05-lua-environment.md#encoding-and-decoding-json-with-json), which becomes JSON null, so after `nothing = json.null` the placeholder `{{ nothing }}` fails with substitution kind `NullValue` and the message `missing {{ nothing }}`, the same failure as a `var` path that lands on JSON null. A `local` variable is not a global, so no placeholder reaches it, and a name held only in a `local` reads as unset. A global that holds nil counts as unset rather than as a value. The four built-in roots `args`, `item`, `var`, and `sys` are matched before any global lookup and always win over a Lua global of the same name, so a global with one of those names is never reached by bare name.
+A bare global that holds data, meaning a string, number, boolean, or table, is converted to its JSON form when a placeholder names it, and a global holding a function, userdata, or coroutine thread is refused. The one userdata that converts is [`json.null`](05-lua-environment.md#encoding-and-decoding-json-with-json), which becomes JSON null, so after `nothing = json.null` the placeholder `{{ nothing }}` fails with substitution kind `NullValue` and the message `missing {{ nothing }}`, the same failure as a `var` path that lands on JSON null. A `local` variable is not a global, so it stays out of every placeholder's reach, and a name held only in a `local` reads as unset. A global that holds nil counts as unset rather than as a value. The four built-in roots `args`, `item`, `var`, and `sys` are matched before any global lookup and always win over a Lua global of the same name, so a global with one of those names is never reached by bare name.
 
 ### When the global is set
 
@@ -892,7 +892,7 @@ The run fails with this message, which gives the substitution's own text in the 
 global 'f' in {{ f }} is not JSON data [Serialize at byte 5]: global `f` is a function; bare globals in prose must be JSON data (at not_data.md:13)
 ````
 
-A caught error value names neither the Lua type nor the lookup's reason, so when `tostring(err)` says `is not JSON data`, check what the global holds.
+A caught error value leaves out the Lua type and the lookup's reason, so when `tostring(err)` says `is not JSON data`, check what the global holds.
 
 The section entry's `messages` list, and each [message record](11-conversations.md#message-records) read from it, are userdata, so a bare name whose global holds one fails under the same rule. After `messages:user('u')`, with `list = messages` and `record = messages[1]`, both `{{ list }}` and `{{ record }}` fail with substitution kind `Serialize`. A global holding `json.null` fails with substitution kind `NullValue` instead, as [Which values a bare global can hold](#which-values-a-bare-global-can-hold) describes. Under a strict `_G` metatable whose `__index` raises an error for unknown names, a bare name with no global fails at the `prose` read with substitution kind `Serialize` and the `is not JSON data` message, not `UnknownNamespace`, because the raised error comes back as a failed lookup.
 
@@ -1046,7 +1046,7 @@ The second fence's `prose` is `First: one.`, which `var.first` keeps, and the th
 
 ### Errors appear at the read
 
-Because rendering happens at the read, a bad placeholder costs nothing until the `prose` read that renders it. A substitution error is raised where your code touches `prose`, such as at `return prose`, not when the file is parsed and not when the section starts, and its location still names the placeholder's own line (see [What the error value holds](#what-the-error-value-holds)). When `return prose` is a block's only Lua, a placeholder such as `{{ reply }}` with no `reply` global fails right at that read. The prose `Missing: {{ var.missing }}.` with `return prose` fails the run with `missing {{ var.missing }}`, while the same kind of bad placeholder above a block that only does `return 'ok'` yields `ok`. Since the block starts normally, it can also catch the failure: `pcall(function() return prose end)` catches the `{{ var.missing }}` error, and the block can go on to return `caught`.
+Because rendering happens at the read, a bad placeholder stays harmless until the `prose` read that renders it. A substitution error is raised where your code touches `prose`, such as at `return prose`, not when the file is parsed and not when the section starts, and its location still names the placeholder's own line (see [What the error value holds](#what-the-error-value-holds)). When `return prose` is a block's only Lua, a placeholder such as `{{ reply }}` with no `reply` global fails right at that read. The prose `Missing: {{ var.missing }}.` with `return prose` fails the run with `missing {{ var.missing }}`, while the same kind of bad placeholder above a block that only does `return 'ok'` yields `ok`. Since the block starts normally, it can also catch the failure: `pcall(function() return prose end)` catches the `{{ var.missing }}` error, and the block can go on to return `caught`.
 
 ### Prose that is never read
 
@@ -1074,11 +1074,11 @@ The run result is:
 ok
 ````
 
-Markdown that no Lua block reads through `prose` never renders, so a malformed or unresolvable placeholder in it causes no error, and the prompt still loads and runs. Neither placeholder above the block is evaluated, because the block never reads `prose`. The same holds for prose after a section's last Lua fence, like the trailing line here, and for prose in a section with no Lua fence after it, such as a section `First` that holds only `{{ var.missing }} is never read here.` The preamble follows the same rule: prose there that no block reads never renders, even when a placeholder in it would fail or render empty, such as `{{ var.omit }}` after `var.omit = ''`.
+Markdown renders only when a Lua block reads it through `prose`, so a malformed or unresolvable placeholder in unread Markdown stays harmless, and the prompt still loads and runs. Both placeholders above the block go unevaluated, because the block never reads `prose`. The same holds for prose after a section's last Lua fence, like the trailing line here, and for prose in a section with no Lua fence after it, such as a section `First` that holds only `{{ var.missing }} is never read here.` The preamble follows the same rule: unread prose there stays unrendered, even when a placeholder in it would fail or render empty, such as `{{ var.omit }}` after `var.omit = ''`.
 
 ### Parsing keeps placeholders
 
-Parsing keeps every placeholder exactly as written, and nothing renders until the run reads `prose`. A section whose own text ends with `{{ x }}` parses with no substitution error for the unknown `x`. Even when a Lua block before the prose sets `var.before`, the parsed prose is still literally `Ask about {{ var.before }}.`, and during the run a placeholder resolves against the values as set just before the block's read. A placeholder in preamble prose stays verbatim in the parsed prompt too, as in `Plan {{ args.text }}.`, and so does `Write about {{ var.subject }}.` in a section.
+Parsing keeps every placeholder exactly as written, and rendering waits until the run reads `prose`. A section whose own text ends with `{{ x }}` still parses, even though `x` is unknown. Even when a Lua block before the prose sets `var.before`, the parsed prose is still literally `Ask about {{ var.before }}.`, and during the run a placeholder resolves against the values as set just before the block's read. A placeholder in preamble prose stays verbatim in the parsed prompt too, as in `Plan {{ args.text }}.`, and so does `Write about {{ var.subject }}.` in a section.
 
 ### Prose in the preamble
 
@@ -1154,15 +1154,15 @@ An escape is a backslash that makes the character after it literal, and three es
 | `\}}` | `}}` |
 | `\\` | `\` |
 
-`\{{` emits a literal `{{` without starting a placeholder, `\}}` emits a literal `}}`, and `\\` emits a single backslash. Only the two characters `{{` open a placeholder, so a single `{` passes through as literal text, and so does a `}}` that closes no open placeholder: the prose `Set {x} and close }} here.` comes back exactly as written. That is why the `}}` after `\{{ args` above needs no escape.
+`\{{` emits a literal `{{` without starting a placeholder, `\}}` emits a literal `}}`, and `\\` emits a single backslash. Only the two characters `{{` open a placeholder, so a single `{` passes through as literal text, and so does a `}}` that stands outside a placeholder: the prose `Set {x} and close }} here.` comes back exactly as written. That is why the `}}` after `\{{ args` above can stay unescaped.
 
-A backslash before a single `{` or `}` is consumed too, so `\{` emits `{` and `\}` emits `}`, with no backslash left in the rendered text. A backslash before any other character, or a backslash at the very end of the prose, stays as an ordinary backslash, so Windows paths such as `C:\temp\new`, text such as `\n`, and regex text such as `\d+` need no doubling, and `a\b` renders `a\b`. Where the rendered text needs two backslashes in a row, write `\\\\`, because each `\\` pair becomes one backslash.
+A backslash before a single `{` or `}` is consumed too, so `\{` emits `{` and `\}` emits `}`, and the backslash drops out of the rendered text. A backslash before any other character, or a backslash at the very end of the prose, stays as an ordinary backslash, so Windows paths such as `C:\temp\new`, text such as `\n`, and regex text such as `\d+` render as written, and `a\b` renders `a\b`. Where the rendered text needs two backslashes in a row, write `\\\\`, because each `\\` pair becomes one backslash.
 
 ### Placeholders inside code samples and comments
 
-Substitution works on the raw Markdown text and does no Markdown parsing, so placeholders render anywhere in the pending prose, including inline code, code blocks that are not `lua` fences, and HTML comments. An unescaped `{{` in a code sample is a live placeholder. Fences such as a `json` fence, or a fence whose info string is `text lua`, stay in the section prose exactly as written, and the comment `<!-- written for {{ args.text }} -->` run with the arguments `{"text":"docs"}` renders `<!-- written for docs -->`.
+Substitution works on the raw Markdown text and reads Markdown syntax as plain text, so placeholders render anywhere in the pending prose, including inline code, code blocks other than `lua` fences, and HTML comments. An unescaped `{{` in a code sample is a live placeholder. Fences such as a `json` fence, or a fence whose info string is `text lua`, stay in the section prose exactly as written, and the comment `<!-- written for {{ args.text }} -->` run with the arguments `{"text":"docs"}` renders `<!-- written for docs -->`.
 
-To show a placeholder literally, even inside inline code, escape the opening as `\{{`. The `}}` after it then closes nothing and passes through with no escape needed:
+To show a placeholder literally, even inside inline code, escape the opening as `\{{`. The `}}` after it then stands outside any placeholder and passes through unescaped:
 
 ````markdown
 Insert a value with `\{{ var.name }}`.
@@ -1176,7 +1176,7 @@ Insert a value with `{{ var.name }}`.
 
 ### Escapes next to live placeholders
 
-Escapes compose, and each one resolves on its own, so an escaped `\{{` can sit directly before a live placeholder that still resolves. With the arguments `{"text":"Acme Corp"}`, `\{{x}}{{ args.text }}` renders `{{x}}Acme Corp`: the first delimiter is escaped, and the second is live and resolved. To put a literal backslash directly before a live placeholder, write `\\` there, as in `C:\\{{ var.dir }}`, which renders `C:\` followed by the value of `var.dir`. A single backslash before `{{` escapes it instead, so that placeholder is not resolved.
+Escapes compose, and each one resolves on its own, so an escaped `\{{` can sit directly before a live placeholder that still resolves. With the arguments `{"text":"Acme Corp"}`, `\{{x}}{{ args.text }}` renders `{{x}}Acme Corp`: the first delimiter is escaped, and the second is live and resolved. To put a literal backslash directly before a live placeholder, write `\\` there, as in `C:\\{{ var.dir }}`, which renders `C:\` followed by the value of `var.dir`. A single backslash before `{{` escapes it instead, so that placeholder renders as literal text.
 
 ### Single pass
 
@@ -1239,7 +1239,7 @@ A substitution kind classifies a substitution failure, and every failure has exa
 | `Unclosed` | A `{{` with no `}}` anywhere later in the prose, as in `open {{ args` | `unclosed '{{' in prose` |
 | `EmptySegment` | An empty or space-padded segment, as in `{{ var. }}` or `{{ }}` | `empty or padded path segment in {{ {path} }}` |
 | `BadPath` | `{{ var }}` or `{{ sys }}` with no key | `bad path: {{ var }}` or `bad path: {{ sys }}` |
-| `UnknownNamespace` | A first segment that is neither a root nor a set global, as in `{{ ghost }}` | `unknown namespace or global '{name}' in {{ {path} }}` |
+| `UnknownNamespace` | A first segment, other than a root, whose global reads as nil, as in `{{ ghost }}` | `unknown namespace or global '{name}' in {{ {path} }}` |
 | `NotATable` | A dotted path after `item`, as in `{{ item.x }}` | `item takes no key path; {{ item }} renders the whole item` |
 | `MissingKey` | An absent key under `var`, `sys`, `args`, or a global, as in `{{ sys.bogus }}` | `missing {{ {path} }}` |
 | `NullValue` | A path that lands on JSON null, under every root except `item` | `missing {{ {path} }}` |
@@ -1250,13 +1250,13 @@ In the messages, `{path}` stands for the placeholder's path, `{name}` for the gl
 
 ### Unclosed and EmptySegment
 
-Substitution kind `Unclosed` comes from a `{{` with no `}}` anywhere later in the prose, and the error points at that opening `{{`. Substitution kind `EmptySegment` comes from a path with a leading or trailing dot, two dots in a row, nothing between the braces, or a space next to a dot, as in `{{ var. }}`, `{{ var..x }}`, `{{ var. .x }}`, `{{ var.x. }}`, and `{{ var. .x .y }}`. Its check runs before any lookup, so a space-padded path such as `{{ var. x }}` fails even when a key with that exact name exists. An empty placeholder, `{{ }}`, fails with the message `empty or padded path segment in {{  }}`, with two spaces between the braces.
+Substitution kind `Unclosed` comes from a `{{` with no `}}` anywhere later in the prose, and the error points at that opening `{{`. Substitution kind `EmptySegment` comes from an empty path, or from a path with a leading or trailing dot, two dots in a row, or a space next to a dot, as in `{{ var. }}`, `{{ var..x }}`, `{{ var. .x }}`, `{{ var.x. }}`, and `{{ var. .x .y }}`. Its check runs before any lookup, so a space-padded path such as `{{ var. x }}` fails even when a key with that exact name exists. An empty placeholder, `{{ }}`, fails with the message `empty or padded path segment in {{  }}`, with two spaces between the braces.
 
 ### BadPath and UnknownNamespace
 
 Substitution kind `BadPath` comes from `{{ var }}` or `{{ sys }}` with no key, because these two roots always need a key and only bare globals render whole values, and its message names the root you wrote, either `bad path: {{ var }}` or `bad path: {{ sys }}`.
 
-Substitution kind `UnknownNamespace` comes from a path whose first segment is neither a built-in root nor a set Lua global, bare or dotted, and it fails the read of `prose` as a hard error. The message names the missing segment and the path, so the prose `{{ ghost }} here.` fails with `unknown namespace or global 'ghost' in {{ ghost }}`, a placeholder naming an unset global `x` fails with `unknown namespace or global 'x' in {{ x }}`, and the prose `prefix {{ ghost.x }}` fails with a message that names the path `ghost.x`. `{{ reply }}` with no `reply` global fails the read the same way. A misspelled root, a `local` variable, and a nil global all produce it, because any first segment other than `var`, `sys`, `args`, or `item` is looked up only among Lua globals, which never include a `local`, and a nil global counts as absent.
+Substitution kind `UnknownNamespace` comes from a path, bare or dotted, whose first segment is other than a built-in root and names a Lua global that reads as nil, and it fails the read of `prose` as a hard error. The message names the missing segment and the path, so the prose `{{ ghost }} here.` fails with `unknown namespace or global 'ghost' in {{ ghost }}`, a placeholder naming an unset global `x` fails with `unknown namespace or global 'x' in {{ x }}`, and the prose `prefix {{ ghost.x }}` fails with a message that names the path `ghost.x`. `{{ reply }}` with no `reply` global fails the read the same way. A misspelled root, a `local` variable, and a nil global all produce it, because any first segment other than `var`, `sys`, `args`, or `item` is looked up only among Lua globals, which never include a `local`, and a nil global counts as absent.
 
 ### NotATable, MissingKey, and NullValue
 
@@ -1293,7 +1293,7 @@ The run result is:
 false
 ````
 
-The read of `prose` fails at the point where Lua reads it, with substitution kind `Serialize` and the message `global 'prose' in {{ prose }} is not JSON data`, because `prose` is not a substitution source. The caught error's message names `prose`, so `tostring(err):match('prose')` succeeds, and it does not include the underlying recursion refusal, which only the run's failure message carries when the read goes uncaught.
+The read of `prose` fails at the point where Lua reads it, with substitution kind `Serialize` and the message `global 'prose' in {{ prose }} is not JSON data`, because `prose` is not a substitution source. The caught error's message names `prose`, so `tostring(err):match('prose')` succeeds, and it leaves out the underlying recursion refusal, which only the run's failure message shows when the read goes uncaught.
 
 ## Catching and reading substitution errors
 
@@ -1340,11 +1340,11 @@ The run result is:
 lua | caught.md:9: missing {{ var.missing }}. A placeholder in the section's prose could not be filled. Fix the placeholder, or set the value it reads before the prose is read.
 ````
 
-A caught substitution failure gives an error value whose error kind, its `kind` field, is always `lua`, whatever its substitution kind. Its `message` field, which `tostring(err)` also returns, starts with the file and line of the failing placeholder, here `caught.md:9`, the line of `Missing: {{ var.missing }}.` rather than the line of the `prose` read (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). It goes on to name what failed and ends with the fixed prose for a failed substitution. It leaves out the substitution kind, here `MissingKey`, and the byte offset, which only the run's failure message shows (see [The error text](#the-error-text)), and the error value has no field for the substitution kind, the path, or the offset. Its `code` is `substitution` whatever the substitution kind.
+A caught substitution failure gives an error value whose error kind, its `kind` field, is always `lua`, whatever its substitution kind. Its `message` field, which `tostring(err)` also returns, starts with the file and line of the failing placeholder, here `caught.md:9`, the line of `Missing: {{ var.missing }}.` rather than the line of the `prose` read (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). It goes on to name what failed and ends with the fixed prose for a failed substitution. It leaves out the substitution kind, here `MissingKey`, and the byte offset, which only the run's failure message shows (see [The error text](#the-error-text)), and the error value's fields leave out the substitution kind, the path, and the offset. Its `code` is `substitution` whatever the substitution kind.
 
 ### The error text
 
-Every substitution failure's own text has the form `{message} [{Kind} at byte {offset}]`, such as `missing {{ var.x }} [MissingKey at byte 42]`. When the failure goes uncaught, the run's failure message is that text followed by the location of the failing placeholder, as in `missing {{ var.x }} [MissingKey at byte 42] (at {file}:{line})`, and a `Serialize` failure puts the reason its lookup gave, after a colon, ahead of the location. Under `pcall`, `tostring(err)` gives `{file}:{line}: {message}.` followed by the fixed prose for a failed substitution instead, as [What the error value holds](#what-the-error-value-holds) shows, so the caught text never holds the kind or the offset.
+Every substitution failure's own text has the form `{message} [{Kind} at byte {offset}]`, such as `missing {{ var.x }} [MissingKey at byte 42]`. When the failure goes uncaught, the run's failure message is that text followed by the location of the failing placeholder, as in `missing {{ var.x }} [MissingKey at byte 42] (at {file}:{line})`, and a `Serialize` failure puts the reason its lookup gave, after a colon, ahead of the location. Under `pcall`, `tostring(err)` gives `{file}:{line}: {message}.` followed by the fixed prose for a failed substitution instead, as [What the error value holds](#what-the-error-value-holds) shows, so the caught text leaves out the kind and the offset.
 
 ### The byte offset
 
