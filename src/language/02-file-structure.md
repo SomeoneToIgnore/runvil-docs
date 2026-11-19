@@ -285,7 +285,7 @@ The same message and parse error kind cover every way the frontmatter can fail t
 
 ## The required `name` and `description` keys
 
-After this section you can name and describe a prompt with the two keys every prompt file must carry.
+After this section you can name and describe a prompt with the two keys every prompt file must have.
 
 ````markdown
 ---
@@ -340,7 +340,7 @@ p
 
 Every other key, including `runvil`, `max_tool_iterations`, `uses`, `args`, `models`, and `prompts`, takes a default when you leave it out.
 
-A runnable prompt's frontmatter carries three keys: `name`, `description`, and `runvil: 0`. A run proceeds only when `runvil` is `0`. A prompt without `name` or `description` fails at parse time, while a prompt without `runvil` parses but stops at run time with `not a runvil prompt: no runvil version` (see [The `runvil` version key](#the-runvil-version-key)). You add optional keys next to the three when a prompt needs them, such as `uses:`:
+A runnable prompt's frontmatter has three keys: `name`, `description`, and `runvil: 0`. A run proceeds only when `runvil` is `0`. A prompt without `name` or `description` fails at parse time, while a prompt without `runvil` parses but stops at run time with `not a runvil prompt: no runvil version` (see [The `runvil` version key](#the-runvil-version-key)). You add optional keys next to the three when a prompt needs them, such as `uses:`:
 
 ````markdown
 ---
@@ -389,7 +389,7 @@ return "ran"
 ran
 ````
 
-The `runvil:` key declares which major version of the Engine the file targets. Its value is a non-negative integer, and you write it as a bare integer, `runvil: 0`. A prompt that carries it parses and runs, as this one does.
+The `runvil:` key declares which major version of the Engine the file targets. Its value is a non-negative integer, and you write it as a bare integer, `runvil: 0`. A prompt that has it parses and runs, as this one does.
 
 ### What the key marks
 

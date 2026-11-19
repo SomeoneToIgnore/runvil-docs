@@ -1931,7 +1931,7 @@ The chain a library's `call` starts, and the tasks its `tasks.spawn` and `tasks.
 
 ### Prose inside a library
 
-A library section can carry prose alongside its Lua blocks. To share a piece of prose between sections, write a library section with a prose block and a Lua block that does `return prose`, then call `require` to get the rendered text:
+A library section can hold prose alongside its Lua blocks. To share a piece of prose between sections, write a library section with a prose block and a Lua block that does `return prose`, then call `require` to get the rendered text:
 
 ````markdown
 ---
@@ -2603,7 +2603,7 @@ Lua library load started: /helpers
 Lua library load succeeded: /helpers
 ````
 
-Each phase of a library load is its own event, of kind `lua_library_load_started`, `lua_library_load_succeeded`, or `lua_library_load_failed`. Each event carries the requiring section in `section` and the library in `library`:
+Each phase of a library load is its own event, of kind `lua_library_load_started`, `lua_library_load_succeeded`, or `lua_library_load_failed`. Each event names the requiring section in `section` and the library in `library`:
 
 - `section` is the name of the section running the load, such as `Worker`.
 - `library` is the library section's path from the top of the prompt, such as `/helpers`. It is rebuilt from the section rather than copied from the string you passed to `require`.

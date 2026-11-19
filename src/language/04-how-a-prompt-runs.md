@@ -1076,7 +1076,7 @@ return var.note .. '|' .. models.current().name .. '|' .. tasks.concurrency() ..
 kept|strong|2|nil
 ````
 
-`Second` reads three things that `First` left behind and one that it did not. Four things carry from one section to the next on a walk:
+`Second` reads three things that `First` left behind and one that it did not. Four things stay from one section to the next on a walk:
 
 - `var`, with every value the earlier sections stored in it (see [Keeping state in `var`](05-lua-environment.md#keeping-state-in-var)).
 - The chain's current model. The `models.use('strong')` in `First` keeps `Second` and every section after it on the `strong` role until one of them calls `models.use` again (see [Where a chain starts](10-models.md#where-a-chain-starts)).
@@ -1617,7 +1617,7 @@ return 'ok'
 ```
 ````
 
-This run records these events, in this order, each with the name it carries:
+This run records these events, in this order, each with the name it is reported under:
 
 | Order | Event kind | Name |
 |---|---|---|
@@ -1648,7 +1648,7 @@ A run that started and does not succeed ends its events with `run_failed` under 
 
 ### Which name an event is reported under
 
-Every run event, error, and report names the section that produced it by its heading text without the leading hashes, so `## Only` reports as `Only` and `### Child` as `Child`. The three run-level events carry the prompt's frontmatter `name` in the place of a section name. That is why `loop` reports `run_started` and `run_succeeded` under `loop`, around the events named `Only`.
+Every run event, error, and report names the section that produced it by its heading text without the leading hashes, so `## Only` reports as `Only` and `### Child` as `Child`. The three run-level events are reported under the prompt's frontmatter `name` in the place of a section name. That is why `loop` reports `run_started` and `run_succeeded` under `loop`, around the events named `Only`.
 
 The preamble sits above the first heading, so its events have the empty string as their section name. It reports `section_started` and `section_finished` like every section. The `tone` prompt from [A preamble runs first](#a-preamble-runs-first) reports `run_started` under `tone`, then the events from `section_started` through `section_finished` under the empty name, then the same six events under `Reply`, and last `run_succeeded` under `tone`.
 
