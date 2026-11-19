@@ -429,7 +429,7 @@ return 'ok'
 ```
 ````
 
-On a Host that gives no model, the run returns:
+On a Host that starts a run without a model, the run returns:
 
 ````text
 ok
