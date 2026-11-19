@@ -435,7 +435,7 @@ On a Host that gives no model, the run returns:
 ok
 ````
 
-When the Host gives no model, its role map is empty, so the run leaves every role empty and skips the requirement checks, and the run starts even when a role has a `min_context`. This prompt declares a requirement on `strong`, but its one section never asks a model for a reply, and the line above `Main` sits in a [preamble](02-file-structure.md#the-preamble) with no Lua, so it is commentary that the run skips. The run therefore still succeeds.
+When the Host starts a run without a model, the role map is empty, so the run leaves every role empty and skips the requirement checks, and the run starts even when a role has a `min_context`. This prompt declares a requirement on `strong`, but its one section never asks a model for a reply, and the line above `Main` sits in a [preamble](02-file-structure.md#the-preamble) with no Lua, so it is commentary that the run skips. The run therefore still succeeds.
 
 The run starts in this case with every role empty. Selecting a role with `models.use` or `models.get` then raises an error that names the role, and `models.current()` raises its own, where the caller in both is the Host:
 
