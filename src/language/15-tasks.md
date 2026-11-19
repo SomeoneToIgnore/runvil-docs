@@ -1889,7 +1889,7 @@ A wait with a time limit starts an internal timer, which the wait keeps so it ca
 - The timer ends with its owner like a task, but the run's events leave that end out, and `tasks_live` leaves the timer out when its section ends.
 - When the Engine refuses a timed wait, for example with `task_not_owned`, the wait stops its timer before raising, so every timer ends by the time its wait does.
 
-When a member ends at the same moment the timer fires, the finished member wins and the timeout never appears among the results. That is because the timer sits after all the members in the wait's set, and the wait delivers the first ended entry in that order.
+When a member ends at the same moment the timer fires, the wait delivers the finished member first. A `tasks.join_any` then returns that member, and a `tasks.join` whose last member it was returns `timed_out` as `false`. A `tasks.join` that still waits on another member takes the fired timer in its next round, so `timed_out` is `true` and the finished member keeps its entry. That is because the timer sits after all the members in the wait's set, and the wait delivers the first ended entry in that order.
 
 The timer is [Harness work](01-what-a-prompt-is.md#effects-and-harness-work): the Harness performs it as a sleep for the timeout's duration.
 
