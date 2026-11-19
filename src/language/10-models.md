@@ -1330,7 +1330,7 @@ Every figure comes from one of four sources outside the Engine: the backend's `u
 
 Each infer round counts as one model round on the run's round counter, the number its events report in `turn`. Inside a spawned task (see [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn)), it counts on the task's own counter instead, so a task's `turn` numbers, and its `tasks.status` `turns`, count only its own rounds. The count of infer rounds is uncapped.
 
-An infer round's `thinking` event, `assistant_reply` event, and answer record name the model the round was actually sent to. That can be a substitute the Host picked in place of the model that fills the role. The Harness labels each completion with the model the request named, whatever name the backend's response gave, and the Engine reports the name the completion carries.
+An infer round's `thinking` event, `assistant_reply` event, and answer record name the model the round was actually sent to. That can be a substitute the Host picked in place of the model that fills the role. The Harness labels each completion with the model the request named, whatever name the backend's response gave, and the Engine reports the name the completion holds.
 
 ### Infer failures and cancellation
 

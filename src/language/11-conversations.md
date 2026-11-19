@@ -144,9 +144,9 @@ return #messages
 4
 ````
 
-Two user records with a loop after each leave `#messages` at 4. The second call continues the conversation, because its request carries the earlier reply ahead of the new user record: when the first reply was `ok`, the second request holds `{ "role": "assistant", "content": "ok" }` before `second question`.
+Two user records with a loop after each leave `#messages` at 4. The second call continues the conversation, because its request includes the earlier reply ahead of the new user record: when the first reply was `ok`, the second request holds `{ "role": "assistant", "content": "ok" }` before `second question`.
 
-When the model asks for tools, one `models.loop` call runs a whole multi-round conversation. It sends the list round after round, runs the tools the model asks for (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)), and appends every record back to the list until the model replies with text or ends the conversation with the [clean exit](#the-clean-exit), unless the loop then finds a message in its inbox. A round that ends with the model asking for tools is a tool round, which [Tool rounds and the round cap](#tool-rounds-and-the-round-cap) covers. After two tool rounds and a final text reply of `both done`, one `models.loop()` call leaves `#messages` at 6, counting the user record, the records the two tool rounds added, and the terminal record, with `messages[6].content` equal to `'both done'`. The model received 3 requests, and the last one carried both tool results.
+When the model asks for tools, one `models.loop` call runs a whole multi-round conversation. It sends the list round after round, runs the tools the model asks for (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)), and appends every record back to the list until the model replies with text or ends the conversation with the [clean exit](#the-clean-exit), unless the loop then finds a message in its inbox. A round that ends with the model asking for tools is a tool round, which [Tool rounds and the round cap](#tool-rounds-and-the-round-cap) covers. After two tool rounds and a final text reply of `both done`, one `models.loop()` call leaves `#messages` at 6, counting the user record, the records the two tool rounds added, and the terminal record, with `messages[6].content` equal to `'both done'`. The model received 3 requests, and the last one included both tool results.
 
 When `models.loop` returns, the terminal record is the last record in the list, after tool rounds as well. `messages[#messages].role` is `'assistant'`, and you read the final answer with `messages[#messages].content`, which after a tool round and a text reply of `final answer` returns `final answer`.
 
@@ -174,7 +174,7 @@ return messages[#messages].content
 ```
 ````
 
-`messages:user(prose)` adds the section prose above the fence (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)) as the user record, so the request carries `Summarize the person.` in its first message, and the run result is the model's summary. The shipped `research-person` prompt (see [Shipped example prompts](01-what-a-prompt-is.md#shipped-example-prompts)) fills its list in this shape.
+`messages:user(prose)` adds the section prose above the fence (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)) as the user record, so the request holds `Summarize the person.` in its first message, and the run result is the model's summary. The shipped `research-person` prompt (see [Shipped example prompts](01-what-a-prompt-is.md#shipped-example-prompts)) fills its list in this shape.
 
 One section can make a single model round while a later section holds a conversation:
 
@@ -222,7 +222,7 @@ When the model answers `first reply` and then `second reply`, the run result is:
 4|first reply|second reply
 ````
 
-Each request carries every record the earlier loops left in the list, so the second request's messages are `first question`, `first reply`, and `second question`, and the two loops leave 4 records. Wrapping a call in `pcall` runs the loop normally and still appends the reply, so the chat can guard each call against errors. The chat prompt built into Workshop has this shape: inside `while true do`, it calls `messages:user(tasks.receive())`, which waits for the operator's next message (see [Asking the operator](05-lua-environment.md#asking-the-operator)), and then `pcall(function() return models.loop(compact) end)`, where `compact` is a compactor that summarizes older turns when a turn overflows the model's context window (see [Writing your own compactor](#writing-your-own-compactor)). A failed loop ends only that turn, and a failed compaction (see [When a compaction fails](#when-a-compaction-fails)) also leaves `messages` as it was before the compaction, except that a message the loop appended after the compaction stays when a second overflow restores the list. A stop raises `canceled` inside the `pcall`, which ends only that turn too, and a message the operator sends meanwhile stays queued for the next `tasks.receive()`.
+Each request includes every record the earlier loops left in the list, so the second request's messages are `first question`, `first reply`, and `second question`, and the two loops leave 4 records. Wrapping a call in `pcall` runs the loop normally and still appends the reply, so the chat can guard each call against errors. The chat prompt built into Workshop has this shape: inside `while true do`, it calls `messages:user(tasks.receive())`, which waits for the operator's next message (see [Asking the operator](05-lua-environment.md#asking-the-operator)), and then `pcall(function() return models.loop(compact) end)`, where `compact` is a compactor that summarizes older turns when a turn overflows the model's context window (see [Writing your own compactor](#writing-your-own-compactor)). A failed loop ends only that turn, and a failed compaction (see [When a compaction fails](#when-a-compaction-fails)) also leaves `messages` as it was before the compaction, except that a message the loop appended after the compaction stays when a second overflow restores the list. A stop raises `canceled` inside the `pcall`, which ends only that turn too, and a message the operator sends meanwhile stays queued for the next `tasks.receive()`.
 
 ## Message records
 
@@ -254,11 +254,11 @@ return #messages .. '|' .. messages[1].role .. '|' .. messages[4].tool_call_id
 4|system|call_1
 ````
 
-You write a message record as a Lua table holding a `role` and a `content`, plus `tool_calls` or `tool_call_id` on the records that carry them and an optional `meta`, and you add it to the list with `messages:append(record)`. One list can mix all four message roles, as this one does, with its system record first.
+You write a message record as a Lua table holding a `role` and a `content`, plus `tool_calls` or `tool_call_id` on the records that have them and an optional `meta`, and you add it to the list with `messages:append(record)`. One list can mix all four message roles, as this one does, with its system record first.
 
 ### The four message roles
 
-A record's `role` is one of the exact lowercase strings `system`, `user`, `assistant`, or `tool`. The record is sent to the model with its message role in that same lowercase form, such as `"role": "assistant"`. Each message role holds one kind of message and carries its own fields:
+A record's `role` is one of the exact lowercase strings `system`, `user`, `assistant`, or `tool`. The record is sent to the model with its message role in that same lowercase form, such as `"role": "assistant"`. Each message role holds one kind of message and has its own fields:
 
 | Message role | Holds | Fields |
 |---|---|---|
@@ -300,7 +300,7 @@ table|2|look
 
 The `user` record's `content` is an array of two typed parts, and the list accepts it. Reading `content` back from the list gives that parts array as a Lua table. Each part is a table whose string `type` field names its variant, and the chat protocol accepts exactly two types:
 
-- A text part is `{ type = 'text', text = '...' }`, carrying its text in a string `text` field, as in `{ type = 'text', text = 'look' }`. It is sent to the model as `{ "type": "text", "text": ... }`.
+- A text part is `{ type = 'text', text = '...' }`, holding its text in a string `text` field, as in `{ type = 'text', text = 'look' }`. It is sent to the model as `{ "type": "text", "text": ... }`.
 - An image part is `{ type = 'image_url', image_url = { url = '...' } }`. The URL can be a base64 `data:` URL such as `data:image/png;base64,AA==`, and the part is sent to the model as `{ "type": "image_url", "image_url": { "url": ... } }`. The check requires a string `url` inside the `image_url` table and ignores any other keys there.
 
 The parts above are sent as `"content": [ { "type": "text", "text": "look" }, ... ]`. A part keeps only its payload, its `text` or its `image_url.url`, and any other field on the part is dropped.
@@ -343,7 +343,7 @@ Each entry in `tool_calls` is a table with exactly three fields:
 
 `tool_calls` is an array of call tables even for one call, as in `tool_calls = { { id = 'call_1', name = 'web_search' } }`. A single call table placed directly in `tool_calls`, or a string there, is not an array and fails with `messages[{index}] tool_calls must be an array`. A call with a bad `id`, `name`, or `arguments` is refused with a message naming that field.
 
-One `assistant` record can carry visible reply text in `content` together with several tool calls, as `Let me check both.` does beside `call_1` and `call_2`, and the text and every call are sent to the model together. The calls keep the order they were written in, so `call_1` stays first. A record with `tool_calls` can also have the empty string as its content, as in `{ role = 'assistant', content = '', tool_calls = { ... } }`, and such a record followed by its tool result is accepted. A tool call keeps only `id`, `name`, and `arguments`, and any other field on it is dropped.
+One `assistant` record can hold visible reply text in `content` together with several tool calls, as `Let me check both.` does beside `call_1` and `call_2`, and the text and every call are sent to the model together. The calls keep the order they were written in, so `call_1` stays first. A record with `tool_calls` can also have the empty string as its content, as in `{ role = 'assistant', content = '', tool_calls = { ... } }`, and such a record followed by its tool result is accepted. A tool call keeps only `id`, `name`, and `arguments`, and any other field on it is dropped.
 
 `tool_calls` is optional, and a record holds tool calls only when it sets the field. A record the loop writes holds calls only when the model asked for tools in that reply. After such a reply, `messages[2].tool_calls[1]` is the first call the model made, so `messages[2].tool_calls[1].id` reads its id, such as `'call_1'`, and `messages[2].tool_calls[1].name` reads the tool it called, such as `'web_search'`. Reading one entry with `local call = messages[2].tool_calls[1]` gives you `call.id`, `call.name`, and `call.arguments`, the call id, the name the model called, and the parsed arguments table. A model that sends `{"query":"one"}` gives `messages[2].tool_calls[1].arguments.query == 'one'`.
 
@@ -482,7 +482,7 @@ A table in the second place is always read as `tool_calls`, so for a plain reply
 
 `messages:tool(content, tool_call_id, meta?)` appends the tool record `{ role = "tool", content = content, tool_call_id = tool_call_id }`, taking the result text first and the id of the earlier tool call it answers second, and returns the same list.
 
-Together they write an earlier tool call and its result into the list: `:assistant` carrying the call, followed by `:tool` with the matching id. Put this block in the `Build` section of `builders` in place of the first one:
+Together they write an earlier tool call and its result into the list: `:assistant` with the call, followed by `:tool` with the matching id. Put this block in the `Build` section of `builders` in place of the first one:
 
 ````lua
 messages:user('What is the weather in Paris?')
@@ -515,7 +515,7 @@ return #messages .. '|' .. messages[1].role .. '|' .. messages[2].meta.from
 
 Builder calls and hand-written records passed to `append` mix freely in one list, as `messages:user('more')` does here.
 
-Each `append` call checks its one record against the per-record rules before the record joins the list. It keeps only the record's `role`, `content`, `tool_calls`, `tool_call_id`, and `meta`, dropping any other keys, and it accepts records that carry extra fields, nested tables included. Every edit does the same inside a record, so a text part keeps only its `text`, an image part only its `url`, and a tool call only its `id`, `name`, and `arguments`, and a dropped field cannot be read back from the list and never reaches the model. Records that pass the rules append normally, so a list built by successive `append` calls keeps every valid record, and only the call with a bad record fails.
+Each `append` call checks its one record against the per-record rules before the record joins the list. It keeps only the record's `role`, `content`, `tool_calls`, `tool_call_id`, and `meta`, dropping any other keys, and it accepts records that have extra fields, nested tables included. Every edit does the same inside a record, so a text part keeps only its `text`, an image part only its `url`, and a tool call only its `id`, `name`, and `arguments`, and a dropped field cannot be read back from the list and never reaches the model. Records that pass the rules append normally, so a list built by successive `append` calls keeps every valid record, and only the call with a bad record fails.
 
 ### Chaining builder calls
 
@@ -582,7 +582,7 @@ system-first.md:11: messages[4] is a system message after a non-system message; 
 
 ### When records are checked
 
-Each builder checks the record it adds, including the record's own fields, their types, and system placement, so a record that breaks a rule raises an error at the builder call that adds it and never enters the list. A bad record therefore fails at the `:user`, `:append`, or `:replace` call that adds it rather than at `models.loop`. Every edit checks each record it adds as the record at its target position, and a record that fails raises an error carrying the reason it failed.
+Each builder checks the record it adds, including the record's own fields, their types, and system placement, so a record that breaks a rule raises an error at the builder call that adds it and never enters the list. A bad record therefore fails at the `:user`, `:append`, or `:replace` call that adds it rather than at `models.loop`. Every edit checks each record it adds as the record at its target position, and a record that fails raises an error that gives the reason it failed.
 
 A list checks each record's own fields, and system placement, once, when you add the record. It leaves the rules about how records relate to each other, such as unique tool call ids and pairing each call with its result, until the model call (see [What the model receives](#what-the-model-receives)).
 
@@ -605,7 +605,7 @@ A record's rules run in a fixed order, so you see the first rule the record brea
 2. Table shape. The record must be a table.
 3. Role.
 4. Content, including each content part.
-5. The type of `tool_call_id`. This check is reported ahead of the check that only tool records carry a `tool_call_id`, so a record with a non-string `tool_call_id` reports the type message, even on a `user` record, and a tool record with a non-string `tool_call_id` reports the type message too.
+5. The type of `tool_call_id`. This check is reported ahead of the check that only tool records have a `tool_call_id`, so a record with a non-string `tool_call_id` reports the type message, even on a `user` record, and a tool record with a non-string `tool_call_id` reports the type message too.
 6. Whether the message role and `tool_call_id` go together.
 7. `tool_calls`, within each call `id` before `name`, so a call missing both reports the `id` message, and then whether the record's message role is `assistant`.
 8. The size of `meta`.
@@ -1218,7 +1218,7 @@ While the run is being canceled, an error that an adhoc tool handler or a compac
 
 ### Running the loop again on the same list
 
-The section's list carries across several `models.loop` calls, so you append a new user record between them, and each call continues the conversation by sending what earlier calls leave in the list, earlier replies included. A call wrapped as `pcall(models.loop)` runs the same way and still appends the reply, as the chat in [Common conversation shapes](#common-conversation-shapes) does. A call made after an earlier loop returned or raised runs normally, but a loop started while another loop or a compactor is running in the same section raises an error (see [Argument errors](#argument-errors)).
+The section's list lasts across several `models.loop` calls, so you append a new user record between them, and each call continues the conversation by sending what earlier calls leave in the list, earlier replies included. A call wrapped as `pcall(models.loop)` runs the same way and still appends the reply, as the chat in [Common conversation shapes](#common-conversation-shapes) does. A call made after an earlier loop returned or raised runs normally, but a loop started while another loop or a compactor is running in the same section raises an error (see [Argument errors](#argument-errors)).
 
 When every reply is plain text with no tool calls, the list fits the model's context window, and the chain's inbox stays empty, each `models.loop` call makes exactly one model request and returns, so two calls make two requests. Each such call adds exactly one `assistant` record, so two user records leave four records alternating `user` and `assistant`, with the replies at positions 2 and 4, as that chat's `4|first reply|second reply` shows.
 

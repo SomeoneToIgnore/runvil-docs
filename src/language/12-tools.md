@@ -854,7 +854,7 @@ Offered tools reach the model in the order the prompt offers them, with each Pac
 
 ### The Dynamic Set with `tools.offer_dynamic`
 
-`tools.offer_dynamic` takes the same forms as `tools.offer` and makes the same checks, and its errors carry its own name, but it records its offers into the section entry's Dynamic Set rather than the Static Set. The first loop round records the Dynamic Set beside the Static Set by the same steps, so each tool the dynamic offers name appears once, in offer order, with each Pack's tools together, and an adhoc tool offered dynamically shadows a catalog tool offered dynamically. The Dynamic Set then drops each tool whose id the Static Set holds. A Dynamic Set tool stays out of the list every round advertises. Instead, when the Dynamic Set still holds a tool after that drop, the Static Set ends with the Engine's two discovery tools: `GetDynamicTools`, which lists, searches, and describes the Dynamic Set, and `CallDynamicTool`, which calls one of its tools. So the model sees two tools in place of the whole Dynamic Set, and finds and calls a dynamic tool through them (see [Finding and calling dynamic tools](#finding-and-calling-dynamic-tools)). With an adhoc tool `grab` defined, each of these lines records into the Dynamic Set:
+`tools.offer_dynamic` takes the same forms as `tools.offer` and makes the same checks, and its errors give its own name, but it records its offers into the section entry's Dynamic Set rather than the Static Set. The first loop round records the Dynamic Set beside the Static Set by the same steps, so each tool the dynamic offers name appears once, in offer order, with each Pack's tools together, and an adhoc tool offered dynamically shadows a catalog tool offered dynamically. The Dynamic Set then drops each tool whose id the Static Set holds. A Dynamic Set tool stays out of the list every round advertises. Instead, when the Dynamic Set still holds a tool after that drop, the Static Set ends with the Engine's two discovery tools: `GetDynamicTools`, which lists, searches, and describes the Dynamic Set, and `CallDynamicTool`, which calls one of its tools. So the model sees two tools in place of the whole Dynamic Set, and finds and calls a dynamic tool through them (see [Finding and calling dynamic tools](#finding-and-calling-dynamic-tools)). With an adhoc tool `grab` defined, each of these lines records into the Dynamic Set:
 
 ````lua
 tools.offer_dynamic('web/search')
@@ -1268,7 +1268,7 @@ A script call is attributed to the section that made it, such as `Only` for a se
 
 A model tool call is recorded under the wire name the model called, such as `web_fetch`, alongside the tool's id `web/fetch`. A script call to a catalog tool is recorded under the tool's id, such as `web/fetch`, never its wire name, and its `tool_result` event's `alias` holds that id too. A script call to an adhoc tool reports its `tool_result` event under the tool's `name` instead, so `tools.call('adhoc/grab')` reports the `alias` `grab`.
 
-The tool result event for a script call has an empty call id, and it holds the round count at the moment of the call, from the run's round counter or, inside a spawned task, the task's own (see [Run events and records](04-how-a-prompt-runs.md#run-events-and-records)). For a catalog tool it also carries `vendor`, the vendor the Host reported for the Pack that answered, such as `runvil` for `web/fetch` in a prompt that declares `web`, as a model call's result event does (see [Events from the model's tool calls](#events-from-the-models-tool-calls)). A script call whose tool fails is reported as a failed tool call and skips the `tool_result` event.
+The tool result event for a script call has an empty call id, and it holds the round count at the moment of the call, from the run's round counter or, inside a spawned task, the task's own (see [Run events and records](04-how-a-prompt-runs.md#run-events-and-records)). For a catalog tool it also holds `vendor`, the vendor the Host reported for the Pack that answered, such as `runvil` for `web/fetch` in a prompt that declares `web`, as a model call's result event does (see [Events from the model's tool calls](#events-from-the-models-tool-calls)). A script call whose tool fails is reported as a failed tool call and skips the `tool_result` event.
 
 ### Counting calls with `tools.stats`
 
@@ -1762,7 +1762,7 @@ When the model calls `decide` with `{"choice":"use_mcp"}`, the handler stores `u
 use_mcp
 ````
 
-This is the decision-tool idiom: you define and offer an adhoc tool as the verdict channel in the preamble, run `models.loop`, and use the captured verdict to shape the sections that follow. `var` carries the verdict on, while the offer and the conversation stay with the preamble's own section entry, so `Result` starts with an empty tool scope and an empty `messages`.
+This is the decision-tool idiom: you define and offer an adhoc tool as the verdict channel in the preamble, run `models.loop`, and use the captured verdict to shape the sections that follow. `var` passes the verdict on, while the offer and the conversation stay with the preamble's own section entry, so `Result` starts with an empty tool scope and an empty `messages`.
 
 ### Adhoc tool ids and wire names
 
@@ -2147,7 +2147,7 @@ The first handler returned `grabbed a`, and the second raised `own`. `pcall(mode
 
 #### An uncaught handler error
 
-Uncaught, a handler's error fails the call and the run. During `models.loop` it ends the loop, and the run error carries the handler's message, so a handler that runs `error('handler exploded')` fails the run with an error containing:
+Uncaught, a handler's error fails the call and the run. During `models.loop` it ends the loop, and the run error includes the handler's message, so a handler that runs `error('handler exploded')` fails the run with an error containing:
 
 ````text
 handler exploded
@@ -2215,7 +2215,7 @@ The same refusal applies when the model calls the tool during `models.loop`, bec
 
 An adhoc tool call shows up in the run's events like any other tool call (see [Run events and records](04-how-a-prompt-runs.md#run-events-and-records)). A handler that returns text reports a `tool_call_succeeded` event on the section that ran the call and answers its caller with that text. A handler whose return is rejected, or one that raises, reports a `tool_call_failed` event on that section, and the caller receives the rejection or the handler's own error value in place of the text.
 
-A successful adhoc call also reports a `tool_result` event. Its `alias` field is the tool's wire name, its `tool` field is the tool's id, such as `adhoc/grab`, it leaves `vendor` out, `trusted` is `true` unless the handler fetched a tool listing during the call, `content` is the handler's text, and its `tool_call_id` and `turn` are the call id and round number recorded when the call was made. A script call has an empty call id, so the `grab-once` prompt reports a `tool_result` event with an empty `tool_call_id`, the `alias` `grab`, the `tool` `adhoc/grab`, and the `content` `got hi`. When the model issues the call, the event carries the model's call id, such as `call_7`.
+A successful adhoc call also reports a `tool_result` event. Its `alias` field is the tool's wire name, its `tool` field is the tool's id, such as `adhoc/grab`, it leaves `vendor` out, `trusted` is `true` unless the handler fetched a tool listing during the call, `content` is the handler's text, and its `tool_call_id` and `turn` are the call id and round number recorded when the call was made. A script call has an empty call id, so the `grab-once` prompt reports a `tool_result` event with an empty `tool_call_id`, the `alias` `grab`, the `tool` `adhoc/grab`, and the `content` `got hi`. When the model issues the call, the event holds the model's call id, such as `call_7`.
 
 A handler that raises skips the `tool_result` event, while calls earlier in the same reply that returned still report theirs. In the `grab-raise-loop` prompt, the run reports `tool_call_failed`, and its only `tool_result` event is the one for `c1`, with the `content` `grabbed a`.
 
@@ -2538,7 +2538,7 @@ This returns:
 false|tool|{file}:{line}: web_fetch: missing url argument
 ````
 
-The kind is `tool` whatever went wrong inside the tool, whether the tool refused its arguments or its backend failed. Uncaught, a tool failure ends the run with that error and its tool code: `return tools.call('web/fetch', {})` with no `pcall` fails the run with `tool_invalid_arguments`, and a call whose backend fails ends the run with the [error code](16-limits-and-errors.md#run-error-codes) the tool reports, such as `tool_backend`, and a message that carries the tool's own failure message. The run's message for an uncaught tool failure names the call, the tool's own message, and the line of the `tools.call`:
+The kind is `tool` whatever went wrong inside the tool, whether the tool refused its arguments or its backend failed. Uncaught, a tool failure ends the run with that error and its tool code: `return tools.call('web/fetch', {})` with no `pcall` fails the run with `tool_invalid_arguments`, and a call whose backend fails ends the run with the [error code](16-limits-and-errors.md#run-error-codes) the tool reports, such as `tool_backend`, and a message that includes the tool's own failure message. The run's message for an uncaught tool failure names the call, the tool's own message, and the line of the `tools.call`:
 
 ````text
 tool call failure: {message} (at {file}:{line})
