@@ -58,7 +58,7 @@ A run ends with its result: the final text when it completes, as `steady` does, 
 
 A run that fails ends with a run error, the error that ended it. A run error is the same universal error that a caught error value stands for in Lua, and it has five parts: a code, a message, prose, an optional location, and facts. The code names what failed, and every Engine failure has exactly one code, such as `lua_runtime` or `not_found`. The message is the human-readable account of what went wrong, the failing error's own text with the text of its causes. The prose is the text a model reads for the failure, the location is where the failure happened when that is known, and the facts are the values the failure names, such as a path or a task id. Together the code and the message form the typed contract of a failed run: the code is exact, and each message always contains a fixed fragment that names the failure.
 
-A run error carries nothing else. Whether a failure is retryable, meaning it may be transient so that running the prompt again could succeed, follows from its code: only the model codes for transient transport or backend problems, such as `overloaded` and `timeout`, are retryable. [Retryable failures](#retryable-failures) lists which failures count.
+Those five parts are the whole of a run error. Whether a failure is retryable, meaning it may be transient so that running the prompt again could succeed, follows from its code: only the model codes for transient transport or backend problems, such as `overloaded` and `timeout`, are retryable. [Retryable failures](#retryable-failures) lists which failures count.
 
 A failed run's message is its error's located message, so where a failure points at a place, its message says so. A `structure_invalid` or `fence_invalid` failure ends its message with ` (prompt {name}, line {line}, column {column})`, a `frontmatter_invalid` failure ends it with ` (line {line}, column {column})`, and every other located failure ends it with ` (at {file}:{line})`, the prompt file and line, or for an `internal` fault the Engine source file and line. [Where an error points](#where-an-error-points) covers each form, the location a caught error value's message starts with, and the location fields a parse error itself reports.
 
@@ -117,7 +117,7 @@ A run observes five limits, each with a default:
 | Memory ceiling | 64 MiB | the Lua heap of each section VM | the Harness |
 | Log event quota | 1024 `log` events | each section VM | the Harness |
 
-These built-in values are the default limits, the set every run starts from. The Engine accepts other limits from the code that starts a run, and the Harness passes it the limits set for the run, which are these defaults unless the Host sets others. Workshop sets none, so every Workshop run observes these defaults. One set of limits applies to the whole run, every section included. The Harness also runs at most 10 tool calls at once across a run unless the Host sets another number, which Workshop leaves as it is, and the calls past that wait and start oldest first.
+These built-in values are the default limits, the set every run starts from. The Engine accepts other limits from the code that starts a run, and the Harness passes it the limits set for the run, which are these defaults unless the Host sets others. Workshop keeps the defaults, so every Workshop run observes them. One set of limits applies to the whole run, every section included. The Harness also runs at most 10 tool calls at once across a run unless the Host sets another number, which Workshop leaves as it is, and the calls past that wait and start oldest first.
 
 One prompt can run another with [`execute`](08-jump-and-call.md#executing-another-prompt), and the executed prompt is part of the same run, so this one set of limits covers its sections too (see [One run, shared limits](08-jump-and-call.md#one-run-shared-limits)). A task that an executed prompt spawns counts toward the same concurrency limit and the same idle cap as every other task of the run, and a tool call made in an executed prompt counts toward the same number of tool calls at once. The round cap is the one limit that can differ between the prompts of a run, because each prompt's `max_tool_iterations` applies to its own sections (see [The one limit a prompt sets](#the-one-limit-a-prompt-sets)).
 
@@ -140,13 +140,13 @@ The round cap allows 24 model rounds by default in each `models.loop` call. Each
 
 Reaching the round cap fails the loop call with an error value whose `kind` is `tool_loop_exhausted`, as `capped` shows. Without a `max_tool_iterations` key, this happens after exactly the run's default number of model rounds. Left uncaught, that error ends the run with code `tool_loop_exhausted` and the message `tool-call loop did not converge (at {file}:{line})`, which names the line of the loop call.
 
-Each prompt's `max_tool_iterations` caps the tool loops of its own sections and of no other prompt's. When one prompt [executes](08-jump-and-call.md#what-crosses-an-execute) another, the value of the prompt that runs the `execute` does not apply inside the executed prompt, and the executed prompt's value does not apply outside it. Take a model that answers the first round of every loop with a tool call. When a prompt that declares `max_tool_iterations: 5` executes one that declares `max_tool_iterations: 1`, the executed prompt's loop fails with `tool_loop_exhausted` after that one round, while the loops of the prompt that executes it go on to a final reply, before the `execute` and after it. The other way round, when a prompt that declares `max_tool_iterations: 1` executes one that declares `max_tool_iterations: 3`, each loop of the executing prompt fails after its one round, and the executed prompt's loop gets its three rounds, enough for two tool calls and a final reply. A prompt without the key gets the run's cap in its own sections, so its loop has 24 rounds by default even when a prompt that declares `max_tool_iterations: 1` executes it.
+Each prompt's `max_tool_iterations` caps the tool loops of its own sections alone. When one prompt [executes](08-jump-and-call.md#what-crosses-an-execute) another, the value of the prompt that runs the `execute` does not apply inside the executed prompt, and the executed prompt's value does not apply outside it. Take a model that answers the first round of every loop with a tool call. When a prompt that declares `max_tool_iterations: 5` executes one that declares `max_tool_iterations: 1`, the executed prompt's loop fails with `tool_loop_exhausted` after that one round, while the loops of the prompt that executes it go on to a final reply, before the `execute` and after it. The other way round, when a prompt that declares `max_tool_iterations: 1` executes one that declares `max_tool_iterations: 3`, each loop of the executing prompt fails after its one round, and the executed prompt's loop gets its three rounds, enough for two tool calls and a final reply. A prompt without the key gets the run's cap in its own sections, so its loop has 24 rounds by default even when a prompt that declares `max_tool_iterations: 1` executes it.
 
 ### Limits the Harness sets
 
-The concurrency limit caps how many tasks run at once across the whole run, 8 by default. The Harness sets it, and no frontmatter key changes it. By default a run admits at most 8 tasks at once, fanout arms included; the Harness can set a different limit, and `tasks.concurrency` lowers it for a chain's own spawns.
+The concurrency limit caps how many tasks run at once across the whole run, 8 by default. The Harness sets it, and a prompt's frontmatter cannot change it. By default a run admits at most 8 tasks at once, fanout arms included; the Harness can set a different limit, and `tasks.concurrency` lowers it for a chain's own spawns.
 
-The idle cap bounds how many tasks the whole run holds idle after a `tasks.reply`, 8 by default. Each idle task keeps its Lua VM, so the cap bounds the memory idle tasks hold. The Harness sets it as `max_idle_tasks`, and no frontmatter key changes it. One more reply past the cap closes another idle task, the one idle longest that owns no live task, or the one idle longest when each owns one. The closed task ends as if it had returned its latest reply, and its own live tasks are abandoned with reason `owner_returned` (see [The idle cap](15-tasks.md#the-idle-cap)).
+The idle cap bounds how many tasks the whole run holds idle after a `tasks.reply`, 8 by default. Each idle task keeps its Lua VM, so the cap bounds the memory idle tasks hold. The Harness sets it as `max_idle_tasks`, and a prompt's frontmatter cannot change it. One more reply past the cap closes another idle task, the one idle longest that owns no live task, or the one idle longest when each owns one. The closed task ends as if it had returned its latest reply, and its own live tasks are abandoned with reason `owner_returned` (see [The idle cap](15-tasks.md#the-idle-cap)).
 
 The response cap and the receive timeout are request limits, not run limits: the gateway client applies them to each model request. Each model reply may be at most 16 MiB by default, and each wait for the next piece of a model reply times out after 120 seconds by default. No frontmatter key changes either. [Model request limits and failures](#model-request-limits-and-failures) shows how both bound a model round.
 
@@ -154,7 +154,7 @@ The memory ceiling and the log event quota bound each section entry's Lua, and [
 
 ### The call depth cap is not a run limit
 
-The call depth cap of 8 is a fixed Engine constant, not one of the five run limits, so neither the Harness nor a prompt's frontmatter can change it. [The recursion depth cap](08-jump-and-call.md#the-recursion-depth-cap) covers how that cap works. An [`execute`](08-jump-and-call.md#prompts-that-execute-each-other) adds one level to the same count as a `call`, a spawned task, or a fanout arm, so the one cap holds across every prompt of a run: when a prompt nests a `call` and an `execute` in turn, the cap refuses the next one after four of each.
+The call depth cap of 8 is a fixed Engine constant, not one of the five run limits, so it is the same in every run, whatever the Harness and the prompt's frontmatter set. [The recursion depth cap](08-jump-and-call.md#the-recursion-depth-cap) covers how that cap works. An [`execute`](08-jump-and-call.md#prompts-that-execute-each-other) adds one level to the same count as a `call`, a spawned task, or a fanout arm, so the one cap holds across every prompt of a run: when a prompt nests a `call` and an `execute` in turn, the cap refuses the next one after four of each.
 
 ## Lua memory and log quotas
 
@@ -198,7 +198,7 @@ Each section VM may use at most 64 MiB (67,108,864 bytes) of Lua heap by default
 
 The log event quota is the most `log` events a section VM's Lua can emit, 1024 by default. Each section VM records up to 1024 `log` checkpoints by default, every one-argument `log` call spends one, and only the Harness can change the count.
 
-The log byte quota bounds the total size of those messages. Each section VM has 256 bytes of log byte quota for each `log` call the log event quota allows, so 262,144 bytes by default, counted in UTF-8 bytes across all of that VM's `log` calls. The Harness has no separate setting for the log byte quota, and changes it only by changing the log event quota.
+The log byte quota bounds the total size of those messages. Each section VM has 256 bytes of log byte quota for each `log` call the log event quota allows, so 262,144 bytes by default, counted in UTF-8 bytes across all of that VM's `log` calls. The Harness changes the log byte quota only by changing the log event quota, the one setting behind both.
 
 ### Each section VM gets its own limits
 
@@ -228,17 +228,17 @@ The run result is:
 8000000
 ````
 
-A Lua block has no instruction-count limit, so it runs until it finishes, runs past the memory ceiling, runs out a log quota, or the run is canceled. The eight-million-iteration loop in `counter` runs to the end and returns its count, and a long-running block like it completes instead of failing with a quota error, because no instruction ceiling applies.
+A block can run any number of Lua instructions, so it runs until it finishes, runs past the memory ceiling, runs out a log quota, or the run is canceled. The eight-million-iteration loop in `counter` runs to the end and returns its count, and a long-running block like it completes instead of failing with a quota error.
 
-No limit counts Lua instructions. The instruction count has no cap, and it is fixed rather than set by the Harness. Only the cancel check counts instructions, and it runs every 10,000 of them.
+A block can run any number of Lua instructions, and that is fixed rather than set by the Harness. Only the cancel check counts instructions, and it runs every 10,000 of them.
 
 A runaway loop such as `while true do end` is legal too. It keeps running until a Host cancel stops it, within about 10,000 instructions, and in a run that is already canceled the same loop stops at the first check. A Host cancel reaches every Lua block, a busy loop included, because each block gets its own cancel check, which fires every 10,000 instructions. So a block can run a long or infinite loop without hitting any instruction limit, and the run's cancel is the kill switch for a runaway loop (see [Cancellation and stops](#cancellation-and-stops)).
 
 ### Which budgets raise quota errors
 
-Only the two log quotas raise quota errors. Running past the memory ceiling raises an ordinary Lua error, the same as any other failure, and the instruction count has no budget.
+Only the two log quotas raise quota errors. Running past the memory ceiling raises an ordinary Lua error, the same as any other failure, and a block can run any number of Lua instructions.
 
-Caught as an error value, an exhausted Engine quota on Lua has kind `lua` and code `lua_quota`. Left uncaught, running out of the log event quota or the log byte quota ends the run with code `lua_quota`, with the message `lua log event quota exceeded` or `lua log byte quota exceeded`, followed by ` (at {file}:{line})`. Among the Lua budgets, only the two log quotas lead to `lua_quota`: running past the memory ceiling leads to `lua_runtime`, and no instruction count can run out.
+Caught as an error value, an exhausted Engine quota on Lua has kind `lua` and code `lua_quota`. Left uncaught, running out of the log event quota or the log byte quota ends the run with code `lua_quota`, with the message `lua log event quota exceeded` or `lua log byte quota exceeded`, followed by ` (at {file}:{line})`. Among the Lua budgets, only the two log quotas lead to `lua_quota`: running past the memory ceiling leads to `lua_runtime`, and a block can run any number of Lua instructions.
 
 ### Setting the memory ceiling and the log event quota
 
@@ -267,7 +267,7 @@ while true do t[i] = string.rep('x', 16384) i = i + 1 end
 ```
 ````
 
-The loop never ends on its own, yet it does not hang the run, because the memory ceiling stops it with an error. The run fails with code `lua_runtime`, and its message contains the word `memory`.
+The loop never ends on its own, yet the run still ends, because the memory ceiling stops it with an error. The run fails with code `lua_runtime`, and its message contains the word `memory`.
 
 An allocation past the memory ceiling is refused as an ordinary Lua error whose message mentions memory; it is not a quota error. The section VM is still torn down normally after a memory-ceiling error.
 
@@ -275,7 +275,7 @@ A memory-ceiling refusal raised inside an Engine function reaches `pcall` as an 
 
 ### Running out a log quota
 
-Each `log` call that passes the argument-count check spends one log event before any other check, so a call later rejected for its type, length, or characters still uses up an event. Once the log event quota is spent, every further one-argument `log` call raises a log event quota error and records nothing.
+Each `log` call that passes the argument-count check spends one log event before any other check, so a call later rejected for its type, length, or characters still uses up an event. Once the log event quota is spent, every further one-argument `log` call raises a log event quota error instead of recording a checkpoint.
 
 A `log` message whose UTF-8 byte length exceeds what remains of the log byte quota raises a log byte quota error and is not recorded. Such a message is refused whole, while the messages logged before it stay recorded. With a log event quota of 4, and so a log byte quota of 1024 bytes, these three calls of 400 bytes each fail on the third and leave exactly two checkpoints:
 
@@ -300,7 +300,7 @@ With a Harness log event quota of 1, a library that calls `log('one')` and then 
 
 Left uncaught, an exhausted log event quota ends the run with code `lua_quota`, and the remedy is to raise the matching ceiling or change the prompt so it needs less. The uncaught message ends with ` (at {file}:{line})`, the line of the refused `log` call.
 
-Left uncaught, every Lua quota error ends the run with code `lua_quota`, and the only quotas a block can run out are the log event quota and the log byte quota. Caught as an error value, a Lua quota error has kind `lua`, the same kind as an ordinary Lua runtime error, rather than a kind of its own, and its `code` is `lua_quota` rather than `lua_runtime` (see [Error values](05-lua-environment.md#error-values)). The error value has no field naming which quota ran out; only its message tells the two apart, by `lua log event quota exceeded` or `lua log byte quota exceeded`.
+Left uncaught, every Lua quota error ends the run with code `lua_quota`, and the only quotas a block can run out are the log event quota and the log byte quota. Caught as an error value, a Lua quota error has kind `lua`, the same kind as an ordinary Lua runtime error, rather than a kind of its own, and its `code` is `lua_quota` rather than `lua_runtime` (see [Error values](05-lua-environment.md#error-values)). In the error value, only the message tells which quota ran out, by `lua log event quota exceeded` or `lua log byte quota exceeded`.
 
 A Lua quota failure does record which quota ran out, and its message names it as `log event` or `log byte` in the form `lua {resource} quota exceeded`, caught or not. A quota refusal that ends a block always surfaces as the quota error itself, ahead of any error value the block kept or raised.
 
@@ -332,7 +332,7 @@ return string.upper(var.text
 ```
 ````
 
-Nothing in this prompt runs. Its parse fails with parse error kind `Lua` and this message:
+This prompt stops at the parse, before any section runs. Its parse fails with parse error kind `Lua` and this message:
 
 ````text
 lua compilation error at section `Transform` epilog (line 18): {message}
@@ -405,11 +405,11 @@ The frontmatter is decoded before the body is checked, so a frontmatter failure 
 8. Each section, in document order: its heading's level, an empty heading, a `lua` fence left open, each block's Lua, its child sections, and last its name against its earlier siblings.
 9. The prompts that the `prompts:` list names, in list order, and then the prompts that those list.
 
-The last step reaches past the prompt's own file. Parsing a prompt also finds and parses every prompt it lists under [`prompts:`](08-jump-and-call.md#listing-prompts-under-prompts), then every prompt those list, each prompt once and each by these same steps. A listed prompt that does not parse fails the parse with its own parse error, placed in its own file. A listed prompt that the Host does not have fails the parse with the Host's not-found failure, such as `no prompt named farewell.md`, placed on the `prompts:` line of the prompt that lists it. That failure is the Host's and not the parser's, so it is no parse error and has no parse error kind.
+The last step reaches past the prompt's own file. Parsing a prompt also finds and parses every prompt it lists under [`prompts:`](08-jump-and-call.md#listing-prompts-under-prompts), then every prompt those list, each prompt once and each by these same steps. A listed prompt that does not parse fails the parse with its own parse error, placed in its own file. A listed prompt that the Host does not have fails the parse with the Host's not-found failure, such as `no prompt named farewell.md`, placed on the `prompts:` line of the prompt that lists it. That failure is the Host's and not the parser's, so it keeps the code the Host gave it in place of a parse error kind.
 
 The fence rule is checked over the whole body before any heading or block, so a break of the fence rule in the last section is reported ahead of an orphan heading or a Lua syntax error above it. Only the first fence error in a file is reported, so a later offending fence is not reported.
 
-A parse error's message already contains the underlying cause, such as the YAML or Lua error text, and each part appears only once, so the cause text never shows twice, even when a printer walks the error's chain of causes.
+A parse error's message already contains the underlying cause, such as the YAML or Lua error text, and each part appears only once, so the cause text shows once, even when a printer walks the error's chain of causes.
 
 ### Frontmatter messages
 
@@ -497,9 +497,9 @@ Wrap up.
 section `Run` is an orphan H2 heading with no parent H1
 ````
 
-The [top level](02-file-structure.md#section-headings-and-nesting) of a file is its shallowest heading level, which the `# Late` heading makes H1 here, so the H2 heading `Run` on line 7 has no H1 section above it to be its parent. A run of this file fails with code `structure_invalid` and that message followed by ` (prompt late, line 7, column 1)`, the line of the `## Run` heading.
+The [top level](02-file-structure.md#section-headings-and-nesting) of a file is its shallowest heading level, which the `# Late` heading makes H1 here, so the H2 heading `Run` on line 7 lacks an H1 section above it to be its parent. A run of this file fails with code `structure_invalid` and that message followed by ` (prompt late, line 7, column 1)`, the line of the `## Run` heading.
 
-A heading with no parent one level up gives the orphan message, which names the section and the heading level, so an H4 named `Detail` directly under an H2 gives ``section `Detail` is an orphan H4 heading with no parent H3``. In the message, `{n}` is the first level missing above the heading: one level deeper than the section the heading sits in, or the top level when it sits in none. An empty section heading gives the empty-heading message with its level, whatever the level, so a `#` line with no text gives `an H1 section heading must not be empty` and a `##` line with no text gives `an H2 section heading must not be empty`. Two sibling sections with the same name give the duplicate message, which names both lines, and [Where an error points](#where-an-error-points) walks through one.
+A heading with no parent one level up gives the orphan message, which names the section and the heading level, so an H4 named `Detail` directly under an H2 gives ``section `Detail` is an orphan H4 heading with no parent H3``. In the message, `{n}` is the first level missing above the heading: one level deeper than the section the heading sits in, or the top level when it sits outside every section. An empty section heading gives the empty-heading message with its level, whatever the level, so a `#` line with no text gives `an H1 section heading must not be empty` and a `##` line with no text gives `an H2 section heading must not be empty`. Two sibling sections with the same name give the duplicate message, which names both lines, and [Where an error points](#where-an-error-points) walks through one.
 
 A parse failure's kind is stored with the error, never worked out from its message text, so the kind stays stable even when the message wording changes.
 
@@ -545,7 +545,7 @@ unrecognized fence label `{label}`; the only Lua fence label is `lua`
 
 A bad label gives the first message, a bad opening line or a lookalike line gives the second, and a bad closing line gives the third. When a file has several breaks, the earliest one wins.
 
-Lines inside the body of another fenced code block are never checked against the Lua fence rule. A longer fence, such as one opened with four backticks, can therefore show a `lua` fence as an example without a `Fence` error, and the inner fence stays prose.
+The Lua fence rule skips every line inside the body of another fenced code block. A longer fence, such as one opened with four backticks, can therefore show a `lua` fence as an example without a `Fence` error, and the inner fence stays prose.
 
 ### Internal parser faults
 
@@ -578,7 +578,7 @@ The run result is:
 pointer.md:11: unknown sys field 'nothing'. The Lua code failed at runtime. Fix the code at this location.
 ````
 
-The read of `sys.nothing` on line 11 fails, and `pcall` hands back an error value whose message starts with the file and line of that read, `pointer.md:11`. After the location comes the error's prose: what failed, `unknown sys field 'nothing'`, then the default text for a failed Lua block. Replace the block with one that runs `return sys.nothing` on line 10 and nothing else, and the run fails with code `lua_runtime` and a message that ends with ` (at pointer.md:10)`.
+The read of `sys.nothing` on line 11 fails, and `pcall` hands back an error value whose message starts with the file and line of that read, `pointer.md:11`. After the location comes the error's prose: what failed, `unknown sys field 'nothing'`, then the default text for a failed Lua block. Replace the block with one whose only statement is `return sys.nothing`, on line 10, and the run fails with code `lua_runtime` and a message that ends with ` (at pointer.md:10)`.
 
 An error points at a place in one of three forms:
 
@@ -605,7 +605,7 @@ After the location comes the prose, the text a model reads when the failure reac
 
 Every other failure, such as a tool, store, model, or context failure, keeps its own prose, and it gains the `{file}:{line}: ` prefix in Lua when it is located. A model never sees that prefix: when a tool fails during `models.loop`, the failure reaches the model as its prose alone.
 
-Some error values point at no line. An Engine fault, which reaches Lua as kind `internal`, never shows a location in Lua, because its location is a line of Engine source. An argument error that a Lua shim raises itself, such as `models.infer takes (prompt) or (model, prompt)` for a call with a third argument, comes back as written, with no location and no added prose. A string you raise with `error` is not an error value at all and keeps Lua's own form (see [Where a library error points](03-blocks-and-prose.md#where-a-library-error-points)).
+Some error values leave the location out of their message. An Engine fault, which reaches Lua as kind `internal`, never shows a location in Lua, because its location is a line of Engine source. An argument error that a Lua shim raises itself, such as `models.infer takes (prompt) or (model, prompt)` for a call with a third argument, comes back as written, and that text is its whole message. A string you raise with `error` is not an error value at all and keeps Lua's own form (see [Where a library error points](03-blocks-and-prose.md#where-a-library-error-points)).
 
 ### Location fields
 
@@ -658,11 +658,11 @@ Every location counts 1-based lines from the top of the prompt file, the frontma
 
 ### The prompt name
 
-A parse error names the prompt by its frontmatter `name` when parsing gets that far, so you can tell which prompt failed. When the name is not known, the parse error has no name, and the Host can use its own label for the file.
+A parse error names the prompt by its frontmatter `name` when parsing gets that far, so you can tell which prompt failed. When the name is not known, the parse error leaves the name out, and the Host can use its own label for the file.
 
-Every failure found after the frontmatter, other than an internal fault, reports the prompt's frontmatter `name`, a `Lua` compile failure included, so a prompt with `name: dup` reports `dup`. A frontmatter failure and an internal fault report no name.
+Every failure found after the frontmatter, other than an internal fault, reports the prompt's frontmatter `name`, a `Lua` compile failure included, so a prompt with `name: dup` reports `dup`. A frontmatter failure and an internal fault leave that name out.
 
-When the failure is in a prompt that another prompt lists under `prompts:`, the name and the file are the listed prompt's own, not those of the prompt that lists it (see [Which problem the parser reports](#which-problem-the-parser-reports)). So a prompt that lists `dup.md` fails to parse with the parse error that `dup` itself gives, and a run of it fails with the same message, which ends with ` (prompt dup, line 11, column 1)`. A frontmatter failure in a listed prompt reports no name, as in any prompt, and the failed run's message names no file, so the file field is what tells you whose frontmatter failed.
+When the failure is in a prompt that another prompt lists under `prompts:`, the name and the file are the listed prompt's own, not those of the prompt that lists it (see [Which problem the parser reports](#which-problem-the-parser-reports)). So a prompt that lists `dup.md` fails to parse with the parse error that `dup` itself gives, and a run of it fails with the same message, which ends with ` (prompt dup, line 11, column 1)`. A frontmatter failure in a listed prompt leaves the prompt's name out, as in any prompt, and the failed run's message ends with the line and the column alone, so the file field is what tells you whose frontmatter failed.
 
 The `dup` prompt shows the whole case: parse error kind `Structure`, name `dup`, line 11, column 1, an end at line 12, column 1, and a failed run with code `structure_invalid` whose message ends with ` (prompt dup, line 11, column 1)`.
 
@@ -676,9 +676,9 @@ A run error has an optional location of its own, and a failed run's message is t
 
 A failure with no location ends with its own text. A Lua runtime failure's text already names its place: it starts with a `{block}:{line}:` tag, where `{block}` is the block's location label, such as ``section `S` prologue`` (see [How errors name each block](03-blocks-and-prose.md#how-errors-name-each-block)), and a stack traceback follows it. The ` (at {file}:{line})` suffix comes after the traceback.
 
-These forms hold for every failed run, a parse failure that the Harness finds before the run starts included, so that failure ends with its location form just like a parse failure that the run's first step finds. A Lua compile failure, code `lua_compile`, ends with ` (at {file}:{line})` on the line its diagnostic names, and the `dup` prompt's repeated heading ends with ` (prompt dup, line 11, column 1)`. The parse error's own location fields stay beside the message as well, for a Host such as Workshop to read (see [Location fields](#location-fields)). A model lookup failure, an `args_invalid` failure of the run's own arguments, or a `stalled` run has no location, so its message is its own text.
+These forms hold for every failed run, a parse failure that the Harness finds before the run starts included, so that failure ends with its location form just like a parse failure that the run's first step finds. A Lua compile failure, code `lua_compile`, ends with ` (at {file}:{line})` on the line its diagnostic names, and the `dup` prompt's repeated heading ends with ` (prompt dup, line 11, column 1)`. The parse error's own location fields stay beside the message as well, for a Host such as Workshop to read (see [Location fields](#location-fields)). A model lookup failure, an `args_invalid` failure of the run's own arguments, or a `stalled` run lacks a location, so its message is its own text.
 
-The run's own first step finds a few failures of its own. A missing `runvil:` key fails with `structure_invalid`, with the prompt's name but no line, so the `version-zero` prompt without its `runvil:` line fails with `not a runvil prompt: no runvil version (prompt version-zero)` (see [A missing version](02-file-structure.md#a-missing-version)). An unsupported `runvil:` version fails with `unsupported_version` and ends with ` (at {file}:{line})` on the `runvil:` line, as `future` shows in [Run error codes](#run-error-codes), and a requirements refusal ends the same way when it is located (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). A run whose arguments are not a JSON object, or do not match the prompt's `args:` declaration, fails with `args_invalid` and has no location, because the arguments come from the caller, whoever starts the run, so no line of the prompt is at fault (see [Run codes](#run-codes)).
+The run's own first step finds a few failures of its own. A missing `runvil:` key fails with `structure_invalid`, with the prompt's name but no line, so the `version-zero` prompt without its `runvil:` line fails with `not a runvil prompt: no runvil version (prompt version-zero)` (see [A missing version](02-file-structure.md#a-missing-version)). An unsupported `runvil:` version fails with `unsupported_version` and ends with ` (at {file}:{line})` on the `runvil:` line, as `future` shows in [Run error codes](#run-error-codes), and a requirements refusal ends the same way when it is located (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). A run whose arguments are not a JSON object, or do not match the prompt's `args:` declaration, fails with `args_invalid` and lacks a location, because the arguments come from the caller, whoever starts the run, so the fault lies outside the prompt's lines (see [Run codes](#run-codes)).
 
 The version check and the requirements check cover every prompt the parse read, not only the run's own prompt, the one the run starts in. When the prompt at fault is one that the run's own prompt lists, the name, the file, and the line are the listed prompt's, as in `unsupported runvil version: 2 (this build supports major 0) (at other.md:4)`. The arguments that an [`execute`](08-jump-and-call.md#arguments-for-an-executed-prompt) passes are checked at the `execute`, not at the first step, and that `args_invalid` failure does have a location, the line of the `execute`, because the prompt that runs the `execute` built the arguments.
 
@@ -696,13 +696,13 @@ Each located failure points at one line:
 - A requirements refusal: a line of the first prompt that caused a gap, the run's own before the prompts it lists, and there the `uses:` or `models:` line of that prompt's first gap. A refusal whose every gap is the caller's has no location.
 - An `internal` fault: the Engine source line of the fault.
 
-A `stalled` run points at no line, because no one line caused it: its message names the tasks that wait on their inboxes instead (see [Run codes](#run-codes)).
+A `stalled` run's message names the tasks that wait on their inboxes in place of a line, because no one line caused the stall (see [Run codes](#run-codes)).
 
-A parse failure that happens before the prompt's `name` is known has no name.
+A parse failure that happens before the prompt's `name` is known leaves the name out.
 
 ### Frontmatter failure locations
 
-A frontmatter failure carries no prompt name, because it happens before the prompt's `name` is read from the frontmatter itself. A missing delimiter, a YAML decode failure, and an error in the `uses:` list or the `prompts:` list all report none, even one found after the YAML decodes, and the Host can use its own label for the prompt instead. A frontmatter syntax error reports no prompt name for the same reason. A refused `uses:` list holds the refused Pack id in its name field, and a `prompts:` list refused for a repeated name holds that name there, never the prompt's name.
+A frontmatter failure leaves the prompt's name out, because it happens before the prompt's `name` is read from the frontmatter itself. A missing delimiter, a YAML decode failure, and an error in the `uses:` list or the `prompts:` list all leave it out, even one found after the YAML decodes, and the Host can use its own label for the prompt instead. A frontmatter syntax error leaves it out for the same reason. A refused `uses:` list holds the refused Pack id in its name field, and a `prompts:` list refused for a repeated name holds that name there, never the prompt's name.
 
 ````markdown
 ---
@@ -715,7 +715,7 @@ runvil: 0
 
 This file fails with parse error kind `Frontmatter` and `invalid frontmatter: {message}`, at line 4 with a column and no name.
 
-A frontmatter YAML failure points at one spot rather than a region: its location starts and ends at the line and column the YAML error gives, or covers that whole line when the YAML error gives a line but no column. A frontmatter failure's line and column come from the YAML error. An invalid-YAML failure reports the 1-based file line that the YAML parser gave, and reports no line when the YAML error has no location.
+A frontmatter YAML failure points at one spot rather than a region: its location starts and ends at the line and column the YAML error gives, or covers that whole line when the YAML error gives a line but no column. A frontmatter failure's line and column come from the YAML error. An invalid-YAML failure reports the 1-based file line that the YAML parser gave, when the parser gave one.
 
 The YAML decoder counts lines from the start of the frontmatter, so the reported line is the decoder's line plus one, to account for the opening `---`. The column passes through unchanged, and each is absent when the decoder gives no position or gives zero. The column counts characters, as the YAML parser does, unlike a body failure's byte column. That is why a YAML slip such as `: : :` on the fourth line of the file is reported at line 4, which is 1-based and counts the opening `---` as line 1. The 1-based file column of the YAML error comes alongside the line, when the column is known.
 
@@ -733,7 +733,7 @@ runvil: 0
 
 The `uses:` entry fails on its own value, so the parse error's line points at that entry's own line in the prompt file, line 5, and its column is 5, where the value starts after the list marker. A rejected frontmatter value's column is 1-based and points at the value's first character, the `n` of `not`, not at the `-` marker and the spaces before it.
 
-A Pack id declared twice under `uses:`, as in `twice`, or a Pack id the Engine reserves, points at the `uses:` line itself, at column 1, because that check compares the entries after the YAML decodes, when the only position left is the line that declares `uses:`. So `twice` reports line 5, and Workshop shows it as `line 5: invalid frontmatter: Pack id web is declared more than once under uses`. A name listed twice under `prompts:`, or an empty entry there, points at the `prompts:` line in the same way, at column 1, and the Host's not-found failure for a listed prompt points at that line too, as ` (at {file}:{line})`. A missing opening `---` or an unclosed frontmatter block points at line 1, where the frontmatter opens or should open, at column 1, and it has no name; the messages read `file must begin with a --- frontmatter delimiter` and `frontmatter was not closed with ---`.
+A Pack id declared twice under `uses:`, as in `twice`, or a Pack id the Engine reserves, points at the `uses:` line itself, at column 1, because that check compares the entries after the YAML decodes, when the only position left is the line that declares `uses:`. So `twice` reports line 5, and Workshop shows it as `line 5: invalid frontmatter: Pack id web is declared more than once under uses`. A name listed twice under `prompts:`, or an empty entry there, points at the `prompts:` line in the same way, at column 1, and the Host's not-found failure for a listed prompt points at that line too, as ` (at {file}:{line})`. A missing opening `---` or an unclosed frontmatter block points at line 1, where the frontmatter opens or should open, at column 1, and it leaves the prompt's name out; the messages read `file must begin with a --- frontmatter delimiter` and `frontmatter was not closed with ---`.
 
 ### Body failure locations
 
@@ -801,9 +801,9 @@ A structural failure's column is a 1-based byte column, so each multibyte UTF-8 
 
 ### Failures with no line or column
 
-Few parse failures have no line or column. A YAML error that the decoder gives no position for has no line to point at, and neither does a `uses:` refusal in frontmatter that declares `uses:` on no line of its own, such as one flow mapping that holds the whole frontmatter. A `prompts:` refusal has no line either in such frontmatter, and neither does the Host's not-found failure for a prompt listed there. A missing `runvil:` key, which the run's first step finds rather than the parser, has no line either, because the key is not in the file. A Host therefore shows the line and column when present, and otherwise the message.
+Nearly every parse failure has a line and a column. A YAML error that the decoder gives no position for is an exception, and so is a `uses:` refusal in frontmatter that declares `uses:` away from the start of a line, such as one flow mapping that holds the whole frontmatter. A `prompts:` refusal is one too in such frontmatter, and so is the Host's not-found failure for a prompt listed there. A missing `runvil:` key, which the run's first step finds rather than the parser, is another, because the key is not in the file. A Host therefore shows the line and column when present, and otherwise the message.
 
-An `Internal` parse failure, a fault in the parser itself, reports no name, and its location, when it has one, is the Engine source file and line of the fault, so it gives no prompt line or column. Workshop shows its message without a `line {line}: ` prefix.
+An `Internal` parse failure, a fault in the parser itself, leaves the prompt's name out, and its location, when it has one, is the Engine source file and line of the fault, never a prompt line or column. Workshop shows its message without a `line {line}: ` prefix.
 
 ### Lua compile failure positions
 
@@ -866,7 +866,7 @@ A failed `{{ }}` substitution is an ordinary Lua error that `pcall` can catch, a
 
 ### The failed run's message
 
-A failed run's message is its error's located message: the underlying error's own text followed by the text of each cause in its chain, joined by `: `, and any cause whose text already appears in the message is left out so no text repeats. Then comes where the failure happened, when it is located, as [Where a run error's message points](#where-a-run-errors-message-points) describes. The code never replaces the message, and the message stands on its own.
+A failed run's message is its error's located message: the underlying error's own text followed by the text of each cause in its chain, joined by `: `, and any cause whose text already appears in the message is left out, so each text appears once. Then comes where the failure happened, when it is located, as [Where a run error's message points](#where-a-run-errors-message-points) describes. The code never replaces the message, and the message stands on its own.
 
 ### Parse codes
 
@@ -874,7 +874,7 @@ A prompt that fails to parse fails before any run starts, so before any section 
 
 A prompt [listed under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts) that does not parse fails the parse of the prompt that lists it, with the code of its own parse failure. A listed prompt that the Host does not have fails it with the Host's not-found failure, which keeps the code the Host gave it, such as `not_found`, one of the [store codes](#store-codes).
 
-A file with no `runvil:` key also fails with `structure_invalid`, but its prompt parses: the version check is the first start check on the run's first step, after the wait for Packs and before the argument and requirements checks. The run's record holds no events. The message is `not a runvil prompt: no runvil version (prompt {name})`, which ends with the prompt's frontmatter `name`.
+A file with no `runvil:` key also fails with `structure_invalid`, but its prompt parses: the version check is the first start check on the run's first step, after the wait for Packs and before the argument and requirements checks. The run's record holds only the run's own values and the error that ended it. The message is `not a runvil prompt: no runvil version (prompt {name})`, which ends with the prompt's frontmatter `name`.
 
 A run fails with `unsupported_version` when the prompt's [`runvil:` key](02-file-structure.md#the-runvil-version-key) declares a major version other than `0`, and the message is `unsupported runvil version: {n} (this build supports major 0)` followed by ` (at {file}:{line})`, the line of the `runvil:` key, as `future` shows.
 
@@ -896,7 +896,7 @@ An [`execute`](08-jump-and-call.md#listing-prompts-under-prompts) of a name that
 
 A run fails with `lua_compile` when a Lua block does not compile, a parse failure that ends the run before any section or code runs (see [Parse codes](#parse-codes)), and with `substitution` when a failed `{{ }}` substitution goes uncaught (see [Placeholders in prose](07-substitution.md#placeholders-in-prose)).
 
-A run fails with `lua_quota` when a section entry's Lua runs out its `log` event quota or its `log` byte quota, and with `call_depth_exceeded` when a `call`, `execute`, `tasks.spawn`, or `tasks.fanout` arm would nest past the call depth cap. No instruction-count quota exists. The message is one of these, followed by ` (at {file}:{line})`, the line of the refused `log` call or of the `call`, `execute`, `tasks.spawn`, or `tasks.fanout` that went too deep:
+A run fails with `lua_quota` when a section entry's Lua runs out its `log` event quota or its `log` byte quota, and with `call_depth_exceeded` when a `call`, `execute`, `tasks.spawn`, or `tasks.fanout` arm would nest past the call depth cap. A block can run any number of Lua instructions. The message is one of these, followed by ` (at {file}:{line})`, the line of the refused `log` call or of the `call`, `execute`, `tasks.spawn`, or `tasks.fanout` that went too deep:
 
 ````text
 lua log event quota exceeded
@@ -927,11 +927,11 @@ A run fails with a model code when a model call fails at the transport, backend,
 
 A run fails with `context_exhausted` when a request overflows the model's context window, either on the check before sending or at the provider, and the selected [compactor](11-conversations.md#compactors-and-context-exhaustion) does not make it fit, or when a `compactors.fail(reason)` call goes uncaught, whether a compactor made it inside a loop with a reason of your own or your Lua made it directly outside any loop, with any reason. The message is `context exhausted: {detail}`, followed by ` (at {file}:{line})` when the failure is located, where the detail is the overflow reason in words for `precheck` and `provider`, and the reason itself otherwise.
 
-A run fails with `model_required` when a model round has no model to run on because the Host gave none: an uncaught [missing-model error](10-models.md#infer-errors-and-the-missing-model-error) from [`models.infer`](10-models.md#running-a-round-with-modelsinfer) or [`models.loop`](11-conversations.md#how-the-loop-runs) fails the run with the message `model binding required for section {section}`, followed by ` (at {file}:{line})`, the line of the call. Prose by itself never requires a model; only an explicit `models.infer` of it does.
+A run fails with `model_required` when a model round finds that the Host gave no model: an uncaught [missing-model error](10-models.md#infer-errors-and-the-missing-model-error) from [`models.infer`](10-models.md#running-a-round-with-modelsinfer) or [`models.loop`](11-conversations.md#how-the-loop-runs) fails the run with the message `model binding required for section {section}`, followed by ` (at {file}:{line})`, the line of the call. Prose by itself never requires a model; only an explicit `models.infer` of it does.
 
 ### Tool codes
 
-A run fails with one of two tool codes when a section entry's first loop round cannot freeze its tool sets (see [When an offer takes effect](12-tools.md#when-an-offer-takes-effect) and [What a Pack's render can change](12-tools.md#what-a-packs-render-can-change)): `tool_schema_invalid` when a tool's model-facing schema does not build, and `tool_sets_invalid` when the sets, or the render answer they are merged from, break a rule of the merge that builds them. The run reports `tool_scope_validation_failed`, the round sends no request and freezes nothing, so offers still work after it, and the `models.loop` call raises an error value of kind `internal` that `pcall` catches. Left uncaught, it ends the run with its code, and the run's message begins with the error's own message (see [The failed run's message](#the-failed-runs-message)).
+A run fails with one of two tool codes when a section entry's first loop round cannot freeze its tool sets (see [When an offer takes effect](12-tools.md#when-an-offer-takes-effect) and [What a Pack's render can change](12-tools.md#what-a-packs-render-can-change)): `tool_schema_invalid` when a tool's model-facing schema does not build, and `tool_sets_invalid` when the sets, or the render answer they are merged from, break a rule of the merge that builds them. The run reports `tool_scope_validation_failed`, the round ends before its request is sent and leaves the freeze to the entry's next round, so offers still work after it, and the `models.loop` call raises an error value of kind `internal` that `pcall` catches. Left uncaught, it ends the run with its code, and the run's message begins with the error's own message (see [The failed run's message](#the-failed-runs-message)).
 
 A schema that does not build gives one of two `tool_schema_invalid` messages, with the tool's wire name as `{name}`: a tool whose wire name breaks the wire-name rule gives `model-facing schema build failure for tool alias "{name}": invalid tool wire name "{name}": expected [A-Za-z][A-Za-z0-9_-]{0,63}`, and a tool whose parameter schema is not a JSON object gives `model-facing schema build failure for tool alias "{name}": tool "{name}" parameters schema must be a JSON object`.
 
@@ -947,7 +947,7 @@ A run fails with one of the other tool codes when a tool call goes wrong and the
 
 - `tool_invalid_arguments`, `tool_backend`, `tool_transport`, or `tool_other`: a dispatched tool fails, because it rejects its arguments, its backend fails or refuses the request, the call fails at the transport layer, or for any other reason
 - `out_of_scope_tool`: the model calls a tool outside the section entry's [tool scope](12-tools.md#tool-scope)
-- `unbound_tool`: a `tools.call` names an id that is neither a defined adhoc tool nor a tool in the run's catalog
+- `unbound_tool`: a `tools.call` names an id that is missing from both the defined adhoc tools and the run's catalog
 - `model_only_tool`: a `tools.call` names a catalog tool marked `model_only_call`
 - `tool_loop_exhausted`: the tool-call loop reaches its round cap before the model gives a final reply
 
@@ -961,9 +961,9 @@ tool "{name}" ({id}) is model-only: a render shapes its arguments for the model 
 
 A run fails with a store code when a `store` operation fails and goes uncaught, and the code names how it failed, such as `not_found` or `invalid_path` (see [When a store call fails](09-the-store.md#when-a-store-call-fails)). An uncaught `store.read('missing.txt')` fails the run with `not_found` and a message that includes `file not found in store: missing.txt`.
 
-A store call that meets a claims conflict fails the run with `determinism` (see [Races, claims, and determinism](09-the-store.md#races-claims-and-determinism)), and its message starts with `store determinism violation: `. Unlike other store failures, any claims conflict ends the run on the spot, so no `pcall` can catch it, not even a `pcall` a library runs while it loads, and no task or arm counts as failed.
+A store call that meets a claims conflict fails the run with `determinism` (see [Races, claims, and determinism](09-the-store.md#races-claims-and-determinism)), and its message starts with `store determinism violation: `. Unlike other store failures, any claims conflict ends the run on the spot even when a `pcall` surrounds the call, including a `pcall` a library runs while it loads, and the run alone counts as failed, whichever task or arm made the call.
 
-A store call gives eight of the store codes: `not_found`, `not_a_directory`, `is_a_directory`, `directory_not_empty`, `invalid_path`, `invalid_range`, and `anchor` for a failure that `pcall` can catch, and `determinism` for a claims conflict. The other thirteen name failures of real files, mounts, and policies, and no store call gives one, because the store is in memory and under no policy. One of them reaches a run only when the run's files, the filesystem the Host gives a run for its tool calls, refuse the run its access, or refuse a task or a tool call its own. Left uncaught, that failure ends the run with the code of the files' failure, such as `backend`, and a message that starts `file access failed: `.
+A store call gives eight of the store codes: `not_found`, `not_a_directory`, `is_a_directory`, `directory_not_empty`, `invalid_path`, `invalid_range`, and `anchor` for a failure that `pcall` can catch, and `determinism` for a claims conflict. The other thirteen name failures of real files, mounts, and policies, and a store call never gives one, because the store is in memory and under no policy. One of them reaches a run only when the run's files, the filesystem the Host gives a run for its tool calls, refuse the run its access, or refuse a task or a tool call its own. Left uncaught, that failure ends the run with the code of the files' failure, such as `backend`, and a message that starts `file access failed: `.
 
 ### Run codes
 
@@ -977,13 +977,13 @@ The message of a refused run starts with `the environment cannot satisfy this pr
 - role 'small': requires 'thinking: false'; the thinking capability of the model filling it is Always
 ````
 
-A role map that holds models but has no `default` entry gives one model line and no other, because no declared requirement is checked in that case:
+A role map that holds models but has no `default` entry gives a single model line, because the checks of the declared requirements are skipped in that case:
 
 ````text
 - role 'default': requires a model; the caller's role map has no 'default' entry
 ````
 
-That gap is the caller's, as a reserved Pack id is, so a refusal made only of the caller's gaps points at no line.
+That gap is the caller's, as a reserved Pack id is, so the message of a refusal made only of the caller's gaps holds the opening line and one line for each gap, and leaves the location out.
 
 These checks cover every prompt the parse read: the run's own prompt and each prompt that the `prompts:` lists reach from it (see [Listing prompts under `prompts:`](08-jump-and-call.md#listing-prompts-under-prompts)). A listed prompt's gap refuses the run even when no run would reach the `execute`, and its line starts with that prompt's name, as in `- review.md: kit is unavailable: the kit server is down`. Within each kind of line, the lines of the run's own prompt come first and those of the listed prompts follow in the order of their names, so the model lines are in role order for each prompt in turn. The location at the end of the message is in the first prompt that caused a gap, the run's own before the listed ones: that prompt's `uses:` line when a Pack it declares is missing or unavailable, and otherwise its `models:` line, as ` (at review.md:5)` is for the `uses:` line of `review.md`.
 
@@ -1017,7 +1017,7 @@ Run it with the arguments `{"limit":5}`, which leave out `query`. The run fails 
 argument `query` is required
 ````
 
-The message names the argument at fault and what the declaration requires of it, and nothing follows it. An `args_invalid` failure of the run's own arguments has no file and no line, because the arguments come from the caller and no line of the prompt is at fault. The argument check is the second start check on the run's first step, after the version check and before the requirements check. So the run is refused before any section runs: no Lua has run, nothing in the prompt can catch the failure, and the run's record holds no events.
+The message names the argument at fault and what the declaration requires of it, and it ends there. An `args_invalid` failure of the run's own arguments leaves out the file and the line, because the arguments come from the caller and the fault lies outside the prompt's lines. The argument check is the second start check on the run's first step, after the version check and before the requirements check. So the run is refused before any section runs: the refusal comes before any of the prompt's Lua runs, so the failure is out of the prompt's reach, and the run's record holds only the run's own values and the error that ended it.
 
 The check reports the first mismatch only, and it looks in a fixed order: text that is not JSON, then JSON that is not an object, then each object's declared fields in name order, then its undeclared fields in name order. Each of these runs of `lookup` fails with one message:
 
@@ -1027,7 +1027,7 @@ The check reports the first mismatch only, and it looks in a fixed order: text t
 
 A prompt with no `args:` key takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)), so the check holds for it too. The `steady` prompt at the start of this chapter, run with the arguments `{"query":"papers"}`, fails with ``argument `query` is not declared; the declared arguments are `text` ``.
 
-An [`execute`](08-jump-and-call.md#arguments-for-an-executed-prompt) checks the arguments it passes in the same way, against the `args:` declaration of the prompt it executes, and a mismatch gives the same message and the same code. That failure is no start check, though. It is raised in Lua at the `execute`, before the executed prompt starts, as an error value of kind `lua` whose `code` is `args_invalid`, so a `pcall` around the `execute` catches it. Left uncaught, it ends the run with code `args_invalid`, and its message ends with ` (at {file}:{line})`, the line of the `execute`, because the prompt that runs the `execute` built those arguments.
+An [`execute`](08-jump-and-call.md#arguments-for-an-executed-prompt) checks the arguments it passes in the same way, against the `args:` declaration of the prompt it executes, and a mismatch gives the same message and the same code. That failure comes after the start checks, though. It is raised in Lua at the `execute`, before the executed prompt starts, as an error value of kind `lua` whose `code` is `args_invalid`, so a `pcall` around the `execute` catches it. Left uncaught, it ends the run with code `args_invalid`, and its message ends with ` (at {file}:{line})`, the line of the `execute`, because the prompt that runs the `execute` built those arguments.
 
 [Argument errors](06-arguments.md#argument-errors) lists every message an argument failure gives.
 
@@ -1035,7 +1035,7 @@ A run ends with `canceled` when the Host cancels it, or when the canceled error 
 
 A run fails with `internal` when an Engine invariant breaks, a fault in the Engine rather than in the prompt. That includes Harness mistakes such as an answer of the wrong kind, an answer for an id never issued, or a second answer to one effect. The message starts with `internal invariant violated: {message}` and ends with ` (at {file}:{line})`, which names an Engine source file and line rather than a place in the prompt. The Harness also ends a run with `internal` when the run is still pending, its main chain does not wait for input, and the Harness has nothing to wait for, which means it lost track of an effect, and the message is then `the effect loop has nothing to await for a pending run`.
 
-A run fails with `stalled` when no chain can move and the main chain does not wait on its own inbox, the one inbox the Host can fill. Every chain left waits on something only another waiting chain could end, such as an owner waiting on a task that waits for a message only that owner could send (see [When nothing can move](15-tasks.md#when-nothing-can-move)). The message names, in id order, the tasks that wait on their inboxes, and the error's facts hold their ids. A stall has no location, so the message is its own text:
+A run fails with `stalled` when no chain can move and the main chain does not wait on its own inbox, the one inbox the Host can fill. Every chain left waits on something only another waiting chain could end, such as an owner waiting on a task that waits for a message only that owner could send (see [When nothing can move](15-tasks.md#when-nothing-can-move)). The message names, in id order, the tasks that wait on their inboxes, and the error's facts hold their ids. A stall lacks a location, so the message is its own text:
 
 ````text
 the run stalled: no chain can move, and these tasks wait on their inboxes: {ids}
@@ -1053,15 +1053,15 @@ A caller code never ends a run. `Harness::run` hands the Host the run's result, 
 
 A run the Host cancels ends with the canceled error, whose code is `canceled`, rather than as a failed run, and Workshop's run log records its status as `canceled`, not `failed`. That holds even for a cancel that comes before the run starts or while the Harness looks up the model.
 
-A frontmatter parse failure ends the run with `frontmatter_invalid`, and a parse failure in the prompt body ends it with its own code, such as `structure_invalid` or `fence_invalid`. A run that ends before it starts (see [Preparing the run](04-how-a-prompt-runs.md#preparing-the-run)) ends with a model code when the Harness cannot fetch the Host's list of models, `requirements_unmet` when that list does not hold the selected model, or the code of its parse failure, such as `structure_invalid` or `lua_compile`, when the prompt does not parse. Its message is the full chain of causes, followed by its location form when it has one: a parse failure ends with its location form, while a model lookup failure has no location, so its message is its own text.
+A frontmatter parse failure ends the run with `frontmatter_invalid`, and a parse failure in the prompt body ends it with its own code, such as `structure_invalid` or `fence_invalid`. A run that ends before it starts (see [Preparing the run](04-how-a-prompt-runs.md#preparing-the-run)) ends with a model code when the Harness cannot fetch the Host's list of models, `requirements_unmet` when that list does not hold the selected model, or the code of its parse failure, such as `structure_invalid` or `lua_compile`, when the prompt does not parse. Its message is the full chain of causes, followed by its location form when it has one: a parse failure ends with its location form, while a model lookup failure ends with its own text.
 
-Each of these codes belongs to one of the eight code families, and the Harness adds no code of its own.
+Each of these codes belongs to one of the eight code families, as every code the Harness reports does.
 
 ### Codes through calls
 
-The Lua codes hold alike in a walked section, a `call` chain, an executed prompt, a task, and a `tasks.fanout` arm. A failure in a chain that `call` ran reaches the calling block as an error value that `pcall` catches, and its `code` is the code the same failure ends the run with when nothing catches it, such as `not_found` for a `store.read` of a missing file. A failure inside an executed prompt keeps its code through the [`execute`](08-jump-and-call.md#catching-a-failed-execute) in the same way, along with its kind, its message, and the file and line of the executed prompt where it happened.
+The Lua codes hold alike in a walked section, a `call` chain, an executed prompt, a task, and a `tasks.fanout` arm. A failure in a chain that `call` ran reaches the calling block as an error value that `pcall` catches, and its `code` is the code the same failure ends the run with when it goes uncaught, such as `not_found` for a `store.read` of a missing file. A failure inside an executed prompt keeps its code through the [`execute`](08-jump-and-call.md#catching-a-failed-execute) in the same way, along with its kind, its message, and the file and line of the executed prompt where it happened.
 
-Passing the call depth cap through `call`, `execute`, `tasks.spawn`, or `tasks.fanout` ends the run with `call_depth_exceeded`, not `lua_runtime`, even though a `pcall` that catches the same error reads its kind as `lua`. When a `call`, an `execute`, or a task wait fails and the prompt does not catch it, the run ends with that failure's own code rather than as a generic `lua_runtime` failure, such as `call_depth_exceeded` for the call depth cap, because the error passes up through every parent without being flattened.
+Passing the call depth cap through `call`, `execute`, `tasks.spawn`, or `tasks.fanout` ends the run with `call_depth_exceeded`, not `lua_runtime`, even though a `pcall` that catches the same error reads its kind as `lua`. When a `call`, an `execute`, or a task wait fails and the prompt does not catch it, the run ends with that failure's own code rather than as a generic `lua_runtime` failure, such as `call_depth_exceeded` for the call depth cap, because the error passes up through every parent intact.
 
 ## Error kinds in Lua and the run error they become
 
@@ -1102,13 +1102,13 @@ Error kinds and codes are separate vocabularies. An error kind is the broad clas
 
 The `model_failure` error kind marks a model call that failed outside the prompt: a transport, backend, or decode failure, or a disabled gateway. An empty reply is the one model call failure with a kind of its own, `empty_model_reply`. The `model_required` error kind marks the [missing-model error](10-models.md#infer-errors-and-the-missing-model-error), a `models.infer` or `models.loop` round that finds the Host gave no model. [`models.use`, `models.get`, and `models.current`](10-models.md#when-the-host-gives-no-model) raise an ordinary error of kind `lua` instead when the Host gave no model for the role.
 
-Neither value has extra fields. Left uncaught, a `model_failure` value ends the run with its own model code, such as `overloaded` or `timeout`, and a `model_required` value ends it with `model_required`.
+Both values hold only the fields every error value has. Left uncaught, a `model_failure` value ends the run with its own model code, such as `overloaded` or `timeout`, and a `model_required` value ends it with `model_required`.
 
 ### The `internal` error kind
 
-The `internal` error kind marks a failure that has no kind of its own. A violated internal invariant and a section entry's failed tool freeze reach Lua as kind `internal`, while a store failure has its own kind `store` and a failed model call its own kind `model_failure`.
+The `internal` error kind marks a failure that falls outside the other kinds. A violated internal invariant and a section entry's failed tool freeze reach Lua as kind `internal`, while a store failure has its own kind `store` and a failed model call its own kind `model_failure`.
 
-An `internal` error value has no extra fields. Left uncaught, it ends the run with `tool_schema_invalid` or `tool_sets_invalid` for a failed tool freeze (see [Tool codes](#tool-codes)), or `internal` for an Engine fault.
+An `internal` error value holds only the fields every error value has. Left uncaught, it ends the run with `tool_schema_invalid` or `tool_sets_invalid` for a failed tool freeze (see [Tool codes](#tool-codes)), or `internal` for an Engine fault.
 
 When an Engine function fails and `pcall` catches it, the error kind is `lua` and the code `lua_runtime` for an authoring or argument problem, such as a runtime error, a syntax error, a memory error, a bad argument, or a value that cannot be converted or serialized. The arguments that an `execute` passes are an exception: when the executed prompt's declaration refuses them, the kind is `lua` and the code is `args_invalid`. The kind and the code are both `internal` when the Lua runtime's own machinery fails.
 
@@ -1122,7 +1122,7 @@ A caught error value raised again with `error(err)` before the block makes anoth
 
 That is what `summary` relies on. A section can turn a caught `model_failure`, a model call the Harness cannot complete, into its result, and raise every other kind again with `error(reply)` before any other suspending call, so the run ends exactly as it would have without the `pcall`.
 
-A model call's transport, backend, or decode failure, or a disabled gateway, raises a `model_failure` error value, and an empty model reply raises `empty_model_reply` instead. The missing-model error raises `model_required`, a script's `tools.call` of a model-only tool raises `model_only_tool`, and a failure with no kind of its own, such as a failed tool freeze or an Engine fault, raises an `internal` error value. This holds inside a `tasks.fanout` arm too, where an arm's `models.infer` with no model access configured surfaces the disabled-gateway failure as `model_failure`.
+A model call's transport, backend, or decode failure, or a disabled gateway, raises a `model_failure` error value, and an empty model reply raises `empty_model_reply` instead. The missing-model error raises `model_required`, a script's `tools.call` of a model-only tool raises `model_only_tool`, and a failure that falls outside the other kinds, such as a failed tool freeze or an Engine fault, raises an `internal` error value. This holds inside a `tasks.fanout` arm too, where an arm's `models.infer` with no model access configured surfaces the disabled-gateway failure as `model_failure`.
 
 Left uncaught, a [`models.loop`](11-conversations.md#loop-arguments-and-errors) failure ends the run like this:
 
@@ -1236,7 +1236,7 @@ The receive timeout bounds each wait for the next part of a model reply, first t
 
 ### What a model failure message holds
 
-A caught model call failure carries no fields beyond `kind`, `code`, and `message`, and its `code` is the completion error kind in snake_case, such as `overloaded` or `rate_limited`. Its message is the line of the call followed by the failure's prose, which never includes the backend's reply body, so a hostile or private payload cannot leak into Lua or forge a log line there. When the failure goes uncaught, the failed run's message can hold the body after the prose.
+A caught model call failure other than an empty reply holds only the fields `kind`, `code`, and `message`, and its `code` is the completion error kind in snake_case, such as `overloaded` or `rate_limited`. Its message is the line of the call followed by the failure's prose, which never includes the backend's reply body, so a hostile or private payload cannot leak into Lua or forge a log line there. When the failure goes uncaught, the failed run's message can hold the body after the prose.
 
 ### Connection, timeout, and malformed-reply failures
 
@@ -1254,7 +1254,7 @@ the model backend sent a reply that could not be understood: {specific}
 the model backend sent a reply that could not be understood: completion stream ended without the [DONE] sentinel
 ````
 
-When a `length` or `content_filter` [finish reason](11-conversations.md#empty-replies-and-finish-reasons) cuts off a batch of tool calls, the round fails as `MalformedResponse` with the fixed phrase followed by `: tool-call batch truncated by finish_reason "length": partial arguments must not execute`, or `"content_filter"` in place of `"length"`, so no partial tool arguments run.
+When a `length` or `content_filter` [finish reason](11-conversations.md#empty-replies-and-finish-reasons) cuts off a batch of tool calls, the round fails as `MalformedResponse` with the fixed phrase followed by `: tool-call batch truncated by finish_reason "length": partial arguments must not execute`, or `"content_filter"` in place of `"length"`, so partial tool arguments never run.
 
 A model reply that would pass the response cap is refused as its bytes arrive, before any of it is decoded, as `MalformedResponse`, and the cap covers error replies as well as successful ones. The fixed phrase ends one of three ways:
 
@@ -1293,7 +1293,7 @@ the request is larger than the model's context window (status {status})
 
 A `models.infer` call raises a `ContextOverflow` failure as kind `model_failure`, while a `models.loop` round hands it to the compactor instead (see [Compactors and context exhaustion](11-conversations.md#compactors-and-context-exhaustion)).
 
-When model access is turned off or not configured, every model round fails as `Unavailable`, nothing is sent to the network, and the failure is not retryable. A backend status 401 or 403 also fails the round as `Unavailable`, and it is not retryable. Their messages are:
+When model access is turned off or not configured, every model round fails as `Unavailable` before any request goes to the network, and the failure is not retryable. A backend status 401 or 403 also fails the round as `Unavailable`, and it is not retryable. Their messages are:
 
 ````text
 model access is turned off or not configured
@@ -1368,7 +1368,7 @@ Both runs fail with a model code, but only the first, `overloaded`, may succeed 
 
 ### What makes a failure retryable
 
-A failed run is retryable only when a model call fails with a transient transport or backend problem, and that is what a retryable failure means: running the prompt again may succeed. A model call failure is retryable when it comes from a transport failure (a receive timeout included), a malformed or oversized reply, a rate limit (backend status 429), an overloaded backend (status 503 or 529), or any backend status from 500 through 599, so the retryable codes are `transport`, `timeout`, `malformed_response`, `rate_limited`, `overloaded`, and `server_error`. The failure reports the backend status when there is one, and nothing reruns the failed run automatically.
+A failed run is retryable only when a model call fails with a transient transport or backend problem, and that is what a retryable failure means: running the prompt again may succeed. A model call failure is retryable when it comes from a transport failure (a receive timeout included), a malformed or oversized reply, a rate limit (backend status 429), an overloaded backend (status 503 or 529), or any backend status from 500 through 599, so the retryable codes are `transport`, `timeout`, `malformed_response`, `rate_limited`, `overloaded`, and `server_error`. The failure reports the backend status when there is one, and running the prompt again is up to the Host.
 
 ### Failures that are never retryable
 
@@ -1415,7 +1415,7 @@ A context overflow, a spent quota (`QuotaExhausted`), a request refused on conte
 
 When the backend reports an error partway through a streamed reply, the Harness bounds the error text, with a bound of 2000, and escapes its control characters, then classifies the failure by that text alone. Text naming an overload, such as `overloaded_error: try again`, fails as `Overloaded`, and text naming no known cause fails as `Transport`, both retryable. Text naming a context limit, a spent quota, or a content policy fails as a context overflow, `QuotaExhausted`, or `Refused`, and is not transient.
 
-When the model answers a `models.infer` round with tool calls although none are advertised, the call fails as a malformed reply (kind `MalformedResponse`) with the detail `the round sent tool calls, but no tools were advertised`. The failure is retryable, because a reply that breaks protocol may come back well formed on another try. When that failure ends the run, the run fails with code `malformed_response`, and it still counts as a retryable failure.
+When the model answers a `models.infer` round with tool calls, although the round leaves the tool list out of its request, the call fails as a malformed reply (kind `MalformedResponse`) with the detail `the round sent tool calls, but no tools were advertised`. The failure is retryable, because a reply that breaks protocol may come back well formed on another try. When that failure ends the run, the run fails with code `malformed_response`, and it still counts as a retryable failure.
 
 ## Cancellation and stops
 
@@ -1436,7 +1436,7 @@ while true do n = n + 1 end
 ```
 ````
 
-Nothing in `spinner` ends the loop, and no limit would. When the Host cancels the run, the section entry's Lua instruction hook sees the cancel as the code runs, the loop is aborted, and the run ends with the canceled error.
+The loop in `spinner` is endless: the prompt lets it run on, and so does every limit. When the Host cancels the run, the section entry's Lua instruction hook sees the cancel as the code runs, the loop is aborted, and the run ends with the canceled error.
 
 ### Canceling a run
 
@@ -1444,13 +1444,13 @@ The Host can cancel a run from any thread by setting the cancel flag it gave the
 
 A run the Host cancels, before it starts or while it runs, ends with the canceled error, the error whose code is `canceled`, and its message is `canceled: the run was canceled or this call was stopped`. A canceled run is not a failed run: Workshop records its status as `canceled` and reports it as `the agent run was canceled` rather than with a failure message. Inside the run, a cancel surfaces as the canceled error, whose kind and code in Lua are both `canceled`, and that error ends the run.
 
-Once a run is canceled, it issues no further model rounds or tool calls. Its result is decided at the next step and reported once the Host answers every request still out, whether a model reply, a [render](01-what-a-prompt-is.md#the-five-kinds-of-harness-work), a tool call, a file operation that a tool asked for, or a timer, as dropped.
+Once a run is canceled, it stops issuing model rounds and tool calls. Its result is decided at the next step and reported once the Host answers every request still out, whether a model reply, a [render](01-what-a-prompt-is.md#the-five-kinds-of-harness-work), a tool call, a file operation that a tool asked for, or a timer, as dropped.
 
 ### The cancel flag
 
 The cancel flag is the one signal a cancel sets. One cancel flag is shared by the Lua instruction hook in every section VM, by every activated [Pack](12-tools.md#tools-packs-and-the-uses-key), and by the run itself, so one cancel reaches them all, and an [executed prompt](08-jump-and-call.md#one-run-shared-limits) ends with the run. A cancel stops a run even in the middle of a running Lua block, because the Engine checks the cancel flag between chain steps and from the Lua instruction hook.
 
-A Host cancel stops a running Lua block promptly, even a tight endless loop such as `while true do n = n + 1 end` that nothing in the prompt and no limit would end, because the section entry's Lua instruction hook checks for cancellation as the code runs, and the run ends with the canceled error, as `spinner` shows. Canceling a run aborts a Lua block that is still running, even a tight `while true do end` loop, and even when the run is canceled before the block starts; the block ends with the canceled error.
+A Host cancel stops a running Lua block promptly, even a tight endless loop such as `while true do n = n + 1 end` that the prompt and every limit would let run on, because the section entry's Lua instruction hook checks for cancellation as the code runs, and the run ends with the canceled error, as `spinner` shows. Canceling a run aborts a Lua block that is still running, even a tight `while true do end` loop, and even when the run is canceled before the block starts; the block ends with the canceled error.
 
 ### What a cancel does to waiting calls
 
@@ -1468,7 +1468,7 @@ Your code cannot swallow a cancel. Every protected call raises the instruction h
 
 ### Stopping the round in flight
 
-The Host can [stop the round](01-what-a-prompt-is.md#effects-and-harness-work) in flight without canceling the run. Each `models.infer`, `models.loop` round, `tools.call`, tool call the model makes, and timed `tasks.join` or `tasks.join_any` that is waiting when the stop lands resumes with the canceled error. A wait on an inbox is none of these, so a stop leaves it waiting (see [What a stop leaves running](#what-a-stop-leaves-running)).
+The Host can [stop the round](01-what-a-prompt-is.md#effects-and-harness-work) in flight without canceling the run. Each `models.infer`, `models.loop` round, `tools.call`, tool call the model makes, and timed `tasks.join` or `tasks.join_any` that is waiting when the stop lands resumes with the canceled error. A wait on an inbox is outside that list, so a stop leaves it waiting (see [What a stop leaves running](#what-a-stop-leaves-running)).
 
 ````markdown
 ---
@@ -1503,7 +1503,7 @@ Left uncaught, the canceled error from a stop ends the run with code `canceled`,
 
 Running Lua checks the run's cancel flag every 10,000 instructions, a fixed interval, in each section VM's main code and in every block coroutine, so the check reaches every block of every section. The Engine also checks the flag between steps. A cancel takes effect at the next instruction check inside a running block, not only between blocks.
 
-Cancellation reaches every block in a run, not only the first, because every block coroutine gets the same cancellation hook. Even pure Lua computation that calls nothing outside Lua is aborted and never returns, such as this block after a cancel:
+Cancellation reaches every block in a run, not only the first, because every block coroutine gets the same cancellation hook. Even pure Lua computation that stays inside Lua is aborted and never returns, such as this block after a cancel:
 
 ````lua
 for i = 1, 100000 do end
@@ -1532,19 +1532,19 @@ Under a cancel, the `pcall` around a waiting call never returns, so a block writ
 
 On cancellation, the model reply in flight is dropped and never returns to Lua, and a canceled `models.infer` does not report a model-round failure among the run's events. Canceling a run while a `models.infer` waits on a model reply ends the run with the canceled error, in whichever section the call is.
 
-A running `models.loop` stays cancellable, because the loop runs as Lua inside the block and the instruction check keeps running while it does. A `models.loop` round cut short by a stop raises an error value of kind `canceled` and appends nothing to the message list, and a later `models.loop` call runs as usual.
+A running `models.loop` stays cancellable, because the loop runs as Lua inside the block and the instruction check keeps running while it does. A `models.loop` round cut short by a stop raises an error value of kind `canceled` and leaves the message list as it was, and a later `models.loop` call runs as usual.
 
 A tool call in flight during a cancel is not waited out: its answer is dropped and the run ends promptly with the canceled error, even when the tool itself would never finish, both for a `tools.call` from Lua and for a call the model makes in a loop. Canceling a run aborts an [adhoc tool](12-tools.md#adhoc-tools-with-toolsadhoc) handler even when it is stuck in an endless Lua loop such as `while true do end`, and the run ends promptly with the canceled error. Canceling a run while a compactor is stuck in an endless Lua loop also ends the run promptly with the canceled error.
 
-A run canceled before a fanout (`tasks.fanout`) begins ends with the canceled error without running any arms. Canceling a run while [fanout arms](14-fanout.md#what-an-arm-sees) are suspended on model calls ends the run with the canceled error.
+A run canceled before a fanout (`tasks.fanout`) begins ends with the canceled error before any arm runs. Canceling a run while [fanout arms](14-fanout.md#what-an-arm-sees) are suspended on model calls ends the run with the canceled error.
 
 ### What a stop leaves running
 
-A stop reaches only the calls waiting when it lands. A stop that lands while no call is waiting changes nothing, so the next call runs as usual.
+A stop reaches only the calls waiting when it lands. A stop that lands while no call is waiting leaves the run as it is, so the next call runs as usual.
 
 A stop drops a tool's calls unless the tool's Pack marks it as surviving a stop; by default a tool does not survive a stop. A tool call that survives a stop still ends when the run ends.
 
-A stop leaves every inbox alone, the main chain's and each task's. A [`tasks.receive()`](05-lua-environment.md#asking-the-operator) keeps waiting through the stop, and so does a task idle after [`tasks.reply`](15-tasks.md#answering-with-tasksreply), so the operator's next message, or the owner's, still reaches the prompt, and a stop never drops a message queued in any inbox. A message is not a stop either: it never raises `canceled`, and a message that arrives while a `models.loop` round waits steers the loop instead (see [Messages that arrive while the loop runs](11-conversations.md#messages-that-arrive-while-the-loop-runs)). When the Host stops the round and then sends a message, the stop comes first: the stopped round raises `canceled`, and the message stays queued for the chain's next read. A stop that cuts short a timed `tasks.join` or `tasks.join_any` does not cancel the tasks it waits on, so a later wait still joins them (see [Time limits on waits](15-tasks.md#time-limits-on-waits)).
+A stop leaves every inbox alone, the main chain's and each task's. A [`tasks.receive()`](05-lua-environment.md#asking-the-operator) keeps waiting through the stop, and so does a task idle after [`tasks.reply`](15-tasks.md#answering-with-tasksreply), so the operator's next message, or the owner's, still reaches the prompt, and a message queued in any inbox stays queued through a stop. A message is not a stop either: it never raises `canceled`, and a message that arrives while a `models.loop` round waits steers the loop instead (see [Messages that arrive while the loop runs](11-conversations.md#messages-that-arrive-while-the-loop-runs)). When the Host stops the round and then sends a message, the stop comes first: the stopped round raises `canceled`, and the message stays queued for the chain's next read. A stop that cuts short a timed `tasks.join` or `tasks.join_any` does not cancel the tasks it waits on, so a later wait still joins them (see [Time limits on waits](15-tasks.md#time-limits-on-waits)).
 
 ## Gateway environment variables
 
@@ -1556,7 +1556,7 @@ RUNVIL_GATEWAY_URL=http://127.0.0.1:8081/v1
 
 With only this variable set, the Host builds its model connection with no API key, because `127.0.0.1` is a loopback host, and each model call goes to `http://127.0.0.1:8081/v1/chat/completions`.
 
-The gateway environment variables are the two settings the Host can build the Harness's model connection from. A prompt never reads them, and a missing or invalid value is a setup error the Host sees before any run starts, so no prompt can catch it.
+The gateway environment variables are the two settings the Host can build the Harness's model connection from. A prompt never reads them, and a missing or invalid value is a setup error the Host sees before any run starts, out of reach of every prompt.
 
 ### The gateway URL
 
@@ -1564,7 +1564,7 @@ The gateway environment variables are the two settings the Host can build the Ha
 
 ### The gateway API key
 
-`RUNVIL_GATEWAY_API_KEY` is required unless the host in `RUNVIL_GATEWAY_URL` is a loopback host. A loopback host is exactly `localhost` in any letter case, any address in `127.0.0.0/8` such as `127.0.0.1`, or `::1`. So `http://127.0.0.2:8081/v1`, `http://[::1]:8081/v1`, and `http://LOCALHOST:8081/v1` need no key, while `http://localhost.evil.com:8081/v1` does. An empty key counts as unset, and a key that is set is still sent to a loopback URL.
+`RUNVIL_GATEWAY_API_KEY` is required unless the host in `RUNVIL_GATEWAY_URL` is a loopback host. A loopback host is exactly `localhost` in any letter case, any address in `127.0.0.0/8` such as `127.0.0.1`, or `::1`. So the key is optional for `http://127.0.0.2:8081/v1`, `http://[::1]:8081/v1`, and `http://LOCALHOST:8081/v1`, while `http://localhost.evil.com:8081/v1` requires one. An empty key counts as unset, and a key that is set is still sent to a loopback URL.
 
 ### Setup errors
 
