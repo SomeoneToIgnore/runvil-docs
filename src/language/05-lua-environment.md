@@ -173,7 +173,7 @@ These 21 are all the globals the Engine installs. Fanout is `tasks.fanout`, a fu
 
 The preamble and every other section see the same set of globals, and `args` is read-only in all of them (see [`args` is read-only](06-arguments.md#args-is-read-only)).
 
-The name of a [model role](10-models.md#model-roles-instead-of-models) and an offered tool never become globals of their own. `type(strong)` is `nil`. You read a role's model handle with [`models.get(role)`](10-models.md#getting-handles-with-modelsget), so `models.get('strong').name` reads `strong`, and you read a tool with [`tools.get(id)`](12-tools.md#tool-objects-pack-objects-and-toolspacks), so in a prompt that declares `web`, `tools.get('web/search').id` reads `web/search`.
+The name of a [model role](10-models.md#model-roles-instead-of-models) and an offered tool never become globals of their own. `type(strong)` is `'nil'`. You read a role's model handle with [`models.get(role)`](10-models.md#getting-handles-with-modelsget), so `models.get('strong').name` reads `strong`, and you read a tool with [`tools.get(id)`](12-tools.md#tool-objects-pack-objects-and-toolspacks), so in a prompt that declares `web`, `tools.get('web/search').id` reads `web/search`.
 
 Every section VM is set up in one fixed order. The same order applies to every section entry, every fanout arm, and every spawned task chain:
 
@@ -594,7 +594,7 @@ The `coroutine` global reads nil in your code as well. The Engine loads the coro
 
 The raw-access functions are stripped after the Engine guard on `_G` captures `rawequal`, `rawget`, and `rawset` for its own use. A section VM lacks the `debug` library, `rawset`, and code loading, so the Engine guard on `_G`, a raw `prose` global, and a raw `args` global stay out of reach of your code (see [Giving `_G` a metatable](#giving-_g-a-metatable)).
 
-Calling any of these absent names, for example `print("hi")`, fails with a Lua runtime error because the name holds nil. The message comes either from the Engine guard on `_G` or from stock Lua's error for calling a nil value.
+Calling any of these absent names, for example `print("hi")`, fails with a Lua runtime error because the name holds nil. The message is stock Lua's error for calling a nil value, or your own error when an `__index` function you gave `_G` raises at the read (see [Strict globals](#strict-globals)).
 
 #### Runvil's own `require`
 
@@ -1595,9 +1595,9 @@ An error inside an item names the item by its path under the list, as in `json.e
 
 ### Size and nesting limits
 
-`json.decode` and `json.decode_lines` each take at most 8,388,608 bytes of text, the same cap [`web/fetch`](13-web-fetch-and-search.md#fetching-a-page) applies to a JSON body. A longer string raises `json.decode: input exceeds the 8388608-byte limit`, or the same message with the `json.decode_lines:` prefix, before any parsing starts.
+`json.decode` and `json.decode_lines` each take at most 8,388,608 bytes of text, the same cap [`web/fetch`](13-web-fetch-and-search.md#fetching-a-page) applies to a JSON body. A longer string raises `json.decode: input exceeds the 8388608-byte limit`, or the same message with the `json.decode_lines:` prefix, before any parsing starts. `json.encode` can write a longer text than that, and `json.decode` refuses such a text for its length.
 
-Nesting is limited to 127 levels in both directions, so `json.encode` never writes text that `json.decode` would refuse:
+Nesting is limited to 127 levels in both directions, so `json.decode` accepts the nesting of every text that `json.encode` writes:
 
 - `json.decode` accepts 127 arrays and objects nested inside each other and rejects the 128th with the parser's own message, as in `json.decode: recursion limit exceeded at line 1 column 128` for text that opens with 128 brackets.
 - `json.encode` counts the value you pass as level 1 and raises `json.encode: {path} is nested more than 127 levels deep` for a table at level 128. The path names that table, such as `value` followed by 127 steps of `[1]` for lists nested in lists. In debug mode the table becomes `"[too deep]"` instead.
@@ -2029,7 +2029,7 @@ Every other line of the document is written as it was read.
 
 #### The line endings `markdown.render` adds
 
-Blocks from different texts, or blocks whose `source` you wrote, may not fit together as written. `markdown.render` adds a line ending of its own in two cases, and neither occurs between two blocks of one parse:
+Blocks from different texts, or blocks whose `source` you wrote, may not fit together as written. `markdown.render` adds a line ending of its own in two cases, and neither occurs between a block and the block that followed it in the same parse:
 
 - Every block starts on a new line. When the text so far does not end with a line ending, one is written before the next block. The last block of a text lacks a line ending when the text itself ends without one.
 - A blank line sits between two prose blocks. When a prose block follows a prose block, and both the last line so far and the block's first line are non-blank, a blank line is written, so the two stay separate paragraphs.
@@ -2071,7 +2071,7 @@ Carrying the text, or the name of a store file, and parsing it where it is neede
 
 `line` always counts lines of the text that was parsed, never lines of a part of it, so `markdown.section(guide.blocks, '/Templates', 'fence', 3).line` is still `30`. A new parse counts from 1: `markdown.parse(templates.blocks[3].text)[1].line` is `1`, and `markdown.parse(prompt.section(path))` counts from the first line of that section's text. The selector forms of `prompt.section` count lines of the prompt file instead.
 
-The lookups read only the fields they need, `kind`, `title`, `blocks`, and `lang`, and a block whose `kind` they do not know matches the selector `'*'` alone. A list nested more than 127 levels deep, or a list that contains itself, raises.
+The lookups read only the fields they need, `kind`, `title`, `blocks`, `lang`, and `line`, and a block whose `kind` they do not know matches the selector `'*'` alone. A list nested more than 127 levels deep, or a list that contains itself, raises.
 
 ### Errors from the lookups
 
@@ -2286,7 +2286,7 @@ The run goes on whether or not the field is there. A caught unknown field error 
 
 The `sys` table itself is empty, and a function answers each read instead of a table of data, so its values are reachable only by reading a named field: iterating `sys` with `pairs` or `next` finds it empty, and `#sys` is `0`. `sys` takes string keys only, so you read a field by its name, as in `sys.when` or `sys['when']`, and a read with any other key type raises `sys fields must be accessed by string key`.
 
-`sys` is read-only. Assigning any `sys` field, existing or new, raises a Lua error that names the key:
+`sys` is read-only. Assigning any `sys` field, existing or new, raises a Lua error that names a string key by its text, an integer key by its digits, and any other key by its type name:
 
 ````text
 sys is read-only; cannot set '{field}'
@@ -2963,7 +2963,7 @@ With this block as the Lua block of `Main` in a copy of `ask-once` that leaves o
 
 `tasks.receive()` takes no arguments. Passing any argument raises a Lua error of kind `lua` whose message names the argument's type, such as `tasks.receive takes no arguments, got string`, so a prompt that passes a question fails loudly instead of losing it. Passing an explicit `nil` still counts as an argument and raises `tasks.receive takes no arguments, got nil`. `pcall` catches the error, and a refused call leaves the inbox as it was, so the next `tasks.receive()` still returns the operator's next message.
 
-`tasks.receive()` reads the inbox of the chain that calls it. The Host that launched the run decides whose messages reach its main chain.
+`tasks.receive()` reads the inbox of the main chain or, inside a task, the inbox of that task, and a section that a `call` or an `execute` runs reads its caller's inbox. The Host that launched the run decides whose messages reach its main chain.
 
 ### Messages that arrive first
 
