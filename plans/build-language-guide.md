@@ -46,7 +46,7 @@ This plan rebuilds the Prompt Language book from the code. It follows Dokuman's 
 
 - Chapters: the separate `runvil-docs` repo, in [runvil-docs/src/language/](runvil-docs/src/language/). There are 17 files, `01-what-a-prompt-is.md` through `17-quick-reference.md`, about 8,500 lines, with LF line endings and no BOM. The introduction is [runvil-docs/src/introduction.md](runvil-docs/src/introduction.md), and line 31 describes the language set.
 - Book config: [runvil/guide/books/language/book.toml](runvil/guide/books/language/book.toml). From the `runvil` repo root, with `RUNVIL_DOCS` set to the `runvil-docs` root, `cargo xtask site --books-only` runs `cargo run -p build-user-guide -- stage <out>`. That copies the chapters into `runvil/target/site-books/language/src/`, generates `SUMMARY.md` and `index.md` there, and writes the single-file export `runvil/target/site-books/runvil-language-guide.md`. Titles come from each file's H1, and order comes from sorting the file names. Per `runvil-docs/CONTRIBUTING.md`, `SUMMARY.md` and `index.md` never go in `src/`.
-- Sources: the list inside the `recon-instructions` block. It covers the `runvil` language crates, the two author-facing plugins, the example prompts, and, as low-rank evidence, the saved crate docs and the current chapters.
+- Sources: the list inside the `recon-instructions` block. It covers the `runvil` language crates, the two author-facing plugins, the example prompts, and, as low-rank evidence, the current chapters.
 - Scratch: `c:\Users\Vinnie\cursor\cabinet\_scratch\dokuman-language-guide\` (the workspace `cabinet/`, not `runvil/cabinet/`).
 - Trash for the old chapters: `c:\Users\Vinnie\cursor\cabinet\_trash\runvil-docs\src\language\`.
 
@@ -138,7 +138,7 @@ Main writes small scripts in `scripts/` and runs them over `drafts/`. Each failu
 - Links: every relative link resolves to a file in `drafts/`. A link into another chapter must target an H2 that `template.md` lists for that chapter, and a link within a chapter may target any H2 or H3 in it. Anchors follow mdBook's rule: lowercase the heading text, keep letters, digits, `_`, and `-`, turn each space into `-`, drop everything else, and add `-1`, `-2`, and so on to a repeated heading in the same file. For example, `### Your own metatable on _G` has the anchor `your-own-metatable-on-_g`.
 - Checklist coverage: every `checklist/{code}.md` line has a quick reference row, and every row's linked chapter mentions the surface.
 - Example parse check: main writes a scratch Cargo project in `scripts/example-check/` with a copy of `runvil/rust-toolchain.toml` and a path dependency on `c:\Users\Vinnie\cursor\runvil\crates\runvil`. It builds with a target dir inside scratch, so `runvil/target/` is untouched. The program pulls out every outer `markdown` fence in each draft whose body starts with a `---` line, calls `runvil::Prompt::parse(source, name)` on it, and lists each failure with its file, line, and parse error kind. Main checks each failure against the text around it. An example that the text says fails, with that error kind, is correct. Any other failure goes to that chapter's audit as Notes.
-- Outside links: grep `runvil`, `runvil-design`, and `runvil-docs` for links into `runvil/language/`, and report any whose file or anchor no longer exists. Keeping the 17 file names keeps this list short.
+- Outside links: grep `runvil` and `runvil-docs` for links into `runvil/language/`, and report any whose file or anchor no longer exists. Keeping the 17 file names keeps this list short.
 
 ## Install and build
 
@@ -204,7 +204,6 @@ Sources, relative to the Workspace:
 - `runvil/crates/harness-internal/runner/src/prepare.rs` and `runvil/crates/harness-internal/runner/tests/it/prepare*.rs`
 - `runvil/crates/plugin-web/` and `runvil/crates/plugin-user-input/`
 - `runvil/prompts/*.md`
-- `runvil-design/saved-docs/runvil/prompt.md`, `tools.md`, `model.md`, `capabilities.md`, and `lib.md` (doc evidence)
 - `runvil-docs/src/language/*.md` (doc evidence: the current chapters)
 
 Brief file, exactly these four lines:
