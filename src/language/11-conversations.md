@@ -146,7 +146,7 @@ return #messages
 
 Two user records with a loop after each leave `#messages` at 4. The second call continues the conversation, because its request carries the earlier reply ahead of the new user record: when the first reply was `ok`, the second request holds `{ "role": "assistant", "content": "ok" }` before `second question`.
 
-When the model asks for tools, one `models.loop` call runs a whole multi-round conversation. It sends the list round after round, runs the tools the model asks for (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)), and appends every record back to the list until the model replies with text. A round that ends with the model asking for tools is a tool round, which [Tool rounds and the round cap](#tool-rounds-and-the-round-cap) covers. After two tool rounds and a final text reply of `both done`, one `models.loop()` call leaves `#messages` at 6, counting the user record, the records the two tool rounds added, and the terminal record, with `messages[6].content` equal to `'both done'`. The model received 3 requests, and the last one carried both tool results.
+When the model asks for tools, one `models.loop` call runs a whole multi-round conversation. It sends the list round after round, runs the tools the model asks for (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)), and appends every record back to the list until the model replies with text or ends the conversation with the [clean exit](#the-clean-exit). A round that ends with the model asking for tools is a tool round, which [Tool rounds and the round cap](#tool-rounds-and-the-round-cap) covers. After two tool rounds and a final text reply of `both done`, one `models.loop()` call leaves `#messages` at 6, counting the user record, the records the two tool rounds added, and the terminal record, with `messages[6].content` equal to `'both done'`. The model received 3 requests, and the last one carried both tool results.
 
 When `models.loop` returns, the terminal record is the last record in the list, after tool rounds as well. `messages[#messages].role` is `'assistant'`, and you read the final answer with `messages[#messages].content`, which after a tool round and a text reply of `final answer` returns `final answer`.
 
@@ -1220,7 +1220,7 @@ While the run is being canceled, an error that an adhoc tool handler or a compac
 
 The section's list carries across several `models.loop` calls, so you append a new user record between them, and each call continues the conversation by sending what earlier calls leave in the list, earlier replies included. A call wrapped as `pcall(models.loop)` runs the same way and still appends the reply, as the chat in [Common conversation shapes](#common-conversation-shapes) does. A call made after an earlier loop returned or raised runs normally, but a loop started while another loop or a compactor is running in the same section raises an error (see [Argument errors](#argument-errors)).
 
-When every reply is plain text with no tool calls, each `models.loop` call makes exactly one model request and returns, so two calls make two requests. Each such call adds exactly one `assistant` record, so two user records leave four records alternating `user` and `assistant`, with the replies at positions 2 and 4, as that chat's `4|first reply|second reply` shows.
+When every reply is plain text with no tool calls and the chain's inbox stays empty, each `models.loop` call makes exactly one model request and returns, so two calls make two requests. Each such call adds exactly one `assistant` record, so two user records leave four records alternating `user` and `assistant`, with the replies at positions 2 and 4, as that chat's `4|first reply|second reply` shows.
 
 `models.loop` also works in the preamble (see [The preamble](02-file-structure.md#the-preamble)), so a prompt can hold a model conversation in the Lua above its first heading.
 
@@ -1461,14 +1461,14 @@ The prompt declares the `web` Pack (see [The Engine, the Harness, and the Host](
 user,assistant,tool,assistant
 ````
 
-When tools are in scope for the section entry, a round can end with the model asking for tools instead of replying, and such a round is a tool round. When the model asks for tools, `models.loop` runs each requested tool, appends the calls and their results to the message list, and sends the list to the model again, ending when the model replies with text. So the loop sends every round and runs every requested tool for you. Here the loop makes two rounds:
+When tools are in scope for the section entry, a round can end with the model asking for tools instead of replying, and such a round is a tool round. When the model asks for tools, `models.loop` runs each requested tool, appends the calls and their results to the message list, and sends the list to the model again, ending when the model replies with text or with the [clean exit](#the-clean-exit). So the loop sends every round and runs every requested tool for you. Here the loop makes two rounds:
 
 1. Round 1 sends the user record, and the model asks for a search, so the round is a tool round.
 2. The loop runs the call and appends two records: an `assistant` record holding the call, and a `tool` record holding its result.
 3. Round 2 sends all three records, so the request includes a message whose message role is `tool` and whose content is the search result, and the model replies with text.
 4. The loop appends the terminal record and returns, so the reply is `messages[#messages].content`.
 
-The model can call every tool in the section entry's Static Set: the catalog tools the section offers with `tools.offer` before the first loop round, as their Packs render them, any tool a render adds that only the model sees, and the adhoc tools it offers (see [Adhoc tools with `tools.adhoc`](12-tools.md#adhoc-tools-with-toolsadhoc)), all mixed in one loop, and `models.loop()` sends each tool call the model asks for to the matching tool. The loop keeps running rounds while the model answers with tool calls: it runs each round's calls, sends the conversation with the tool results back to the model for the next round, and can go through several tool rounds in a row within one call. It stops at the first reply that has plain text and no tool calls, and that text lands as the last record of the list.
+The model can call every tool in the section entry's Static Set: the catalog tools the section offers with `tools.offer` before the first loop round, as their Packs render them, any tool a render adds that only the model sees, and the adhoc tools it offers (see [Adhoc tools with `tools.adhoc`](12-tools.md#adhoc-tools-with-toolsadhoc)), all mixed in one loop, and `models.loop()` sends each tool call the model asks for to the matching tool. The loop keeps running rounds while the model answers with tool calls: it runs each round's calls, sends the conversation with the tool results back to the model for the next round, and can go through several tool rounds in a row within one call. It stops at the first reply that has plain text and no tool calls, or at the clean exit, and that reply lands as the last record of the list, unless the loop then finds a message in its inbox.
 
 After a tool round is answered, the loop starts the next round with a new request over the updated list. That request includes a `tool` message with each result, and the round after a batch of calls sends the model every result from that batch.
 
@@ -1918,7 +1918,7 @@ A tool round is different. A tool-call round that the provider cuts short with f
 
 ### Events for an empty round
 
-An empty model reply still completes its round. It advances the round count and reports a `model_turn_completed` event holding the provider's finish reason and the message, and the loop then decides, from the earlier rounds of the same call, whether it is the clean exit or an `empty_model_reply` failure. The run reports every empty round as a completed model round this way. An empty reply skips the debug capture, since the failed completion lacks the request and response bodies that the capture records.
+An empty model reply still completes its round. It advances the round count and reports a `model_turn_completed` event, and the provider's finish reason and the empty-reply phrase go to the loop, which then decides, from the earlier rounds of the same call, whether it is the clean exit or an `empty_model_reply` failure. The run reports every empty round as a completed model round this way. An empty reply skips the debug capture, since the failed completion lacks the request and response bodies that the capture records.
 
 ### When `empty_model_reply` goes uncaught
 
@@ -2087,7 +2087,7 @@ A provider context overflow is reported as a failed model round, with a `model_t
 A precheck refusal is reported as a `model_turn_failed` event, the same way a failed round is. Beyond that event, a refused request leaves everything a send would write as it was:
 
 - The run log keeps the chat records it had, so the log holds only the requests that left.
-- The list keeps its last recorded send, the one the [provider anchor](#the-provider-anchor) measures from, as it was.
+- The list keeps its last recorded send, the one the run log counts as already sent, and the [provider anchor](#the-provider-anchor) keeps its measurement, each as it was.
 - The message list keeps its records and its length. A send refused for context overflow, by either gate, leaves the list as it was.
 - The round count stays where it was, and the request never gets a finish reason, because the refusal comes before a round runs.
 
