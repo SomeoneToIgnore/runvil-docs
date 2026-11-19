@@ -195,7 +195,7 @@ You can spawn the same section more than once. Each spawn runs as its own task, 
 
 A task's target section runs ordinary Lua as the task body. It can call a tool with [`tools.call`](12-tools.md#calling-tools-from-lua-and-counting-calls), and the task stays live while that call is outstanding, so a wait on the task lasts until the call returns and the section finishes. It can [offer](12-tools.md#offering-tools-and-packs-with-toolsoffer) its own tools and run its own model loop, as a block does that runs `tools.offer('web/search')` in a prompt that declares the `web` Pack, adds `messages:user('go')` to its own `messages` list, and calls `models.loop()`. It also sees every [Pack prelude](12-tools.md#pack-preludes) global, so in a prompt that declares the made-up `acme/issue-tracker` Pack from that section, a `Child` task can call `tickets.open('Follow up')`. The operator's messages reach only the main chain: a `tasks.receive()` in a task waits on the task's own inbox, which its owner fills with `tasks.send` (see [Messages between tasks](#messages-between-tasks)).
 
-The section hands back its result with an ordinary `return`, such as `return 'child result'`. A task can return the text of `models.infer`: a task section doing `return models.infer('slow please')`, answered with the reply `slow answer`, gives its owner's wait `ok` and the result `slow answer`. A task that runs off its last section without returning gives the empty string as its result, the same as a fanout arm, and so does a task that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value).
+The section hands back its result with an ordinary `return`, such as `return 'child result'`. A task can return the text of `models.infer`: a task section doing `return models.infer('slow please')`, answered with the reply `slow answer`, gives its owner's wait `ok` and the result `slow answer`. A task that runs off its last section without returning gives the empty string as its result, the same as a fanout arm, and so does a task that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#a-bare-return-and-return-nil).
 
 The [scalar return rule](04-how-a-prompt-runs.md#returning-values) applies as in any block, but a return ends the run only from a section on the main walk. A `return` from a section inside a task becomes the task's result for its owner, such as `return 'alpha text'` making `alpha text` the result, and it never ends the run or becomes the run result. The spawning section's own return still ends the run, so when an owner parks on a `store.write` while its task returns `'child result'`, and then returns `'done'`, the run result is `done`.
 
@@ -1070,7 +1070,7 @@ Two run events report inboxes, each under the provenance of the chain whose inbo
 
 A `tasks.send` that returns `false` skips both events. On the main chain, task `0`, a Host reads `inbox_waiting` as the run waiting for the operator, and `inbox_message` as the operator's message reaching it.
 
-### When nothing can move
+### When a run stalls
 
 A task waiting on its inbox can be woken only by its owner, so a run can reach a point where no chain can move: the owner waits on the task, and the task waits for a message only that owner could send. When no chain can move and the main chain does not wait on its own inbox, the run ends with code `stalled`:
 
@@ -1611,7 +1611,7 @@ The `note` field holds the task's note once one is set, and it is nil until the 
 
 A `tasks.note` from a section reached by `call` inside a task records on the task itself, so the called section's note is the task's note. On the main walk, and in a section reached by `call` from it, `tasks.note` succeeds and its text is dropped.
 
-### Checking without waiting with `tasks.ready`
+### Checking at once with `tasks.ready`
 
 `tasks.ready(task)` takes exactly one task to check, and that task argument is required. It returns `true` once the task has ended, or while a reply the task handed back with `tasks.reply` waits for a wait to take it, so that a wait would return at once, and `false` otherwise. It always answers at once. It reports `true` for an owned task once the task has ended in any way, whether or not a wait has taken its result, so a task already collected by `tasks.join_any({ t })` and a task stopped by `tasks.cancel(t)` both read `true`. An [idle](#idle-tasks) task whose reply a wait has taken reads `false`, because it is still live and its next result waits on its owner's next message. With this block as the body of `Main` in `task-status`, the run returns `true`:
 

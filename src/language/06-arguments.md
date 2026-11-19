@@ -72,7 +72,7 @@ Your Lua reads the checked arguments through the `args` global, a table that is 
 
 `args` is read-only in every section and at every depth, so a section always reads the arguments as the check left them. `args = {}` and `args.query = 'other'` both raise an error that says `args is read-only`, and so does a write to a nested object or to a list. A prompt that needs a different value builds it in Lua and keeps it in a local or in [`var`](05-lua-environment.md#keeping-state-in-var). [`args` is read-only](#args-is-read-only) covers the rule in full.
 
-### A prompt with no `args:` key
+### Leaving the `args:` key out
 
 A prompt whose frontmatter has no `args:` key takes one optional string argument named `text`. This prompt leaves the key out and greets whoever its text names:
 
@@ -96,7 +96,7 @@ Run it with the arguments `{"text":"world"}`:
 Hello, world!
 ````
 
-[Prompts with no `args:` key](#prompts-with-no-args-key) gives the default declaration in full.
+[The default `args:` declaration](#the-default-args-declaration) gives the default declaration in full.
 
 ## Declaring arguments in frontmatter
 
@@ -244,7 +244,7 @@ args:
 
 Under this declaration the same arguments pass, and `args.n` reads `2`. The Engine checks the declared fields of an open object as usual, and it keeps every other field as the caller sent it, whatever JSON the field holds. The keyword speaks for its own object alone, so a nested object stays closed unless it says `additionalProperties: true` itself. `additionalProperties: false` is the same as leaving the keyword out.
 
-### A prompt that takes no arguments
+### A prompt that declares an empty object
 
 A root with no `properties` declares an empty object, for a prompt that takes no arguments:
 
@@ -258,7 +258,7 @@ The arguments `{}` pass, and `args` is an empty table. Any field ends the run, a
 argument `n` is not declared; the prompt declares no arguments
 ````
 
-This differs from leaving the `args:` key out, which declares one optional `text` argument, as [Prompts with no `args:` key](#prompts-with-no-args-key) explains.
+This differs from leaving the `args:` key out, which declares one optional `text` argument, as [The default `args:` declaration](#the-default-args-declaration) explains.
 
 ### The order of keywords and fields
 
@@ -645,7 +645,7 @@ The parse fails with a message that holds:
 args.properties.limit: the default must be an integer, got string
 ````
 
-The same rules mean that a default follows its node's `enum`, that an object's default holds only declared fields with values of the right types, and that an `integer` node takes the default `3.0` and reads it as `3`. Two nodes refuse a default: the root and an `items` node. [Defaults that do not match](#defaults-that-do-not-match) gives each message.
+The same rules mean that a default follows its node's `enum`, that an object's default holds only declared fields with values of the right types, and that an `integer` node takes the default `3.0` and reads it as `3`. Two nodes refuse a default: the root and an `items` node. [Defaults that a node refuses](#defaults-that-a-node-refuses) gives each message.
 
 ## Declaration errors
 
@@ -787,7 +787,7 @@ args.properties.weight: `enum` applies to a `string` or an `integer` node, and t
 
 So `enum` cannot limit a `boolean`, a `number`, a list, or an object.
 
-### An array without `items`
+### An array needs `items`
 
 An `array` node must say what its items are:
 
@@ -869,7 +869,7 @@ The value of `args:` must be a map of keywords. A bare word, as in `args: query`
 args: invalid type: string "query", expected a map of schema keywords
 ````
 
-### Defaults that do not match
+### Defaults that a node refuses
 
 A default must match the node that declares it. A quoted number is a string, so this default is refused on an `integer` node:
 
@@ -1088,7 +1088,7 @@ In name order, the declared fields of the search prompt are `depth`, `limit`, an
 
 The arguments of an `execute` are never JSON text. The Engine builds the object from the Lua value that the `execute` passes, so steps 1 and 2 do not apply, and the check starts at step 3 in the same order.
 
-### Text that is not JSON
+### Text that fails to parse as JSON
 
 A Host passes the arguments as text, and text that does not parse as JSON ends the run. The argument text `papers` fails with:
 
@@ -1098,7 +1098,7 @@ the arguments are not valid JSON: expected value at line 1 column 1
 
 The part after the colon is the JSON parser's reason and the place in the argument text where it stopped, and it varies with the text. `{"query":"papers",}` gives `trailing comma at line 1 column 19`, and `{'query':'papers'}`, with single quotes, gives `key must be a string at line 1 column 2`. Empty text is not JSON either and gives `EOF while parsing a value at line 1 column 0`, which is why a Host with nothing to pass sends `{}`.
 
-### JSON that is not an object
+### JSON other than an object
 
 Valid JSON of any kind but an object ends the run. The argument text `["papers"]` fails with:
 
@@ -1497,7 +1497,7 @@ A field the caller leaves out, with no default, is absent from `args`, and readi
 
 An empty string is a value, as the second run shows. A caller who wants a field unset leaves it out, and does not send `""`.
 
-### `null` for a field that is not required
+### `null` for an optional field
 
 A JSON `null` sent for a field that is not required counts as the field left out. The field takes its default when it has one, and stays absent otherwise, so the `notes` prompt run with the arguments `{"note":null}` returns `absent`. The same holds inside a nested object: when `opts` declares an optional `depth`, the arguments `{"opts":{"depth":null}}` arrive as `{"opts":{}}`. A declared field therefore never holds a null, and `args.note == nil` is the one test for a field that was not sent.
 
@@ -1546,7 +1546,7 @@ Each case reads as a different Lua value, so one comparison tells them apart:
 
 A field that has a default never reads nil, and Lua reads a default the Engine filled in just as it reads the same value sent by the caller. `if args.note then` passes for every string, the empty one included, and fails only for an absent field. For a boolean, `if not args.use_mcp then` passes both for `false` and for a field left out, so compare with `nil` or with `false` when the two must differ, or give the field a default. `json.null` is a userdata and so it is truthy, which means `if args.extra then` passes for a null.
 
-## Prompts with no `args:` key
+## The default `args:` declaration
 
 You can leave the `args:` key out, and the prompt then takes one optional string argument named `text`, which you read as `args.text`.
 
@@ -1589,7 +1589,7 @@ A Host with plain text for such a prompt sends the text as the `text` field, as 
 
 A prompt that runs such a prompt with `execute` can pass the text as a Lua string, which becomes the `text` field: `execute('echo.md', 'hello')` starts the `echo` prompt with `hello` as its `args.text`, `execute('echo.md')` starts it with `text` reading nil, and a table with any other field is refused (see [Arguments for an executed prompt](08-jump-and-call.md#arguments-for-an-executed-prompt)).
 
-### Runs with no text
+### The text is optional
 
 `text` is optional, so the arguments `{}` pass. `args` is then an empty table and `args.text` reads nil, as it also does for `{"text":null}`, while `{"text":""}` gives `args.text` the empty string. A prompt that can run without its text tests for nil:
 

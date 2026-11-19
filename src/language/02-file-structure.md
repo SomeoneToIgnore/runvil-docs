@@ -110,7 +110,7 @@ runvil: 0
 ---
 ````
 
-This prompt leaves out `models`, `args`, and `uses`, and it still parses and runs. [Prompts without sections](#prompts-without-sections) explains how a prompt that is frontmatter alone ends. The `description` value can be a single character such as `d`, and `runvil: 0` is the version value. A frontmatter of `name: greeter`, `description: says hi`, and `runvil: 0` is just as complete.
+This prompt leaves out `models`, `args`, and `uses`, and it still parses and runs. [Headings and sections are optional](#headings-and-sections-are-optional) explains how a prompt that is frontmatter alone ends. The `description` value can be a single character such as `d`, and `runvil: 0` is the version value. A frontmatter of `name: greeter`, `description: says hi`, and `runvil: 0` is just as complete.
 
 ## Frontmatter delimiters, byte-order mark, and line endings
 
@@ -130,7 +130,7 @@ A frontmatter delimiter is a line of three dashes, `---`, that opens or closes t
 
 The opening `---` must be the first line of the file, so even a blank line or a comment above it fails the parse. The opening line still counts as the delimiter when it has whitespace before or after the dashes.
 
-Because the opener is file line 1, the YAML keys start on file line 2, and a frontmatter YAML error reports its line in the file. When the fourth line of the file is bad YAML, the error reports line 4, as [When the YAML does not decode](#when-the-yaml-does-not-decode) shows.
+Because the opener is file line 1, the YAML keys start on file line 2, and a frontmatter YAML error reports its line in the file. When the fourth line of the file is bad YAML, the error reports line 4, as [When the YAML fails to decode](#when-the-yaml-fails-to-decode) shows.
 
 ### The closing line
 
@@ -241,7 +241,7 @@ models:
 ---
 ````
 
-### Plain values need no quotes
+### Plain values work unquoted
 
 You write string values as plain, unquoted YAML. Free text with spaces, hyphens, commas, periods, and dotted names such as `models.use` works unquoted, both in `description:` and in nested values. The values in this section's examples are all unquoted, and so is `description: Research a person from the open web and return a concise, factual summary.` Every shipped prompt writes its values this way and parses.
 
@@ -251,7 +251,7 @@ You can also put inline code spans written with backticks partway through an unq
 
 A `description` value can be a YAML literal block scalar, written with `|` after the key and the text on more-indented lines below it, as in the `notes` prompt under [The closing line](#the-closing-line). A literal block scalar keeps one line per source line, removes the indentation the lines share, and ends with a trailing newline. So `description: |` over the indented lines `first`, `---`, and `last` reads back as those three lines plus a final newline, with the indented `---` kept as part of the value.
 
-### When the YAML does not decode
+### When the YAML fails to decode
 
 The frontmatter must be valid YAML for the prompt to parse. In this file, the fourth line is not a YAML entry:
 
@@ -488,7 +488,7 @@ This table lists the eight keys in the order this chapter teaches them, with wha
 | `models` | no | each model role accepts whichever model fills it |
 | `prompts` | no | each attempt to execute a prompt raises an error |
 
-Because every key besides `name` and `description` has a default, a frontmatter of just those two parses, and so does a prompt that leaves out every contract key. `max_tool_iterations` accepts a value from 1 to 1000, and [Tool rounds and the round cap](11-conversations.md#tool-rounds-and-the-round-cap) covers what it controls. [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key) covers the default declaration of `args`.
+Because every key besides `name` and `description` has a default, a frontmatter of just those two parses, and so does a prompt that leaves out every contract key. `max_tool_iterations` accepts a value from 1 to 1000, and [Tool rounds and the round cap](11-conversations.md#tool-rounds-and-the-round-cap) covers what it controls. [The default `args:` declaration](06-arguments.md#the-default-args-declaration) covers the default declaration of `args`.
 
 ### Adding keys a prompt needs
 
@@ -871,7 +871,7 @@ The preamble's fence runs before the prose, and the Lua after it never reads the
 
 The preamble ends where the first heading begins, so every section that follows is its sibling or sits under one. The preamble is out of reach of every section path, because every step of a path is a section name and the preamble is unnamed. Its own Lua names the other sections by path as any section's Lua does, and [`jump` and `call` from the preamble](08-jump-and-call.md#jump-and-call-from-the-preamble) shows the paths it writes.
 
-### A preamble without Lua
+### A preamble of prose alone
 
 A preamble without a `lua` fence is commentary. It is not a section and is never read, so editing notes above the first heading leave the run unchanged:
 
@@ -901,7 +901,7 @@ The strict `lua` fence rule applies in the preamble as it does everywhere in the
 
 A `lua` fence shown inside a longer fence stays prose, so the preamble can show a Lua fence as an example. A four-backtick `markdown` fence in the preamble can contain a three-backtick `lua extra` opener, and that inner line stays part of the outer fence, so a preamble of notes that shows Lua this way is still commentary.
 
-### Prompts without sections
+### Headings and sections are optional
 
 Headings are optional. Frontmatter and one Lua block is a complete prompt: the block is the preamble, and the preamble does all the work, as in the `one_block` prompt at the start of this chapter, which runs to the result `hello`. Such a prompt runs with or without a Lua `return`:
 

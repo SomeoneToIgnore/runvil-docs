@@ -432,7 +432,7 @@ The string a block reads follows these rules:
 
 Prose can hold any Markdown you mean as instruction text for the model, such as numbered lists and inline code spans: for example a `Do this:` line followed by items `1.` through `4.` that name `web_search` and `web_fetch`. Prose becomes useful when a `lua` fence below it in the same section reads it.
 
-### Prose never calls a model on its own
+### Prose reaches a model only through your Lua
 
 You send prose to a model by passing `prose` to `models.infer` in a Lua block:
 
@@ -480,7 +480,7 @@ return models.infer(prose)
 ```
 ````
 
-The prompt asks `Name one planet.` first, from the preamble, and then `Name one ocean.` from `Answer`, and the result is the ocean reply. The preamble and each section keep separate pending prose buffers, so each reads only its own prose through `prose`, and prose written between `lua` fences in the preamble collects into a buffer that `prose` reads the same way. Preamble prose never drives inference on its own: on a Host that supplies no model, a prompt whose preamble prose is never read still runs, while a preamble block running `return models.infer(prose)` fails there because its round needs a model (see [When a section has no model](10-models.md#when-a-section-has-no-model)).
+The prompt asks `Name one planet.` first, from the preamble, and then `Name one ocean.` from `Answer`, and the result is the ocean reply. The preamble and each section keep separate pending prose buffers, so each reads only its own prose through `prose`, and prose written between `lua` fences in the preamble collects into a buffer that `prose` reads the same way. Preamble prose never drives inference on its own: on a Host that supplies no model, a prompt whose preamble prose is never read still runs, while a preamble block running `return models.infer(prose)` fails there because its round needs a model (see [The missing-model error](10-models.md#the-missing-model-error)).
 
 ### What resets pending prose
 
@@ -772,7 +772,7 @@ Pending for step two.
 
 A section can contain any number of thematic breaks, and only the Markdown below the last break stays pending. A break only affects the prose segment it sits in, so a break before one `lua` fence leaves the prose after that fence whole. Each prose block is the pending Markdown for the fence that follows it and keeps only the text below the last break in its segment, so commentary written above a `---` is dropped from the block. The reset also applies to the trailing prose after the last `lua` fence and to a section with no `lua` fence at all. A `lua` fence that sits directly below a break, with no Markdown between them, receives empty pending prose.
 
-### A break never ends a section
+### A section continues past a break
 
 Resetting pending prose is all a break does. The section's or the preamble's content continues below it, so `lua` fences, prose, and headings below it parse and run as usual:
 
@@ -1306,7 +1306,7 @@ var.never = 'run'
 Closing line with {{ args.text }}.
 ````
 
-The result keeps the first line's leading indentation and the blank lines inside the body, and drops only the blank lines that separate the body from its heading and from the next heading. Inline Markdown such as `**bold**` and backtick code comes back raw. The `lua` fence comes back as text, and the read does not run it. The `{{ args.text }}` [placeholder](07-substitution.md#placeholders-in-prose) comes back literally, without substitution. The thematic break stays in the Markdown too, even though the break resets the section's prose, as [A break never ends a section](#a-break-never-ends-a-section) explains.
+The result keeps the first line's leading indentation and the blank lines inside the body, and drops only the blank lines that separate the body from its heading and from the next heading. Inline Markdown such as `**bold**` and backtick code comes back raw. The `lua` fence comes back as text, and the read does not run it. The `{{ args.text }}` [placeholder](07-substitution.md#placeholders-in-prose) comes back literally, without substitution. The thematic break stays in the Markdown too, even though the break resets the section's prose, as [A section continues past a break](#a-section-continues-past-a-break) explains.
 
 The result is a Lua string that string methods work on, such as `text:find('Mine text.', 1, true)`. A section with an empty body reads as the empty string `''`.
 
@@ -2223,7 +2223,7 @@ helper of a|helper of b
 
 The other functions that take a section path start at the library when they are written in one, so a library names its own child sections by their bare names in `call` and the prompt reads (see [A library names its own sections](#a-library-names-its-own-sections)).
 
-### When `require` cannot find a section
+### When a `require` path misses
 
 A prompt whose `require` path is malformed or misses still parses and runs, and `require` raises the error as a Lua error when the call runs, which [`pcall`](05-lua-environment.md#raising-and-catching-errors) can catch:
 
@@ -2442,7 +2442,7 @@ false|loaded|2
 
 A `require` fails in one of five ways, and each one raises a Lua error in the requiring block:
 
-- The argument is not a string. [When `require` cannot find a section](#when-require-cannot-find-a-section) gives the message.
+- The argument is not a string. [When a `require` path misses](#when-a-require-path-misses) gives the message.
 - The path is malformed, is relative, or misses. The same place gives the not-found message, and [One path for each library](#one-path-for-each-library) gives the message for a relative path.
 - The library's code raises an error while it loads.
 - The library's code calls `jump` while it loads.

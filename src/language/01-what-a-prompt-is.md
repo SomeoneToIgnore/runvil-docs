@@ -596,7 +596,7 @@ hello
 
 Every prompt shipped in the repository's `prompts` directory, including the prompts in its subdirectories, parses as written, so you can open any of them as a working example. The directory ships these small examples:
 
-- `echo.md` has no `args:` key, so it takes one optional string argument named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)). It returns that argument unchanged with `return args.text` and makes no model round; [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args) teaches `args`.
+- `echo.md` has no `args:` key, so it takes one optional string argument named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). It returns that argument unchanged with `return args.text` and makes no model round; [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args) teaches `args`.
 - `hello.md` has the model say hello through the prose `Say "Hello, world!"` and `return models.infer(prose)`; [Running a round with `models.infer`](10-models.md#running-a-round-with-modelsinfer) teaches `models.infer`.
 - `greet.md` builds a greeting from its `name` argument with `var.greeting = "Hello, " .. args.name .. "!"` and has the model repeat it through `{{ var.greeting }}` in its prose; [Placeholders in prose](07-substitution.md#placeholders-in-prose) teaches placeholders.
 - `analyst-example.md` sets `min_context: 40000` for the `strong` role under `models:` and calls `models.use("strong")` before `return models.infer(prose)`; [Model roles instead of models](10-models.md#model-roles-instead-of-models) teaches model roles.

@@ -159,7 +159,7 @@ Declaring a role does not select it. The run still starts on the `default` role,
 
 Each prompt's `models:` key applies to its own sections. That matters when a prompt runs another prompt with [`execute`](08-jump-and-call.md#executing-another-prompt), where the first is the caller and the second is the executed prompt: a role's thinking switch in a section is the one that the section's own prompt declares (see [The thinking switch](#the-thinking-switch)), and the requirements of both prompts are checked at the run's first step (see [What the run checks](#what-the-run-checks)).
 
-### Empty roles and no roles
+### Roles that accept any model
 
 A role written as an empty map, such as `strong: {}` or `fast: {}`, is valid. It leaves both keys out, so the role accepts any model that fills it, and the run is the same as if the entry were left out.
 
@@ -326,7 +326,7 @@ A model served by the gateway has the server namespace `gateway`. Its name is th
 The Host fills the roles by passing one map from role to model when it starts the run. Three rules govern the map:
 
 - A role with no entry of its own uses the `default` entry. A map with only a `default` entry fills all five roles with that model, and a map that also has a `strong` entry gives only `strong` its own model.
-- An empty map means the Host has no model. Every role stays empty and the run skips the requirement checks (see [When the Host gives no model](#when-the-host-gives-no-model)).
+- An empty map means the Host has no model. Every role stays empty and the run skips the requirement checks (see [When the role map is empty](#when-the-role-map-is-empty)).
 - A non-empty map with no `default` entry is refused, because that entry is what the roles without one fall back to.
 
 The refusal ends the run on its first step with error code `requirements_unmet`. The run skips the declared requirements in that case, so the notice has exactly one model line, in which the caller is the Host:
@@ -408,7 +408,7 @@ A role with `thinking: false` is unmet only on a model whose thinking mode is `a
 
 A `switchable` model, whose thinking can be turned on or off per request, satisfies both `thinking: true` and `thinking: false`, and it is asked to turn thinking on or off to match the role.
 
-### When the Host gives no model
+### When the role map is empty
 
 ````markdown
 ---
@@ -444,7 +444,7 @@ the caller supplied no model for the strong role
 the caller supplied no model
 ````
 
-`models.use('strong')` and `models.get('strong')` give the first message, and `models.current()` gives the second. `models.infer` and `models.loop` with no model handle raise the missing-model error instead (see [When a section has no model](#when-a-section-has-no-model)). So the requirements check passes for a prompt on a Host with no model, and the run fails later, when a section asks for one.
+`models.use('strong')` and `models.get('strong')` give the first message, and `models.current()` gives the second. `models.infer` and `models.loop` with no model handle raise the missing-model error instead (see [The missing-model error](#the-missing-model-error)). So the requirements check passes for a prompt on a Host with no model, and the run fails later, when a section asks for one.
 
 ## The current model
 
@@ -513,7 +513,7 @@ return previous.name .. '|' .. inside .. '|' .. models.current().name
 default|creative|default
 ````
 
-The chain starts on `default`, so `previous` reads `default`. After `models.use('creative')` the current model reads `creative`, and `models.use(previous)` puts the chain back on `default`. When the Host gave no model, `models.current()` raises an error (see [When the Host gives no model](#when-the-host-gives-no-model)).
+The chain starts on `default`, so `previous` reads `default`. After `models.use('creative')` the current model reads `creative`, and `models.use(previous)` puts the chain back on `default`. When the Host gave no model, `models.current()` raises an error (see [When the role map is empty](#when-the-role-map-is-empty)).
 
 ### Children and fanout arms
 
@@ -1149,7 +1149,7 @@ return models.infer(models.get('fast'), 'say hello')
 ```
 ````
 
-The handle form returns the reply as a plain Lua string, just as the one-argument form does. It runs on the handle's frozen binding even when the chain has switched to another role, so it never needs the chain to have a model. A handle for a raw model id therefore runs even on a Host that gave the run no model, and a handle for a role needs the Host to have given that role a model in the first place (see [When the Host gives no model](#when-the-host-gives-no-model)).
+The handle form returns the reply as a plain Lua string, just as the one-argument form does. It runs on the handle's frozen binding even when the chain has switched to another role, so it never needs the chain to have a model. A handle for a raw model id therefore runs even on a Host that gave the run no model, and a handle for a role needs the Host to have given that role a model in the first place (see [When the role map is empty](#when-the-role-map-is-empty)).
 
 ### Infer prompts and replies
 
@@ -1255,9 +1255,9 @@ The text is the same with or without a model handle, and it never names `models.
 
 An infer round that fails at the model, such as a transport or backend failure, raises the round's own error at the call site. `pcall` sees it with kind `model_failure`, or with kind `empty_model_reply` for an empty reply. Left uncaught, it fails the run with that error's own code, one of the model codes, such as `transport` for a transport failure or `empty_reply` for an empty reply.
 
-### When a section has no model
+### The missing-model error
 
-The missing-model error is the error a model round raises when the chain it runs in has no model. A chain starts on the `default` role's model, so this happens only when the Host gave the run no model (see [When the Host gives no model](#when-the-host-gives-no-model)), which is why the `unselected` prompt in [When a prompt needs a role](#when-a-prompt-needs-a-role) fails with `model binding required for section Only` on such a Host. Only `models.infer` and `models.loop` raise it, and only when they name no model handle. Its own text is `model binding required for section {section}`, where `{section}` is the section name, such as `Only` or `Worker`. The preamble's name is the empty string, so a round there leaves `{section}` empty. Left uncaught, it fails the run with error code `model_required` and that text as the message, ending with the line of the `models.infer` or `models.loop` call. Raised in a fanout arm, it fails both the fanout and the run.
+The missing-model error is the error a model round raises when the chain it runs in has no model. A chain starts on the `default` role's model, so this happens only when the Host gave the run no model (see [When the role map is empty](#when-the-role-map-is-empty)), which is why the `unselected` prompt in [When a prompt needs a role](#when-a-prompt-needs-a-role) fails with `model binding required for section Only` on such a Host. Only `models.infer` and `models.loop` raise it, and only when they name no model handle. Its own text is `model binding required for section {section}`, where `{section}` is the section name, such as `Only` or `Worker`. The preamble's name is the empty string, so a round there leaves `{section}` empty. Left uncaught, it fails the run with error code `model_required` and that text as the message, ending with the line of the `models.infer` or `models.loop` call. Raised in a fanout arm, it fails both the fanout and the run.
 
 The missing-model error reaches the call as its answer, so `pcall` catches it as an error value of kind `model_required` and a block can fall back instead of failing. The caught value's message is the call's file and line, then the fixed prose ``The round has no model. Select a model before `models.infer` or `models.loop`, or bind a default model.``, so it does not name the section. On a Host that gave the run no model, `careful` returns:
 
@@ -1267,7 +1267,7 @@ skipped (model_required)
 
 `models.loop` with no model handle on such a Host fails with the same missing-model error naming the section, which `pcall` also catches as kind `model_required`.
 
-Only an explicit model call such as `models.infer(prose)` can raise the missing-model error, so prose needs a model only when a block sends it to one (see [When a prompt needs a role](#when-a-prompt-needs-a-role)). `models.use`, `models.get`, and `models.current` do not raise it. On a Host with no model they fail with ordinary Lua errors of kind `lua`, as [When the Host gives no model](#when-the-host-gives-no-model) shows.
+Only an explicit model call such as `models.infer(prose)` can raise the missing-model error, so prose needs a model only when a block sends it to one (see [When a prompt needs a role](#when-a-prompt-needs-a-role)). `models.use`, `models.get`, and `models.current` do not raise it. On a Host with no model they fail with ordinary Lua errors of kind `lua`, as [When the role map is empty](#when-the-role-map-is-empty) shows.
 
 `models.infer(model, prompt)` runs on the handle's own model, so it works on a Host that gave no model when the handle is a raw-id handle such as `models.get('qwen/qwen3-8b')`, where `models.infer(prompt)` would fail with the missing-model error.
 

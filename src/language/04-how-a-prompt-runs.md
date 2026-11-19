@@ -175,7 +175,7 @@ A Lua block that fails to compile fails the whole parse with the code `lua_compi
 
 A prompt that breaks a Lua fence rule (see [Exact fence rules and fence errors](03-blocks-and-prose.md#exact-fence-rules-and-fence-errors)) fails its parse before any Lua compiles, even when the preamble holds Lua.
 
-### A prompt that does not parse starts no run
+### A prompt that fails to parse stops at the parse
 
 Parsing happens before the run exists. A prompt that does not parse stops at the parse: its Lua and prose never run, the model is never asked, and the run record is never made. The Host gets the parse error and reports it. Its code is a parse code such as `fence_invalid`, or `lua_compile` when a Lua block does not compile. Its message is the parse error's full cause chain, followed by where the parse failed (see [Where a run error's message points](16-limits-and-errors.md#where-a-run-errors-message-points)).
 
@@ -252,7 +252,7 @@ The model lookup lists the Host's models and finds the one the Host selected, or
 
 The version check is the first start check (see [The `runvil` version key](02-file-structure.md#the-runvil-version-key)). Version `0` proceeds, and any other version is refused as unsupported, with a message that ends with ` (at {file}:{line})`, the line of the `runvil:` key. A missing version fails with the message `not a runvil prompt: no runvil version (prompt {name})`, where `{name}` is the prompt's frontmatter `name`. Either way, a prompt with an unsupported or missing version stops before its first section runs. The check reads the run's own prompt first and then each listed prompt, so when `careful.md` lists a prompt `other.md` that declares `runvil: 2`, a run of `careful.md` is refused with `unsupported runvil version: 2 (this build supports major 0) (at other.md:4)`, which points at the `runvil:` line of `other.md`.
 
-The argument check is the second start check. The arguments of a run are one JSON object, which the caller, whoever starts the run, passes as text. The check reads that argument text as one JSON object and checks the object against the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). A prompt with no `args:` key takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)). This prompt declares one argument, `query`, and requires it:
+The argument check is the second start check. The arguments of a run are one JSON object, which the caller, whoever starts the run, passes as text. The check reads that argument text as one JSON object and checks the object against the prompt's `args:` declaration (see [Declaring arguments in frontmatter](06-arguments.md#declaring-arguments-in-frontmatter)). A prompt with no `args:` key takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). This prompt declares one argument, `query`, and requires it:
 
 ````markdown
 ---
@@ -347,7 +347,7 @@ In Lua, `tools.packs.get(id).required` is `true` for a Pack the frontmatter decl
 
 A section can offer only the tools in the run's catalog and the adhoc tools it defines, and offering an id the run cannot offer is a hard error (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)). Calling `tools.offer` with a tool id the run lacks raises `tools.offer: "{name}" is not a tool in this run`, with the id in place of `{name}`.
 
-### Runs with no user
+### The `user` Pack needs a run with a user
 
 The built-in Pack `runvil/user`, whose Pack id is `user`, marks a prompt that needs a person to answer it (see [Asking the operator](05-lua-environment.md#asking-the-operator)). Every Host has it, and its tool list is empty, but it can serve a run only when the run has a user, someone the Host lets answer the run's main chain. The Host decides that for each run it launches.
 
@@ -369,7 +369,7 @@ A declared Pack that the Host has but that cannot serve refuses the run with err
 - Building it failed when the Host set up. That is not a setup error: the Host stores the Pack as unavailable with the failure as its reason, and every run that needs it is refused naming that reason.
 - Its factory refuses or panics when a run makes its own instance of the Pack. Only that run holds the Pack as unavailable, with the factory's refusal as its reason, or `the Pack's factory panicked` after a panic, and the next run calls the factory again.
 - Its readiness check fails before the run.
-- It is the built-in `user` Pack, and the run has no user (see [Runs with no user](#runs-with-no-user)).
+- It is the built-in `user` Pack, and the run has no user (see [The `user` Pack needs a run with a user](#the-user-pack-needs-a-run-with-a-user)).
 
 The `web` Pack fails to build on a Host that supplies no search provider, so a prompt that declares `web` there is refused with the notice line `- web is unavailable: web needs runvil/search-provider, and this host provides none`. A prompt that declares `user` in a run with no user is refused with this notice line:
 
@@ -419,7 +419,7 @@ When prepare builds the run, the Engine fills the five model roles from the role
 
 The run checks a role's requirements against the model that fills that role. With a one-model map, every role is filled by that model, so `fast` and `strong` both read the same model here. A map that gives `strong` an entry of its own, which only a caller that drives the Engine directly passes, checks the `strong` requirement against that model and checks the other roles against the `default` entry's model. A name other than the five roles, or a key other than `min_context` and `thinking`, fails the parse (see [Mistakes inside `models:`](10-models.md#mistakes-inside-models)).
 
-A prompt whose only declaration is a role with no requirements, `models: { fast: {} }`, passes the requirements check when the Host supplies a model. A prompt with no `models:` key passes the role checks on any model; a prompt whose frontmatter declares only `uses: [web]` has that one Pack requirement to meet. When the Host gives no model, the map is empty and every role stays unfilled, so the run skips the role checks. A prompt that never calls a model still runs to completion on such a Host, and a model round fails with `model binding required for section {section}` (see [When the Host gives no model](10-models.md#when-the-host-gives-no-model)).
+A prompt whose only declaration is a role with no requirements, `models: { fast: {} }`, passes the requirements check when the Host supplies a model. A prompt with no `models:` key passes the role checks on any model; a prompt whose frontmatter declares only `uses: [web]` has that one Pack requirement to meet. When the Host gives no model, the map is empty and every role stays unfilled, so the run skips the role checks. A prompt that never calls a model still runs to completion on such a Host, and a model round fails with `model binding required for section {section}` (see [When the role map is empty](10-models.md#when-the-role-map-is-empty)).
 
 ### The model role check
 
@@ -482,7 +482,7 @@ A failed `thinking` requirement shows as this line, where `{required}` is `think
 
 So a `small` role with `thinking: false` on a model that always thinks gives `- role 'small': requires 'thinking: false'; the thinking capability of the model filling it is Always`. Each shortfall line in the notice starts with `- `, so for a role `strong` that needs 200000 tokens on a 32000-token model, the whole notice is the two lines shown in [How a run proceeds](#how-a-run-proceeds).
 
-### A role map without a default entry
+### A role map with entries needs a default entry
 
 A role map that has entries but lacks one for `default` is missing the model the run falls back on. The run is refused on its first step, the declared role requirements are never checked, and the notice holds one model line, whatever role requirements the prompt declares:
 
@@ -493,7 +493,7 @@ the environment cannot satisfy this prompt:
 
 An empty map is a different case. It means the Host has no model, and the run skips the role checks. A map from the Harness is empty or holds the Host's one model under `default`, so only a caller that drives the Engine directly, with a map whose entries leave `default` out, meets this refusal.
 
-### Unmet requirements are recorded, not raised
+### Unmet requirements are recorded, then reported
 
 An unmet requirement is one shortfall the model role check finds, recorded when the run is built and reported on its first step rather than raised as an error. Because of that, a model that cannot serve a role never surfaces as an error partway through a run. A role `small` that needs `thinking: false` on a model that always thinks gives exactly one unmet requirement, and the run is refused before any section has run.
 
@@ -571,7 +571,7 @@ When the context window of the model filling a role is smaller than the role's `
 
 An unmet `thinking` requirement gives the line `- role '{role}': requires '{required}'; the thinking capability of the model filling it is {actual}`, where `{required}` is `thinking: true` or `thinking: false`. `{actual}` reads `Never` for an unmet `thinking: true` and `Always` for an unmet `thinking: false`, capitalized as shown, and a `Switchable` model meets both. A role with `thinking: false` on a model that always thinks gives `- role '{role}': requires 'thinking: false'; the thinking capability of the model filling it is Always`.
 
-Only `min_context` and `thinking` can add these role lines, and the one other model line is the `default` line that [A role map without a default entry](#a-role-map-without-a-default-entry) describes. The notice lists only the roles that fall short and leaves out roles the model meets. When the Host gives no model, role lines stay out of the notice, because the run skips the role checks.
+Only `min_context` and `thinking` can add these role lines, and the one other model line is the `default` line that [A role map with entries needs a default entry](#a-role-map-with-entries-needs-a-default-entry) describes. The notice lists only the roles that fall short and leaves out roles the model meets. When the Host gives no model, role lines stay out of the notice, because the run skips the role checks.
 
 ### The order of the lines
 
@@ -762,7 +762,7 @@ return var.executions
 
 Both blocks run before the walk enters `Result`, so `Result` returns `2`. The line `Ask for one round.` is the prose of the block after it, as prose ahead of a `lua` fence is in every section (see [Prologue, prose, and epilog](03-blocks-and-prose.md#prologue-prose-and-epilog)), so the preamble reads it only through `prose`, as in `models.infer(prose)`.
 
-Lua in the preamble makes the same Engine calls as Lua in any section, including model rounds, `require`, [`prompt.section` and `prompt.section_or`](03-blocks-and-prose.md#reading-sections-with-promptsection-and-promptsection_or), `call`, `jump`, [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), [`tasks.fanout`](14-fanout.md#fanout-in-one-call), and the store functions, such as `store.read` and `store.write`. Because the preamble runs first, a `store.write` there is the run's first effect. What the preamble leaves for the sections after it is what any section leaves for the next, and [What carries from one section to the next](#what-carries-from-one-section-to-the-next) lists it.
+Lua in the preamble makes the same Engine calls as Lua in any section, including model rounds, `require`, [`prompt.section` and `prompt.section_or`](03-blocks-and-prose.md#reading-sections-with-promptsection-and-promptsection_or), `call`, `jump`, [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), [`tasks.fanout`](14-fanout.md#fanout-in-one-call), and the store functions, such as `store.read` and `store.write`. Because the preamble runs first, a `store.write` there is the run's first effect. What the preamble leaves for the sections after it is what any section leaves for the next, and [What one section leaves for the next](#what-one-section-leaves-for-the-next) lists it.
 
 ### Falling through to the next section
 
@@ -957,11 +957,11 @@ error('no section runs after the preamble returns')
 early
 ````
 
-The preamble is a section of the main walk, and a `return` in any section of the main walk ends the chain and the run with it (see [A return ends the chain](#a-return-ends-the-chain)). The returned value becomes the run result, every later section is skipped, and the `error` inside `Never` never fires. Returning `models.infer(prose)` from the preamble works the same way: the model's reply becomes the run result. A `return` that gives [no value](#returning-no-value) ends the run too: with a bare `return` in place of `return 'early'`, `Never` is still skipped, and the run result is `done`.
+The preamble is a section of the main walk, and a `return` in any section of the main walk ends the chain and the run with it (see [A return ends the chain](#a-return-ends-the-chain)). The returned value becomes the run result, every later section is skipped, and the `error` inside `Never` never fires. Returning `models.infer(prose)` from the preamble works the same way: the model's reply becomes the run result. A `return` that gives [no value](#a-bare-return-and-return-nil) ends the run too: with a bare `return` in place of `return 'early'`, `Never` is still skipped, and the run result is `done`.
 
 The preamble finishes normally on that exit, like any section that returns: it reports `section_finished`, and then the run reports `run_succeeded` (see [Section boundaries](#section-boundaries)).
 
-### Prompts with no heading
+### A body that is all preamble
 
 A heading is optional in a prompt. Without one, the whole body is the preamble, and a Lua block in it makes the preamble the prompt's one section:
 
@@ -1043,9 +1043,9 @@ local x = 1
 done
 ````
 
-[The run result](#the-run-result) explains this `done` fallback. A chain started by `call` that ends this way gives `call` `nil` instead (see [A call that gets no text](08-jump-and-call.md#a-call-that-gets-no-text)), and an executed prompt that ends this way gives `execute` `nil` (see [An execute that gets no text](08-jump-and-call.md#an-execute-that-gets-no-text)).
+[The run result](#the-run-result) explains this `done` fallback. A chain started by `call` that ends this way gives `call` `nil` instead (see [When `call` returns `nil`](08-jump-and-call.md#when-call-returns-nil)), and an executed prompt that ends this way gives `execute` `nil` (see [When `execute` returns `nil`](08-jump-and-call.md#when-execute-returns-nil)).
 
-### What carries from one section to the next
+### What one section leaves for the next
 
 The sections a chain enters share what belongs to the chain, and each one keeps to itself what belongs to its own section entry:
 
@@ -1153,7 +1153,7 @@ This block ends as a jump to `Target`, not as a failure.
 
 ### The scalar return rule
 
-A `return` at the top level of a Lua block ends that block, and the returned value becomes the block's result. This is the scalar return rule: returning a string, an integer, a float, or a boolean makes that value the result, as text, and returning `nil` or no value at all gives no result. A `return` ends the section either way, with a result or without one (see [Returning no value](#returning-no-value)). A `return` inside a function that the block defines or calls ends only that function.
+A `return` at the top level of a Lua block ends that block, and the returned value becomes the block's result. This is the scalar return rule: returning a string, an integer, a float, or a boolean makes that value the result, as text, and returning `nil` or no value at all gives no result. A `return` ends the section either way, with a result or without one (see [A bare `return` and `return nil`](#a-bare-return-and-return-nil)). A `return` inside a function that the block defines or calls ends only that function.
 
 The value a block returns becomes its section's result, and the `return` ends the section with that value. A block can return early from inside an `if`, and the first `return` it reaches gives the section's result:
 
@@ -1201,7 +1201,7 @@ A float is formatted by the Engine rather than by Lua's `tostring`. It is writte
 
 Only the first returned value counts, and the values after it are never checked, so `return 'a', 'b'` gives `a`. Because only the first value counts, a `nil` first value gives no result even when a value follows it: `return nil, 'text'` ends the section with no result, as `return nil` does.
 
-### A block with no return
+### A block that runs to its last line
 
 A block that ends without a `return` hands control to whatever follows it:
 
@@ -1243,7 +1243,7 @@ var.size = size(3) or 'big'
 
 The `return` inside `size` ends the call to `size`, the block stores `big`, and the section goes on to its next block.
 
-### Returning no value
+### A bare `return` and `return nil`
 
 A `return` ends the section whatever it returns. A bare `return`, `return nil`, and a `return` of an expression that turns out to be `nil` all end it the way `return 'text'` does, with no result:
 
@@ -1277,7 +1277,7 @@ error('a later section never runs')
 done
 ````
 
-The `return` in `First` ends the block, the section, and the main walk, so the second block and `Second` are both skipped. The walk ends with no result, and the run result is the [`done` fallback](#the-done-fallback), the same as when the walk runs past its last section. In a section reached through `call`, the same `return` ends that chain, and `call` returns `nil` (see [A call that gets no text](08-jump-and-call.md#a-call-that-gets-no-text)). In a prompt run with `execute`, it ends that prompt, and `execute` returns `nil` (see [An execute that gets no text](08-jump-and-call.md#an-execute-that-gets-no-text)). In a section that runs as a task or a fanout arm, it ends the task or the arm, whose result is the empty string.
+The `return` in `First` ends the block, the section, and the main walk, so the second block and `Second` are both skipped. The walk ends with no result, and the run result is the [`done` fallback](#the-done-fallback), the same as when the walk runs past its last section. In a section reached through `call`, the same `return` ends that chain, and `call` returns `nil` (see [When `call` returns `nil`](08-jump-and-call.md#when-call-returns-nil)). In a prompt run with `execute`, it ends that prompt, and `execute` returns `nil` (see [When `execute` returns `nil`](08-jump-and-call.md#when-execute-returns-nil)). In a section that runs as a task or a fanout arm, it ends the task or the arm, whose result is the empty string.
 
 So a `return` you write always ends the section, whatever the returned expression holds. `return var.answer` ends it even when `var.answer` was never set, `return models.loop()` ends it even though [`models.loop`](11-conversations.md#starting-a-conversation) returns `nil`, and `return call('../Sub')` ends it even when `Sub` gave no text. To skip the rest of a block and let the section continue, put the rest inside an `if` in place of an early `return`:
 
@@ -1411,7 +1411,7 @@ early
 
 The prologue's `return 'early'` ends the section at once, and `early` becomes the run result. The prose after the prologue is never sent to a model, so this run completes with or without a model. The epilog never runs either, so its [effects](01-what-a-prompt-is.md#effects-and-harness-work), such as store writes, never happen, and its `return 'late'` never replaces the earlier value. When the prologue does not return, the epilog runs, and a value it returns becomes the run result the same way.
 
-### Tables and other values that cannot be returned
+### Tables and other values the return rule refuses
 
 Only a scalar can be a result. To return data held in a table, build a string from it first, for example with `table.concat`:
 
@@ -1490,7 +1490,7 @@ Returns from other chains go back to the code that started them instead. A value
 
 ### The `done` fallback
 
-When the main walk ends with no result, the run's result is `done`. A walk whose last section falls through still ends the run as completed, and so does a `return` on the main walk that gives [no value](#returning-no-value). A prompt whose whole body is a preamble of commentary finishes at once with the result `done` (see [Prompts with no heading](#prompts-with-no-heading)). A prompt whose sections hold only prose ends the same way:
+When the main walk ends with no result, the run's result is `done`. A walk whose last section falls through still ends the run as completed, and so does a `return` on the main walk that gives [no value](#a-bare-return-and-return-nil). A prompt whose whole body is a preamble of commentary finishes at once with the result `done` (see [A body that is all preamble](#a-body-that-is-all-preamble)). A prompt whose sections hold only prose ends the same way:
 
 ````markdown
 ---
@@ -1597,7 +1597,7 @@ The version and the requirements are those of every prompt the parse read, so a 
 
 A run whose cancel fires first ends with the canceled error instead, even when the cancel comes before the run starts.
 
-A prompt that does not parse is a different case. It stops at the parse: the run record is never made, and its parse error goes to the Host (see [A prompt that does not parse starts no run](#a-prompt-that-does-not-parse-starts-no-run)).
+A prompt that does not parse is a different case. It stops at the parse: the run record is never made, and its parse error goes to the Host (see [A prompt that fails to parse stops at the parse](#a-prompt-that-fails-to-parse-stops-at-the-parse)).
 
 ## Run events and records
 
@@ -1646,7 +1646,7 @@ A prompt run with `execute` is part of the run that executes it, so its sections
 
 A run that started and does not succeed ends its events with `run_failed` under the prompt's `name` in place of `run_succeeded`. The only run-level events are `run_started`, `run_succeeded`, and `run_failed`, so a canceled run also ends with `run_failed`, even though a canceled run is not a failed run.
 
-### Which name an event carries
+### Which name an event is reported under
 
 Every run event, error, and report names the section that produced it by its heading text without the leading hashes, so `## Only` reports as `Only` and `### Child` as `Child`. The three run-level events carry the prompt's frontmatter `name` in the place of a section name. That is why `loop` reports `run_started` and `run_succeeded` under `loop`, around the events named `Only`.
 

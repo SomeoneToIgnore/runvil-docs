@@ -631,7 +631,7 @@ An arm can write to its own copy of `var` without error, so `var[item] = true` r
 
 ### `args` in an arm
 
-A fanout arm reads its caller's [`args`](06-arguments.md#reading-arguments-from-args), the same read-only table the caller reads (see [`args` is read-only](06-arguments.md#args-is-read-only)), the way a chain started by a `call` with no second argument does. `tasks.fanout` gives every arm the caller's arguments, and an arm's own input is the member it runs for, which it reads as `item`. So in a prompt with [no `args:` key](06-arguments.md#prompts-with-no-args-key), run with the arguments `{"text":"hello"}`, a worker section that returns `args.text .. ':' .. item` over `{'alpha', 'beta'}` gives `hello:alpha` and `hello:beta`. A `call` made inside an arm can give the called chain its own arguments, as anywhere (see [Call args and `var`](08-jump-and-call.md#call-args-and-var)).
+A fanout arm reads its caller's [`args`](06-arguments.md#reading-arguments-from-args), the same read-only table the caller reads (see [`args` is read-only](06-arguments.md#args-is-read-only)), the way a chain started by a `call` with no second argument does. `tasks.fanout` gives every arm the caller's arguments, and an arm's own input is the member it runs for, which it reads as `item`. So in a prompt with [no `args:` key](06-arguments.md#the-default-args-declaration), run with the arguments `{"text":"hello"}`, a worker section that returns `args.text .. ':' .. item` over `{'alpha', 'beta'}` gives `hello:alpha` and `hello:beta`. A `call` made inside an arm can give the called chain its own arguments, as anywhere (see [Call args and `var`](08-jump-and-call.md#call-args-and-var)).
 
 ### Models, tools, and libraries in an arm
 
@@ -743,7 +743,7 @@ A section can call `tasks.fanout` from its epilog block, and the results still c
 
 The arm's result is whatever the worker section returns, not whatever its model rounds return. A worker section that runs `models.infer(item)` and then `return item` gets a reply every time, yet over the members `'1'` through `'1025'`, `r[1].text` is `1` and `r[1025].text` is `1025`.
 
-A fanout arm that runs off its last section without returning gives the empty string as its result, so `r[1].ok` holds and `r[1].text == ''`, the same as a task that runs off its last section. An arm that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value), such as a bare `return`, gives the same result, and the sections after that `return` do not run.
+A fanout arm that runs off its last section without returning gives the empty string as its result, so `r[1].ok` holds and `r[1].text == ''`, the same as a task that runs off its last section. An arm that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#a-bare-return-and-return-nil), such as a bare `return`, gives the same result, and the sections after that `return` do not run.
 
 ### The worker section's visible set
 
@@ -929,7 +929,7 @@ return 'tail-reply'
 worker:tail-reply:alpha
 ````
 
-`Sub` ends without a `return` and falls through to `Tail`, whose `'tail-reply'` comes back to the arm as the value of `call`. The arm's own `item` is still `alpha` after the call returns. A called chain that ends with no text gives the arm `nil`, as it does in any block (see [A call that gets no text](08-jump-and-call.md#a-call-that-gets-no-text)).
+`Sub` ends without a `return` and falls through to `Tail`, whose `'tail-reply'` comes back to the arm as the value of `call`. The arm's own `item` is still `alpha` after the call returns. A called chain that ends with no text gives the arm `nil`, as it does in any block (see [When `call` returns `nil`](08-jump-and-call.md#when-call-returns-nil)).
 
 The called chain starts on a copy of the arm's current model, taken when the `call` is made, so a `models.use` inside the called chain does not reach the arm.
 
@@ -1268,7 +1268,7 @@ In the main walk, the limit starts at the run's concurrency limit, and lowering 
 
 ### When `tasks.concurrency` refuses a limit
 
-An argument that is not a positive whole number fails at the call site with an error value of kind `lua` whose message, `tasks.concurrency limit must be a positive whole number, got {type}`, names only the value's type, not the value. This matters when the limit comes from data, such as a number parsed from [`args.text`](06-arguments.md#prompts-with-no-args-key), the one optional string a prompt with no `args:` key takes. Passing `nil` is the same as leaving the argument out and only reads the limit, so this block turns a text that is missing or is not a number into `0`, which is refused:
+An argument that is not a positive whole number fails at the call site with an error value of kind `lua` whose message, `tasks.concurrency limit must be a positive whole number, got {type}`, names only the value's type, not the value. This matters when the limit comes from data, such as a number parsed from [`args.text`](06-arguments.md#the-default-args-declaration), the one optional string a prompt with no `args:` key takes. Passing `nil` is the same as leaving the argument out and only reads the limit, so this block turns a text that is missing or is not a number into `0`, which is refused:
 
 ````lua
 local ok, err = pcall(tasks.concurrency, tonumber(args.text) or 0)

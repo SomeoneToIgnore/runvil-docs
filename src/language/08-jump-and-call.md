@@ -698,7 +698,7 @@ return 'x-value'
 x-value
 ````
 
-Both `Y` and `B` are skipped, and the run result is `x-value`. A `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value) ends the chain the same way: with a bare `return` in `X`, `Y` and `B` are skipped too, and the run result is `done`.
+Both `Y` and `B` are skipped, and the run result is `x-value`. A `return` that gives [no value](04-how-a-prompt-runs.md#a-bare-return-and-return-nil) ends the chain the same way: with a bare `return` in `X`, `Y` and `B` are skipped too, and the run result is `done`.
 
 ## When a jump is refused or fails
 
@@ -936,7 +936,7 @@ B saw: S1 S2
 
 `S1` ends without a `return`, so the contained chain falls through to `S2`. Within a called chain, `var` rolls forward across the chain's sections as it does on the main walk, so the `var.trail` that `S1` stores is readable in `S2`. `S2`'s return ends the chain, `call` returns `S1 S2` to `A`, and the walk resumes at `B`.
 
-A `return value` inside a called chain ends only that chain, not the run (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The value becomes what `call` returns, the chain's remaining sections are skipped, and the outer walk keeps going. `call` returns the final reply of its contained chain from whichever section ends it with a return, even when that section is a later sibling of the section you named, so a call to `Sub` that falls through to a `Tail` returning `'tail-reply'` gives `tail-reply`. A called chain that runs off its last section without returning gives `call` `nil`, and so does one that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#returning-no-value), such as a bare `return` or `return nil`. A chain that returns the empty string on purpose, with `return ''`, gives `call` that string. [A call that gets no text](#a-call-that-gets-no-text) shows what the calling block can do with the `nil`.
+A `return value` inside a called chain ends only that chain, not the run (see [Returning values](04-how-a-prompt-runs.md#returning-values)). The value becomes what `call` returns, the chain's remaining sections are skipped, and the outer walk keeps going. `call` returns the final reply of its contained chain from whichever section ends it with a return, even when that section is a later sibling of the section you named, so a call to `Sub` that falls through to a `Tail` returning `'tail-reply'` gives `tail-reply`. A called chain that runs off its last section without returning gives `call` `nil`, and so does one that ends at a `return` that gives [no value](04-how-a-prompt-runs.md#a-bare-return-and-return-nil), such as a bare `return` or `return nil`. A chain that returns the empty string on purpose, with `return ''`, gives `call` that string. [When `call` returns `nil`](#when-call-returns-nil) shows what the calling block can do with the `nil`.
 
 A section can `call` any other sibling at its level, earlier or later in the file, even one that sits past other sections, such as `A` calling a `Sub` that sits after `B`.
 
@@ -978,7 +978,7 @@ return sys.id
 0.0.0,0.1.0
 ````
 
-### A call that gets no text
+### When `call` returns `nil`
 
 When the called chain ends with no text, `call` returns `nil` in place of a string:
 
@@ -1021,7 +1021,7 @@ nil|fallback|loud
 - Do not concatenate it as it is. `'got: ' .. call('Quiet')` raises the Lua error `attempt to concatenate a nil value` at that line, which fails the run unless something catches it. Write `'got: ' .. (call('Quiet') or '')` where the called chain may end with no text.
 - `return call('Quiet')` still ends the calling section, as every `return` does. The calling section then ends with no text itself, so its own caller gets `nil`, and on the main walk the run result is `done`.
 
-Each kind of chain reports an ending with no text in its own way. The main walk gives the run result `done` (see [The run result](04-how-a-prompt-runs.md#the-run-result)), a called chain gives `call` `nil`, an [executed prompt](#an-execute-that-gets-no-text) gives `execute` `nil`, and a [task](15-tasks.md#what-a-task-section-returns) or a [fanout arm](14-fanout.md#what-an-arm-returns) gives its owner the empty string.
+Each kind of chain reports an ending with no text in its own way. The main walk gives the run result `done` (see [The run result](04-how-a-prompt-runs.md#the-run-result)), a called chain gives `call` `nil`, an [executed prompt](#when-execute-returns-nil) gives `execute` `nil`, and a [task](15-tasks.md#what-a-task-section-returns) or a [fanout arm](14-fanout.md#what-an-arm-returns) gives its owner the empty string.
 
 ### Calling a child section
 
@@ -1164,7 +1164,7 @@ delivered: refined text
 
 ### Passing arguments to a call
 
-A call's arguments are what you pass as the second argument to `call`: a table of named fields, as in `call('../Sub', { query = 'chain' })`, or a string, as in `call('../Child', 'override')`. The called chain receives them as its own arguments instead of the ones it would otherwise inherit. In every section the chain runs, the [`args` global](06-arguments.md#reading-arguments-from-args) holds the call's arguments instead of the run's own, and the prose of any section in the chain reads the call's arguments too. A table becomes the chain's `args`, so in a run started with the arguments `{"query":"run"}`, `call('../Sub', { query = 'chain' })` makes `args.query` read `chain` inside `Sub`. A string becomes a table with one field, `text`, that holds the string, so `call('../Child', 'override')` makes `args.text` read `override` inside `Child`, as `Deliver` reads `args.text` above. `text` is the same field a prompt with no `args:` key reads its one free text from (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)). [`args` in a called chain](#args-in-a-called-chain) shows what the chain reads in each case.
+A call's arguments are what you pass as the second argument to `call`: a table of named fields, as in `call('../Sub', { query = 'chain' })`, or a string, as in `call('../Child', 'override')`. The called chain receives them as its own arguments instead of the ones it would otherwise inherit. In every section the chain runs, the [`args` global](06-arguments.md#reading-arguments-from-args) holds the call's arguments instead of the run's own, and the prose of any section in the chain reads the call's arguments too. A table becomes the chain's `args`, so in a run started with the arguments `{"query":"run"}`, `call('../Sub', { query = 'chain' })` makes `args.query` read `chain` inside `Sub`. A string becomes a table with one field, `text`, that holds the string, so `call('../Child', 'override')` makes `args.text` read `override` inside `Child`, as `Deliver` reads `args.text` above. `text` is the same field a prompt with no `args:` key reads its one free text from (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). [`args` in a called chain](#args-in-a-called-chain) shows what the chain reads in each case.
 
 A [placeholder](07-substitution.md#placeholders-in-prose) such as `{{ args.text }}` inside a called chain renders the call's arguments instead of the run's. In a run started with the arguments `{"text":"run-args"}`, `call('../Sub', 'chain-args')` makes the chain's model round receive `chain-args` and not `run-args`. A `call` with arguments of its own leaves the caller's `args` as they were, so the calling section's `args` still holds its own arguments after the call.
 
@@ -1412,7 +1412,7 @@ local ok, err = pcall(call, '../Leaky')
 {file}:{line}: chain ended with tasks still live: 0.0.0; wait on or cancel every task a chain spawns before it ends. The chain ended with tasks still running. Wait on or cancel every task the chain spawns before it ends.
 ````
 
-### What `pcall` cannot catch
+### What passes through `pcall`
 
 A determinism violation inside a called chain (see [Races, claims, and determinism](09-the-store.md#races-claims-and-determinism)) is not caught by a `pcall` around the `call`. It ends the run on the spot instead of coming back to the caller as the call's error.
 
@@ -1608,7 +1608,7 @@ The jump ends the preamble as it ends any section: the rest of the jumping block
 
 ### Calling from the preamble
 
-In the preamble, `call('../Name')` runs a top-level section as a contained chain and returns whatever that chain returns, as `var.answer = call('../Answer')` gets `called from the preamble` in the first prompt of this section. A chain that ends with no text gives the preamble's block `nil`, as it does in any block (see [A call that gets no text](#a-call-that-gets-no-text)).
+In the preamble, `call('../Name')` runs a top-level section as a contained chain and returns whatever that chain returns, as `var.answer = call('../Answer')` gets `called from the preamble` in the first prompt of this section. A chain that ends with no text gives the preamble's block `nil`, as it does in any block (see [When `call` returns `nil`](#when-call-returns-nil)).
 
 To compute a value once before the sections under the headings run, call a section from the preamble, keep the result in `var`, and place the call target after the section that returns. In that prompt, `Result` returns `var.answer` and sits before `Answer`, so the walk ends before it reaches `Answer`.
 
@@ -1809,7 +1809,7 @@ An arm can also `jump` into one of the worker section's own children. `jump('Chi
 return 'tail-reply:' .. var.leaves
 ````
 
-then `got` holds `tail-reply:` followed by the value `Sub` stored, such as `tail-reply:x!y!`. When the chain ends with no text, `got` is `nil`, as for a `call` in any block (see [A call that gets no text](#a-call-that-gets-no-text)), while the arm's own text is still the empty string when the arm ends with no text.
+then `got` holds `tail-reply:` followed by the value `Sub` stored, such as `tail-reply:x!y!`. When the chain ends with no text, `got` is `nil`, as for a `call` in any block (see [When `call` returns `nil`](#when-call-returns-nil)), while the arm's own text is still the empty string when the arm ends with no text.
 
 A `call` from an arm whose path misses in the worker visible set raises a not-found error that the arm can catch with `pcall`:
 
@@ -1967,7 +1967,7 @@ steps gave: preamble > First > Second
 
 Every `execute` runs the prompt again from its first section. The executed prompt runs as a child chain of the caller, one call level deeper (see [How call depth counts](#how-call-depth-counts)) and with the caller's next child [`sys.id`](05-lua-environment.md#section-entry-ids). The first `execute` on the main walk runs the executed prompt's first section as entry `0.0.0` and its second as `0.0.1`, and a second `execute` starts at `0.1.0`. The executed prompt runs inside the caller's task: its sections report under that task, so `sys.taskid` reads `0` there when the main walk made the `execute`. `sys.section_count` counts the executed prompt's own top-level sections.
 
-### An execute that gets no text
+### When `execute` returns `nil`
 
 `execute` returns the executed prompt's final text as a Lua string, or `nil` when that prompt ends with no text:
 
@@ -2012,7 +2012,7 @@ return type(quiet) .. '|' .. (quiet or 'fallback')
 nil|fallback
 ````
 
-A main walk that ends with no text gives the run result `done` (see [The run result](04-how-a-prompt-runs.md#the-run-result)). The same prompt gives an `execute` `nil`, as a called chain with no text gives `call` `nil`, and so does a prompt with no sections. Treat the `nil` as [A call that gets no text](#a-call-that-gets-no-text) describes: test the value or give it a fallback with `or` before you concatenate it.
+A main walk that ends with no text gives the run result `done` (see [The run result](04-how-a-prompt-runs.md#the-run-result)). The same prompt gives an `execute` `nil`, as a called chain with no text gives `call` `nil`, and so does a prompt with no sections. Treat the `nil` as [When `call` returns `nil`](#when-call-returns-nil) describes: test the value or give it a fallback with `or` before you concatenate it.
 
 ### What crosses an execute
 
@@ -2135,7 +2135,7 @@ The message is the one [Argument errors](06-arguments.md#argument-errors) lists 
 | A table of named fields | the fields of that table, with each declared default filled in |
 | A string | one field, `text`, that holds the string |
 
-Each row is checked against the declaration. So `execute('search.md')` is refused with ``argument `query` is required``, because the empty object lacks the required field, and `execute('search.md', 'tea')` is refused with the same message, because a string fills only `text` and leaves `query` out. A prompt with no `args:` key takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)), so it starts with a string, or with no second argument at all, and refuses any other field.
+Each row is checked against the declaration. So `execute('search.md')` is refused with ``argument `query` is required``, because the empty object lacks the required field, and `execute('search.md', 'tea')` is refused with the same message, because a string fills only `text` and leaves `query` out. A prompt with no `args:` key takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)), so it starts with a string, or with no second argument at all, and refuses any other field.
 
 An `execute` never hands on the caller's arguments by itself. To give the executed prompt the caller's own arguments, pass them, as in `execute('search.md', args)` or `execute('search.md', { query = args.query })`. The refusals that [Call args errors](#call-args-errors) lists for the second argument of `call` apply to `execute` unchanged, so a list fails with `args must be a table of named fields or a string, got a list`.
 
@@ -2203,7 +2203,7 @@ So each prompt chooses its section names on its own, and `execute` is the only w
 
 A failure inside an executed prompt reaches the caller as that prompt's own error value, raised at the `execute`, with its `kind`, its `code`, and its message intact, as a failure inside a called chain does (see [What the caught error value holds](#what-the-caught-error-value-holds)). Its message keeps the file and line where the failure happened, and that file is the executed prompt's. When `reach.md` fails at its line 10 with the not-found error above, `pcall(execute, 'reach.md')` in its caller returns `false` and an error value whose `kind` is `lua`, whose `code` is `lua_runtime`, and whose message starts with `reach.md:10:`. Uncaught, the failure ends the run with that code, and the run's message ends with ` (at reach.md:10)`.
 
-A `pcall` around an `execute` also catches the refusals raised at the call site: a first argument that is not a string, a second argument of the wrong shape, a name the caller does not list, arguments the executed prompt's declaration refuses, and the recursion depth cap. It does not catch a determinism violation inside the executed prompt, which ends the run on the spot (see [What `pcall` cannot catch](#what-pcall-cannot-catch)).
+A `pcall` around an `execute` also catches the refusals raised at the call site: a first argument that is not a string, a second argument of the wrong shape, a name the caller does not list, arguments the executed prompt's declaration refuses, and the recursion depth cap. It does not catch a determinism violation inside the executed prompt, which ends the run on the spot (see [What passes through `pcall`](#what-passes-through-pcall)).
 
 ### Prompts that execute each other
 

@@ -30,7 +30,7 @@ hi Acme Corp!
 
 A placeholder is `{{ path }}` written inside a section's prose. It runs from `{{` to the next `}}`, and the path between them is trimmed of surrounding spaces. When a Lua block reads `prose`, the Engine replaces each placeholder with a live value from the run, so the text the block gets already holds those values. A placeholder sits inline and is replaced in place, so the words around it, here `hi ` and `!`, stay exactly as written.
 
-`{{ args.text }}` inserts the field `text` of the arguments the run was given. The arguments of a run are one JSON object, and a prompt with no `args:` key in its frontmatter, like this one, takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)). Besides inline use like the one above, a prompt can put `{{ args.text }}` on its own line after an instruction that asks the model to analyze the following text:
+`{{ args.text }}` inserts the field `text` of the arguments the run was given. The arguments of a run are one JSON object, and a prompt with no `args:` key in its frontmatter, like this one, takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). Besides inline use like the one above, a prompt can put `{{ args.text }}` on its own line after an instruction that asks the model to analyze the following text:
 
 ````markdown
 Analyze the following input:
@@ -52,7 +52,7 @@ The first segment of a path names where the value comes from. That segment is th
 
 Any first segment other than `args`, `item`, `var`, or `sys` is read as the name of a Lua global. Each source has its own H2 later in this chapter: [Inserting `var` and `sys` values](#inserting-var-and-sys-values), [Inserting arguments with `args`](#inserting-arguments-with-args), [Inserting the fanout or task `item`](#inserting-the-fanout-or-task-item), and [Inserting Lua globals by bare name](#inserting-lua-globals-by-bare-name).
 
-### Prose only, never Lua source
+### Only prose is substituted
 
 ````markdown
 ---
@@ -124,7 +124,7 @@ return models.infer(prose)
 
 The lead-in words `Repeat exactly, with no extra words:` stay in place, and the placeholder after them is replaced.
 
-### A placeholder that cannot render fails
+### Every substitution failure is a hard error
 
 ````markdown
 ---
@@ -494,9 +494,9 @@ q=papers cell=1
 
 A field renders by its type: a string as written, a number as text, and a list or an object as compact JSON. So `{{ args.row.a }}` renders the integer as `1`, `{{ args.row }}` with the same arguments renders `{"a":1}`, and `got {{ args }}` renders `got {"query":"papers","row":{"a":1}}`.
 
-### Prompts with no `args:` key
+### Under the default `args:` declaration
 
-With no `args:` key, a prompt takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)), so `{{ args.text }}` renders that string and `{{ args }}` renders the whole object:
+With no `args:` key, a prompt takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)), so `{{ args.text }}` renders that string and `{{ args }}` renders the whole object:
 
 ````markdown
 ---
@@ -724,7 +724,7 @@ return prose
 
 The collection holds one member, the table `{7, 'x'}`, so the run's single arm reads `Item: [7,"x"].` from `prose`, and the run result is `done`. The `{{` in the Lua block is Lua source, so it is a table constructor and never a placeholder.
 
-In a keyed collection (see [Collections and member order](14-fanout.md#collections-and-member-order)), each member reaches its arm as a table with `key` and `value` fields, and `{{ item }}` renders the whole pair, so the member `{key='alpha', value=1}` renders as `{"key":"alpha","value":1}`. An item holding JSON null renders as the text `null`, while every other root fails on a null value with a message of the form `missing {{ {path} }}`. An `item` that is nil in an unseeded section still fails, as [No item outside an arm or task](#no-item-outside-an-arm-or-task) shows.
+In a keyed collection (see [Collections and member order](14-fanout.md#collections-and-member-order)), each member reaches its arm as a table with `key` and `value` fields, and `{{ item }}` renders the whole pair, so the member `{key='alpha', value=1}` renders as `{"key":"alpha","value":1}`. An item holding JSON null renders as the text `null`, while every other root fails on a null value with a message of the form `missing {{ {path} }}`. An `item` that is nil in an unseeded section still fails, as [Reading an item outside an arm or task](#reading-an-item-outside-an-arm-or-task) shows.
 
 ### Where an item is seeded
 
@@ -758,7 +758,7 @@ return prose
 
 The seeded item is the Lua global `item`, and a placeholder rooted at an ordinary global name such as `title` reads that section-local global. As the worker section for a collection of tables with a `title` field, each arm renders `Title: ` followed by its own member's title.
 
-### No item outside an arm or task
+### Reading an item outside an arm or task
 
 ````markdown
 ---
@@ -1048,7 +1048,7 @@ The second fence's `prose` is `First: one.`, which `var.first` keeps, and the th
 
 Because rendering happens at the read, a bad placeholder stays harmless until the `prose` read that renders it. A substitution error is raised where your code touches `prose`, such as at `return prose`, not when the file is parsed and not when the section starts, and its location still names the placeholder's own line (see [What the error value holds](#what-the-error-value-holds)). When `return prose` is a block's only Lua, a placeholder such as `{{ reply }}` with no `reply` global fails right at that read. The prose `Missing: {{ var.missing }}.` with `return prose` fails the run with `missing {{ var.missing }}`, while the same kind of bad placeholder above a block that only does `return 'ok'` yields `ok`. Since the block starts normally, it can also catch the failure: `pcall(function() return prose end)` catches the `{{ var.missing }}` error, and the block can go on to return `caught`.
 
-### Prose that is never read
+### Prose renders only when read
 
 ````markdown
 ---

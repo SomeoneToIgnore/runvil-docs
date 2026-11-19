@@ -54,7 +54,7 @@ A failure belongs to one of four failure families, and each family has its own v
 
 A run ends with its result: the final text when it completes, as `steady` does, or the error that ended it. A cancel is the error whose code is `canceled`, and a run that ends with any other error has failed.
 
-### What a run error carries
+### What a run error holds
 
 A run that fails ends with a run error, the error that ended it. A run error is the same universal error that a caught error value stands for in Lua, and it has five parts: a code, a message, prose, an optional location, and facts. The code names what failed, and every Engine failure has exactly one code, such as `lua_runtime` or `not_found`. The message is the human-readable account of what went wrong, the failing error's own text with the text of its causes. The prose is the text a model reads for the failure, the location is where the failure happened when that is known, and the facts are the values the failure names, such as a path or a task id. Together the code and the message form the typed contract of a failed run: the code is exact, and each message always contains a fixed fragment that names the failure.
 
@@ -152,7 +152,7 @@ The response cap and the receive timeout are request limits, not run limits: the
 
 The memory ceiling and the log event quota bound each section entry's Lua, and [Lua memory and log quotas](#lua-memory-and-log-quotas) covers them.
 
-### The call depth cap is not a run limit
+### The call depth cap is an Engine constant
 
 The call depth cap of 8 is a fixed Engine constant, not one of the five run limits, so it is the same in every run, whatever the Harness and the prompt's frontmatter set. [The recursion depth cap](08-jump-and-call.md#the-recursion-depth-cap) covers how that cap works. An [`execute`](08-jump-and-call.md#prompts-that-execute-each-other) adds one level to the same count as a `call`, a spawned task, or a fanout arm, so the one cap holds across every prompt of a run: when a prompt nests a `call` and an `execute` in turn, the cap refuses the next one after four of each.
 
@@ -204,7 +204,7 @@ The log byte quota bounds the total size of those messages. Each section VM has 
 
 The memory ceiling and the log quotas apply to each section VM, not to the whole run, because every section entry builds a fresh VM and applies the limits to it. A section entry that spends most of its log events leaves the next entry's allowance untouched.
 
-### No instruction limit
+### Any number of instructions
 
 ````markdown
 ---
@@ -799,7 +799,7 @@ A Lua compile failure points at the line its compiler diagnostic names, as [Lua 
 
 A structural failure's column is a 1-based byte column, so each multibyte UTF-8 character before the error on that line counts as more than one column. A body failure's column counts bytes, so a multibyte UTF-8 character earlier on the line pushes it past the character count.
 
-### Failures with no line or column
+### Failures that lack a line or column
 
 Nearly every parse failure has a line and a column. A YAML error that the decoder gives no position for is an exception, and so is a `uses:` refusal in frontmatter that declares `uses:` away from the start of a line, such as one flow mapping that holds the whole frontmatter. A `prompts:` refusal is one too in such frontmatter, and so is the Host's not-found failure for a prompt listed there. A missing `runvil:` key, which the run's first step finds rather than the parser, is another, because the key is not in the file. A Host therefore shows the line and column when present, and otherwise the message.
 
@@ -1025,7 +1025,7 @@ The check reports the first mismatch only, and it looks in a fixed order: text t
 - The argument text `["papers"]` is JSON but not an object, and the message is `the arguments must be a JSON object, got array`.
 - The arguments `{"limit":"five"}` have two mismatches, a `limit` that is not an integer and a missing `query`, and the message is only ``argument `limit` must be an integer, got string``, because `limit` comes before `query` in name order.
 
-A prompt with no `args:` key takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)), so the check holds for it too. The `steady` prompt at the start of this chapter, run with the arguments `{"query":"papers"}`, fails with ``argument `query` is not declared; the declared arguments are `text` ``.
+A prompt with no `args:` key takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)), so the check holds for it too. The `steady` prompt at the start of this chapter, run with the arguments `{"query":"papers"}`, fails with ``argument `query` is not declared; the declared arguments are `text` ``.
 
 An [`execute`](08-jump-and-call.md#arguments-for-an-executed-prompt) checks the arguments it passes in the same way, against the `args:` declaration of the prompt it executes, and a mismatch gives the same message and the same code. That failure comes after the start checks, though. It is raised in Lua at the `execute`, before the executed prompt starts, as an error value of kind `lua` whose `code` is `args_invalid`, so a `pcall` around the `execute` catches it. Left uncaught, it ends the run with code `args_invalid`, and its message ends with ` (at {file}:{line})`, the line of the `execute`, because the prompt that runs the `execute` built those arguments.
 
@@ -1035,7 +1035,7 @@ A run ends with `canceled` when the Host cancels it, or when the canceled error 
 
 A run fails with `internal` when an Engine invariant breaks, a fault in the Engine rather than in the prompt. That includes Harness mistakes such as an answer of the wrong kind, an answer for an id never issued, or a second answer to one effect. The message starts with `internal invariant violated: {message}` and ends with ` (at {file}:{line})`, which names an Engine source file and line rather than a place in the prompt. The Harness also ends a run with `internal` when the run is still pending, its main chain does not wait for input, and the Harness has nothing to wait for, which means it lost track of an effect, and the message is then `the effect loop has nothing to await for a pending run`.
 
-A run fails with `stalled` when no chain can move and the main chain does not wait on its own inbox, the one inbox the Host can fill. Every chain left waits on something only another waiting chain could end, such as an owner waiting on a task that waits for a message only that owner could send (see [When nothing can move](15-tasks.md#when-nothing-can-move)). The message names, in id order, the tasks that wait on their inboxes, and the error's facts hold their ids. A stall lacks a location, so the message is its own text:
+A run fails with `stalled` when no chain can move and the main chain does not wait on its own inbox, the one inbox the Host can fill. Every chain left waits on something only another waiting chain could end, such as an owner waiting on a task that waits for a message only that owner could send (see [When a run stalls](15-tasks.md#when-a-run-stalls)). The message names, in id order, the tasks that wait on their inboxes, and the error's facts hold their ids. A stall lacks a location, so the message is its own text:
 
 ````text
 the run stalled: no chain can move, and these tasks wait on their inboxes: {ids}
@@ -1100,7 +1100,7 @@ Error kinds and codes are separate vocabularies. An error kind is the broad clas
 
 ### The `model_failure` and `model_required` error kinds
 
-The `model_failure` error kind marks a model call that failed outside the prompt: a transport, backend, or decode failure, or a disabled gateway. An empty reply is the one model call failure with a kind of its own, `empty_model_reply`. The `model_required` error kind marks the [missing-model error](10-models.md#infer-errors-and-the-missing-model-error), a `models.infer` or `models.loop` round that finds the Host gave no model. [`models.use`, `models.get`, and `models.current`](10-models.md#when-the-host-gives-no-model) raise an ordinary error of kind `lua` instead when the Host gave no model for the role.
+The `model_failure` error kind marks a model call that failed outside the prompt: a transport, backend, or decode failure, or a disabled gateway. An empty reply is the one model call failure with a kind of its own, `empty_model_reply`. The `model_required` error kind marks the [missing-model error](10-models.md#infer-errors-and-the-missing-model-error), a `models.infer` or `models.loop` round that finds the Host gave no model. [`models.use`, `models.get`, and `models.current`](10-models.md#when-the-role-map-is-empty) raise an ordinary error of kind `lua` instead when the Host gave no model for the role.
 
 Both values hold only the fields every error value has. Left uncaught, a `model_failure` value ends the run with its own model code, such as `overloaded` or `timeout`, and a `model_required` value ends it with `model_required`.
 
@@ -1370,7 +1370,7 @@ Both runs fail with a model code, but only the first, `overloaded`, may succeed 
 
 A failed run is retryable only when a model call fails with a transient transport or backend problem, and that is what a retryable failure means: running the prompt again may succeed. A model call failure is retryable when it comes from a transport failure (a receive timeout included), a malformed or oversized reply, a rate limit (backend status 429), an overloaded backend (status 503 or 529), or any backend status from 500 through 599, so the retryable codes are `transport`, `timeout`, `malformed_response`, `rate_limited`, `overloaded`, and `server_error`. The failure reports the backend status when there is one, and running the prompt again is up to the Host.
 
-### Failures that are never retryable
+### Failures outside the retryable codes
 
 Every failure other than a transient model call failure is never retryable, and neither is a canceled run, which is not a failure:
 
@@ -1397,7 +1397,7 @@ Every failure other than a transient model call failure is never retryable, and 
 
 Only model failures of completion error kind `RateLimited`, `Overloaded`, `Timeout`, `Transport`, `ServerError`, and `MalformedResponse` are retryable, every other kind is not, and the kind alone fixes the answer.
 
-### Nothing retries automatically
+### Running again is up to the Host
 
 A failed run stays as it ended, and a failed model round is sent again in one case alone, inside `models.loop`. Each model request is sent once, and a failed round is reported as failed and ends the call with that failure, unless it is a `models.loop` round that fails as `ContextOverflow` or comes back as an empty reply (see [Errors while a round runs](11-conversations.md#errors-while-a-round-runs)): the loop hands that overflow to the compactor, and after a compaction that passes it sends the round again once. The run hands its failure back as a result value instead of crashing, so running again after a retryable failure is up to the Host, and a run that fails on a transient model call problem may succeed when run again.
 

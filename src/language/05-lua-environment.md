@@ -24,7 +24,7 @@ Run with the arguments `{"text":"hi"}`, the run result is:
 HI
 ````
 
-The block calls `string.upper`, a function from Lua's standard `string` library, on `args.text`. `args` is a global the Engine installs: a read-only table that holds the run's checked arguments (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)), and a prompt with no `args:` key, like this one, takes one optional string named `text` (see [Prompts with no `args:` key](06-arguments.md#prompts-with-no-args-key)). Both `string.upper` and `args` are in place when the block starts. Every `lua` fence in a prompt runs real PUC Lua 5.5, with the Harness's work, the run's metadata, and the operator one plain function call away.
+The block calls `string.upper`, a function from Lua's standard `string` library, on `args.text`. `args` is a global the Engine installs: a read-only table that holds the run's checked arguments (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)), and a prompt with no `args:` key, like this one, takes one optional string named `text` (see [The default `args:` declaration](06-arguments.md#the-default-args-declaration)). Both `string.upper` and `args` are in place when the block starts. Every `lua` fence in a prompt runs real PUC Lua 5.5, with the Harness's work, the run's metadata, and the operator one plain function call away.
 
 ### Real Lua 5.5 in every block
 
@@ -718,7 +718,7 @@ String keys come after boolean and number keys, and a `for k in pairs(t)` loop v
 
 `{ zeta = 1, alpha = 2, mid = 3, beta = 4, omega = 5 }` visits `alpha, beta, mid, omega, zeta`.
 
-### Keys with no fixed order
+### Keys visited last, in any order
 
 Keys that are not strings, numbers, or booleans, such as tables, functions, userdata, and threads, are still visited, after every scalar key. Their order among themselves is not fixed: it is whatever Lua's own traversal produced, so you cannot rely on which of two table-valued keys comes first. A table holding the key `a` and two table keys walks `a` first, then both table keys in either order.
 
@@ -1145,7 +1145,7 @@ The run reads `var` back as JSON data at fixed points:
 
 The run does not read `var` back between the blocks of one section, because they share one Lua state. A task start is a [`tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) call.
 
-### When a value is not JSON data
+### When `var` rejects a write
 
 Only JSON data can be assigned to a `var` field. The guard checks each write at the assigning statement, so you can catch a rejected write and keep going:
 
@@ -1351,7 +1351,7 @@ Every JSON `null` decodes to `json.null`, and `json.null` is what you put in a t
 
 `json.null` is a light userdata, so `type(json.null)` is `userdata`, and most error messages name its type `lightuserdata`. Like every userdata it is truthy, so `if row.note then` passes for a null, as the `truthy` in the result shows. Test for null with `v == json.null`, and for an absent field with `v == nil`.
 
-Outside `json.encode`, `json.null` passes the Engine's other conversions to JSON too. The `var` guard accepts it and stores JSON null (see [When a value is not JSON data](#when-a-value-is-not-json-data)), a `tools.call` argument table or a task's `item` can hold it, and a fanout member that is `json.null` runs its arm with `item == json.null`. A null that the arguments keep, in an undeclared field of an object that says `additionalProperties: true`, reads as `json.null` in `args` too, as [Missing fields and null values](06-arguments.md#missing-fields-and-null-values) shows. A prose placeholder still refuses it: naming a bare global that holds `json.null`, as in `{{ nothing }}` after `nothing = json.null`, fails with `missing {{ nothing }}` and substitution kind `NullValue`, the same failure a `var` field holding null gives (see [Substitution error kinds](07-substitution.md#substitution-error-kinds)).
+Outside `json.encode`, `json.null` passes the Engine's other conversions to JSON too. The `var` guard accepts it and stores JSON null (see [When `var` rejects a write](#when-var-rejects-a-write)), a `tools.call` argument table or a task's `item` can hold it, and a fanout member that is `json.null` runs its arm with `item == json.null`. A null that the arguments keep, in an undeclared field of an object that says `additionalProperties: true`, reads as `json.null` in `args` too, as [Missing fields and null values](06-arguments.md#missing-fields-and-null-values) shows. A prose placeholder still refuses it: naming a bare global that holds `json.null`, as in `{{ nothing }}` after `nothing = json.null`, fails with `missing {{ nothing }}` and substitution kind `NullValue`, the same failure a `var` field holding null gives (see [Substitution error kinds](07-substitution.md#substitution-error-kinds)).
 
 ### Keeping empty lists with `json.array`
 
@@ -1498,7 +1498,7 @@ Every message names the failing value by its path. The path starts at `value`, t
 
 A table that breaks more than one rule reports the same error on every run. An unmarked table reports a key that is neither an integer nor a string first, then a mix of integer and string keys, then a missing list item. Because keys are checked before values, `{ [1] = function() end, a = 1 }` reports `mixes list items and named keys`, not the function. For a missing item, `{item}` is the first of 1 to n that is absent, where n is the table's count of integer keys: `{ [1] = 'a', [3] = 'c' }` reports `[2]`, `{ [0] = 'a' }` reports `[1]`, and `{ [-1] = 'a', [1] = 'b' }` reports `[2]`.
 
-Within a table, `json.encode` visits keys in one fixed order: booleans, then numbers by value, then strings bytewise, as [Then booleans, numbers, and strings](#then-booleans-numbers-and-strings) describes. Unlike `pairs`, it also gives a fixed place to the two kinds of scalar key that [Keys with no fixed order](#keys-with-no-fixed-order) leaves unordered: a string key that is not valid UTF-8 sorts bytewise among the strings, and an infinite number key sorts by value among the numbers, so `-math.huge` comes first and `math.huge` last. Table, function, userdata, and thread keys come last, ranked by type name, so a table with both a table key and a function key always reports `has a function key`.
+Within a table, `json.encode` visits keys in one fixed order: booleans, then numbers by value, then strings bytewise, as [Then booleans, numbers, and strings](#then-booleans-numbers-and-strings) describes. Unlike `pairs`, it also gives a fixed place to the two kinds of scalar key that [Keys visited last, in any order](#keys-visited-last-in-any-order) leaves unordered: a string key that is not valid UTF-8 sorts bytewise among the strings, and an infinite number key sorts by value among the numbers, so `-math.huge` comes first and `math.huge` last. Table, function, userdata, and thread keys come last, ranked by type name, so a table with both a table key and a function key always reports `has a function key`.
 
 The options argument is checked before the value, so `json.encode(function() end, 5)` raises the options error, not the function's. Options must be nil or a table whose only key is `debug`:
 
@@ -1616,7 +1616,7 @@ The budget comes from the Lua memory limit of the section VM, `lua_memory_bytes`
 - One byte for each byte of every string value and every string key the walk visits, up to the memory limit itself, which is 67,108,864 bytes at the default. A string that appears in many places counts at each place.
 - At most 100,000 keys that are not numbers or booleans on one path, counting the keys of the table being encoded and of every table above it on the way down. Integer keys stay out of this count, so a list of a million strings still encodes, while an object with more than 100,000 string keys on one path raises the same error.
 
-Debug mode raises this error too. A `var` write spends the same value and byte budgets before it converts the value, as [When a value is not JSON data](#when-a-value-is-not-json-data) describes.
+Debug mode raises this error too. A `var` write spends the same value and byte budgets before it converts the value, as [When `var` rejects a write](#when-var-rejects-a-write) describes.
 
 ## Parsing Markdown with `markdown`
 
@@ -2263,7 +2263,7 @@ Inside a spawned task or a fanout arm, `sys.taskid` reads that task's own id, th
 
 A task's first section entry also has `sys.index` when its spawn supplied one. A fanout arm reads its member's 1-based position (see [What an arm sees](14-fanout.md#what-an-arm-sees)), and a task started by `tasks.spawn` with `index = 7` among its options reads `7`. In every other section entry, ordinary walked sections and a task's later entries included, reading `sys.index` fails with `unknown sys field 'index'`.
 
-### Reading a field `sys` does not have
+### Reading an unknown `sys` field
 
 Reading a field that `sys` does not have raises an error instead of returning a silent `nil`, and the message names the field:
 
@@ -2933,7 +2933,7 @@ You declare that a prompt needs an operator by listing the Pack id `user` under 
 
 The Pack's fully qualified name is `runvil/user`, and every Host has it built in, beside `runvil/subagents`, with no Plugin to add it. Its tool list is empty and it lacks a prelude, so declaring it leaves the prompt's globals and tools as they were. The main chain reads the operator with `tasks.receive()` whether or not the prompt declares `user`, and what the declaration adds is the requirement.
 
-### A run with no user
+### When a run has a user
 
 A run has a user when the Host that launches it has someone to answer its main chain, and the Host decides that for each run it launches. The `user` Pack is available only in a run that has a user. In any other run the Pack is unavailable, with the reason `this run has no user`, so a prompt that declares it is refused at the run's first step with code `requirements_unmet`, before any of its Lua runs. The [requirements notice](04-how-a-prompt-runs.md#the-requirements-notice) names the Pack and the reason and ends with where the prompt declares the Pack, here the `uses:` line of the `ask-once` prompt:
 
@@ -2946,7 +2946,7 @@ The refusal is a guarantee: in a run of a prompt that declares `user`, the main 
 
 A prompt that leaves `user` out of its declared Packs stays clear of this refusal, unless a prompt that it lists under [`prompts:`](08-jump-and-call.md#listing-prompts-under-prompts), directly or through another listed prompt, declares it. Its main chain can still call `tasks.receive()` in a run with no user, and the call waits all the same, because a Host can send the run messages from its own code.
 
-### Running with or without a user
+### Checking for a user before waiting
 
 A prompt that works either way leaves `user` undeclared and checks for the Pack before it waits. `tools.packs.get('user')` returns the Pack's object in a run with a user and `nil` in a run without one, because only a Pack the run can serve has a Pack object (see [Finding a Pack with `tools.packs.get`](12-tools.md#finding-a-pack-with-toolspacksget)):
 
@@ -3275,7 +3275,7 @@ Every failure the Engine raises into Lua reaches `pcall` as an error value, Engi
 
 - An argument error from an Engine call, such as a badly shaped argument to `models.infer`, `models.loop`, `call`, `execute`, `tasks.fanout`, `tasks.spawn`, `tools.call`, or a `store` function, is raised at the calling line as a `lua` error value rather than failing the whole block, so a `pcall` around the call catches it.
 - A failed Harness request, such as a model round, arrives as an error value whose `kind` names the failure, such as `context_exhausted`, with the kind's own fields beside it and `tostring` giving the failure's own prose after the line that made the call. A chat call wrapped in `pcall` that a stop drops likewise comes back as `false` and an error value carrying both `kind` and `message`.
-- An Engine function that fails on the spot, such as a failing [`tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer), a read of an unknown `sys` field such as `sys.nothing`, or the `var` guard, gives the same indexable error value. `err.kind` and `err.message` work on it at the call site, and `tostring(err)` is the message, author prose after the line that was running when it failed, with no traceback appended. A refused `var` write gives a message containing `must be JSON data` (see [When a value is not JSON data](#when-a-value-is-not-json-data)), and a runtime error raised inside a built-in call is kind `lua`.
+- An Engine function that fails on the spot, such as a failing [`tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer), a read of an unknown `sys` field such as `sys.nothing`, or the `var` guard, gives the same indexable error value. `err.kind` and `err.message` work on it at the call site, and `tostring(err)` is the message, author prose after the line that was running when it failed, with no traceback appended. A refused `var` write gives a message containing `must be JSON data` (see [When `var` rejects a write](#when-var-rejects-a-write)), and a runtime error raised inside a built-in call is kind `lua`.
 
 Apart from an argument error the Engine's own Lua raises, whose message is its text alone, each of these is placed on your own line: a suspending call on the line that made the call, an Engine function that fails on the spot, such as [`jump`](08-jump-and-call.md#jumping-to-a-section), on the line running when it failed, and a failure inside a function you pass to `pcall` or `xpcall` on the line of the failing call in that function, not the `pcall` line. A `call` or an `execute` can raise a failure placed elsewhere: when the chain or the prompt it ran fails, it raises that failure's own error value, which keeps the line where it happened, in the executed prompt's file for an `execute` (see [Errors that pass through several blocks](#errors-that-pass-through-several-blocks)). [Where an error points](16-limits-and-errors.md#where-an-error-points) gives the full rules, tail calls included.
 

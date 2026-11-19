@@ -369,7 +369,7 @@ The store holds text, so a table goes through [`json.encode`](05-lua-environment
 
 A store file is therefore always text. Only `store` calls put text in the store, and each of them takes valid UTF-8 alone, so every file reads back as valid UTF-8 and a read never fails over a file's bytes.
 
-### Reading a file that does not exist
+### When a read finds its file missing
 
 Reading a store file that does not exist raises an [error value](05-lua-environment.md#error-values) of kind `store` with reason `not_found` and a `path` field. The store's message for it has the form `file not found in store: {path}`, naming the path as the prompt wrote it. [`pcall`](05-lua-environment.md#raising-and-catching-errors) catches the error so the block can read its fields:
 
@@ -1323,7 +1323,7 @@ Two reasons have more than one wording. From `store.glob`, the `invalid_path` me
 
 Each of these reasons comes from a specific situation:
 
-- `not_found`: `store.read`, `store.read_numbered`, or `store.str_replace` names a file that does not exist (see [Reading a file that does not exist](#reading-a-file-that-does-not-exist)).
+- `not_found`: `store.read`, `store.read_numbered`, or `store.str_replace` names a file that does not exist (see [When a read finds its file missing](#when-a-read-finds-its-file-missing)).
 - `not_a_directory`: a store call needs a directory where a file sits. Writing or appending `a.txt/b.txt` while `a.txt` is a file fails this way, and the failed call leaves `a.txt` as it was.
 - `is_a_directory`: a store call needs a file where a directory sits. Once `notes/a.txt` exists, `store.read`, `store.read_numbered`, `store.str_replace`, `store.write`, or `store.append` on `notes` fails this way, and a failed write leaves the directory and its files as they were.
 - `directory_not_empty`: `store.delete` of a directory that still holds entries fails this way, because `store.delete` never removes recursively. The directory and its files stay as they were.
@@ -1791,7 +1791,7 @@ A store read that is unordered with another task's write, because that task is s
 
 A timed wait works the same way. Reading a late member's file after a timed join, such as `tasks.join` with a `timeout` (see [Time limits on waits](15-tasks.md#time-limits-on-waits)), ran out of time, but before a later wait delivers that member, fails the run with a claims conflict.
 
-### Calls that leave no claim
+### A refused call stops before its claim
 
 A store call refused by argument or path validation, or by a conflict, stops before its claim is recorded, because every check runs first. A write refused for its argument leaves the claims as they were, so a sibling arm can write the same path without a conflict. A write refused for a conflict leaves the claims as they were too, and the refused write does not create the file.
 
@@ -1831,7 +1831,7 @@ A load-time conflict cannot be caught with `pcall` either. A library that wraps 
 
 A store function captured at load time behaves like `store.*` when it is called after the load (see [Capturing a store function](#capturing-a-store-function)). When a library captures a store function as it loads and hands it out as `save_note`, and each arm runs `pcall(save_note, 'note.txt', item)`, the two arms racing on `note.txt` end the run with a determinism violation even though each arm catches its own failure with `pcall`.
 
-### Patterns that never race
+### Race-free patterns
 
 Every rule above comes down to a few arrangements that keep a prompt free of claims conflicts:
 
@@ -1974,7 +1974,7 @@ Ship on Friday.
 
 `Load` wraps the read and keeps it in `var.notes`, and the walk falls through to `Brief`, whose prose holds `{{ var.notes }}`. To send that text in a model round, `Brief` hands `prose` to [`models.infer`](10-models.md#running-a-round-with-modelsinfer) instead of returning it, and the model receives your instruction followed by the envelope. A `var` string always renders whole in its placeholder: prose `The word is {{ var.word }}.` with `var.word = 'mutated'` set before `return prose` gives `The word is mutated.`
 
-### Defense in depth, not a security boundary
+### Defense in depth, short of a security boundary
 
 `untrusted(s)` is defense in depth, not a security boundary. It raises the cost of an accidental or opportunistic prompt-injection break-out from fetched or pasted text, but a determined model can still be told to ignore the preface. Escaping every `<` is the part that holds whether or not the nonce is known: content that quotes the real nonce in a forged close tag still leaves only the two real tags live.
 

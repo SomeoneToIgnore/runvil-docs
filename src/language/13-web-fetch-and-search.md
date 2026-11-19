@@ -63,7 +63,7 @@ Both web tools leave credentials out of their arguments, so a prompt never suppl
 
 The web Pack's Pack id is `web`, the second segment of its fully qualified name `runvil/web`, and it is the same on every Host. Each web tool id is the Pack id, a slash, and the tool name, so the fetch tool is `web/fetch` and the search tool is `web/search`.
 
-### Declared or not, the tools are there
+### The tools are there whatever the prompt declares
 
 The web Pack lacks a prelude, so it leaves the prompt's Lua environment as it is, and you work with the web tools by tool id (see [Pack preludes](12-tools.md#pack-preludes)). Declaring `web` under `uses:` makes the Pack a required Pack for the prompt, and since the Pack lacks a prelude, the declaration leaves the prompt's Lua names as they were.
 
@@ -485,7 +485,7 @@ A failed DNS name lookup for the host comes back as the soft text `dns resolutio
 
 Any other send failure, or any other network error during a fetch, comes back as the soft untrusted text `fetch failed for {url}: network error; try a different URL`, with the URL as requested.
 
-### Bodies that cannot be read
+### Body-read failures
 
 Body-read failures, both the size cap and a failure partway through the download, are always soft. A body that fails partway through reading is a soft return for HTML, JSON and XML, and plain text alike. It never comes back as partial text: the text read so far is dropped and only the failure message returns.
 
@@ -853,7 +853,7 @@ return tools.call('web/fetch', { url = 'https://example.com/', max_chars = 10000
 
 `web/fetch` reads exactly three arguments: `url`, `max_chars`, and `raw`. Of those, `max_chars` is the only one that touches a policy limit, and it can only ask for less. A value above the character ceiling, 40,000 under the default policy, is lowered to that ceiling (see [Limiting the text with `max_chars`](#limiting-the-text-with-max_chars)), so this call returns at most 40,000 characters.
 
-### Why requests carry no credentials
+### Fetches are anonymous
 
 Fetches are anonymous. Every request, redirect hops included, connects directly and leaves out cookies, an `Authorization` header, an automatic `Referer` header, and default credentials, so a request never sends an ambient identity on any hop. In detail:
 
@@ -1256,7 +1256,7 @@ A redirect may move to a different host, because the three rules do not tie a ho
 
 Under the default policy, the redirect cap is 5 hops, and it is fixed, because the default fetch policy is the only one in force (see [The default fetch policy](#the-default-fetch-policy)). A fetch follows exactly 5 redirect hops and refuses the next one, so a chain of 5 redirects completes and a sixth redirect is refused with the reason `exceeded max redirects (5)`. Going past the cap comes back as soft refusal text, not as a failed call.
 
-### No downgrade to `http`
+### A downgrade to `http` is refused
 
 A redirect from `https` to any `http` URL is refused with the reason `refusing https to http downgrade`, unless the 5-hop cap is hit first. Because the downgrade rule comes before the URL admission rules, a redirect from `https` to `http://127.0.0.1/` reports the downgrade, not the IP literal.
 

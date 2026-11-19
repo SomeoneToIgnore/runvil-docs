@@ -192,7 +192,7 @@ plan: adhoc issue-tracker subagents web*, tickets: nil
 
 Both prompts list the same Packs: the section's own adhoc Pack, the built-in `subagents` Pack, and the Host's two Packs. Every section of a run sees every usable Pack of the run, one that can serve it (see [Walking Packs with `tools.packs`](#walking-packs-with-toolspacks)). Which of them a section reads as required is up to its own prompt: a Pack object's `required` field is `true` for the Packs that the section's own prompt declares, and `tools.packs.extras()` lists every other usable Pack of the run (see [Extra Packs with `tools.packs.extras`](#extra-packs-with-toolspacksextras)). So `web` is required in `plan.md` and an extra in `review.md`, and `issue-tracker` is the other way round: `tools.packs.extras()` lists `issue-tracker` and `subagents` in `plan.md`, and `subagents` and `web` in `review.md`. The caller's `tools.packs` reads the same before and after the `execute`, as the first and last lines show.
 
-Preludes follow the same rule. A Pack's prelude installs in the sections of each prompt that declares the Pack, and only in those, so `tickets` is a table in `review.md` and reads `nil` in `plan.md`, before the `execute` and after it. The declaration decides, whichever prompt executes which: with the two `uses:` entries swapped, `tickets` is a table in `plan.md` and `nil` in `review.md`. A Pack that both prompts declare installs its prelude in both. Two Packs whose preludes define the same global collide only in a prompt that declares both (see [Global names a prelude cannot take](#global-names-a-prelude-cannot-take)), and a prelude that defines a global named `execute` fails to install in any prompt, because the Engine reserves that name.
+Preludes follow the same rule. A Pack's prelude installs in the sections of each prompt that declares the Pack, and only in those, so `tickets` is a table in `review.md` and reads `nil` in `plan.md`, before the `execute` and after it. The declaration decides, whichever prompt executes which: with the two `uses:` entries swapped, `tickets` is a table in `plan.md` and `nil` in `review.md`. A Pack that both prompts declare installs its prelude in both. Two Packs whose preludes define the same global collide only in a prompt that declares both (see [Prelude globals the Engine refuses](#prelude-globals-the-engine-refuses)), and a prelude that defines a global named `execute` fails to install in any prompt, because the Engine reserves that name.
 
 Tools work the same in both prompts, whatever each one declares. A tool of any Pack of the run answers a call from any prompt of the run, as it does in a run of one prompt, so `tools.call('web/fetch', { url = 'https://example.com/' })` in `review.md`, which does not declare `web`, reaches the `web` Pack's tool (see [One run, shared limits](08-jump-and-call.md#one-run-shared-limits)).
 
@@ -500,7 +500,7 @@ Reading `tool.parameters` returns the tool's JSON Schema as a fresh Lua table on
 
 Tool and Pack metadata is never wrapped as untrusted. A Tool object's `id`, `description`, `parameters`, `pack`, and `model_only_call`, and a Pack object's `name`, `required`, and `tools`, read exactly as the Pack or the `tools.adhoc` attrs declared them, whatever the trust the Pack marks its tool output with (see [Trust levels](#trust-levels)).
 
-You reach a tool only through its Tool object or its tool id. A tool never becomes a Lua global, whether under its wire name, such as `web_fetch`, or under its bare name, such as `fetch`, as [No tool is a global](#no-tool-is-a-global) shows.
+You reach a tool only through its Tool object or its tool id. A tool never becomes a Lua global, whether under its wire name, such as `web_fetch`, or under its bare name, such as `fetch`, as [Tools leave the global names alone](#tools-leave-the-global-names-alone) shows.
 
 ### Finding a tool with `tools.get`
 
@@ -582,7 +582,7 @@ Every tool operation lives in the one Lua table `tools`, the way model operation
 
 The table holds exactly `adhoc`, `call`, `get`, `offer`, `offer_dynamic`, and `packs`, and `stats` joins them at the section entry's first tool call (see [When `tools.stats` appears](#when-toolsstats-appears)). `adhoc`, `call`, `get`, `offer`, and `offer_dynamic` are functions, so `type(tools[name])` is `'function'` for each of those names, and `type(tools.packs)` is `'table'`. [Offering tools and Packs with `tools.offer`](#offering-tools-and-packs-with-toolsoffer), [Calling tools from Lua and counting calls](#calling-tools-from-lua-and-counting-calls), and [Adhoc tools with `tools.adhoc`](#adhoc-tools-with-toolsadhoc) cover the members this section does not.
 
-### No tool is a global
+### Tools leave the global names alone
 
 A tool never becomes a Lua global, so you reach tools only through the `tools` table, by tool id or by Tool object. With `web` declared, this block returns `web/fetch`:
 
@@ -750,7 +750,7 @@ Offering a tool only makes it available to the model and never calls it. If the 
 
 `tools.offer` names a tool by its canonical tool id, such as `'web/search'`, and never by the wire name the model sees. Every catalog tool a section offers is drawn from the run's [tool catalog](01-what-a-prompt-is.md#the-engine-the-harness-and-the-host), and an offered tool keeps the description text its catalog entry gives it unless its Pack's render reshapes it (see [What a Pack's render can change](#what-a-packs-render-can-change)).
 
-### Nothing is offered until you offer it
+### The tool scope starts empty
 
 A catalog tool stays out of the model's view until the section offers it, even when the prompt declares its Pack under `uses:`, and so does an adhoc tool the section defines. In `offer-search`, `web/fetch` is callable from Lua as well, but `Ask` offers only `web/search`, so its rounds never advertise `web_fetch`. One `tools.offer` call before the first loop round leaves the model with a Static Set of exactly that one tool when its Pack does not render, because the scope starts empty (see [Tool scope](#tool-scope)).
 
@@ -786,7 +786,7 @@ tools.offer(tools.packs)
 
 An array is its `#t` entries, from index 1 to `#t`, each read the way Lua indexing reads it, which is why `tools.packs` works as one. An array with a gap, a nested table, or a key outside `1` to `#t` is refused, so a `nil` entry, a table entry, or a key such as `name` raises (see [Errors from `tools.offer`](#errors-from-toolsoffer)).
 
-Calling `tools.offer()` with no argument, or `tools.offer({})` with an empty array, succeeds and leaves the scope unchanged. An explicit `nil` raises, because `nil` is an argument of the wrong type. So a lookup that may miss, such as `tools.packs.get` or `tools.get`, is guarded with `if` before you offer what it returns, as [Offering a Pack that may be absent](#offering-a-pack-that-may-be-absent) shows.
+Calling `tools.offer()` with no argument, or `tools.offer({})` with an empty array, succeeds and leaves the scope unchanged. An explicit `nil` raises, because `nil` is an argument of the wrong type. So a lookup that may miss, such as `tools.packs.get` or `tools.get`, is guarded with `if` before you offer what it returns, as [Offering a Pack behind a guard](#offering-a-pack-behind-a-guard) shows.
 
 `tools.offer` checks its argument when it is called and only remembers the offer: the tool list and any call to the tool come later. The section entry's first loop round freezes every remembered offer into the Static Set. `tools.offer` returns no value, and it returns immediately, without suspending the running block. The `tools` table is ready in a block's top-level code, so you can choose which tools to offer before any model call.
 
@@ -807,7 +807,7 @@ The adhoc Pack is offered the same way, so `tools.offer('adhoc')` and `tools.off
 
 A Pack offer names the Pack as a whole, and the freeze reads its tools. That is the difference from `tools.offer(tools.packs.get('web').tools)`, which reads the Pack's tools at the call and offers them one by one. [Repeated offers and the order the model sees](#repeated-offers-and-the-order-the-model-sees) shows where each kind of offer lands in the model's tool list.
 
-### Offering a Pack that may be absent
+### Offering a Pack behind a guard
 
 To offer an optional or undeclared Pack safely, offer it only when `tools.packs.get` returns an object for it:
 
@@ -1286,7 +1286,7 @@ The counts go up each time the run attempts to dispatch a tool, before the tool 
 
 The Engine's discovery tools count under the Pack id `dynamic` (see [Finding and calling dynamic tools](#finding-and-calling-dynamic-tools)). A `CallDynamicTool` call that reaches a Dynamic Set tool counts once, under the tool it calls, so after the model runs an adhoc `grab` through `CallDynamicTool` and makes no other call, `tools.stats.tools['adhoc/grab']` and `tools.stats.packs.adhoc` each read `1` and `tools.stats.packs.dynamic` reads `0`. A `GetDynamicTools` call, whatever it answers, and every refusal the discovery tools give, a direct call to a Dynamic Set tool by its wire name included (see [Mistakes the model gets back as text](#mistakes-the-model-gets-back-as-text)), count under `packs.dynamic` instead. All of them count toward `total`. `tools` never holds the discovery tools' ids, `dynamic/search` and `dynamic/call`, so a `GetDynamicTools` call or a discovery refusal shows in `total` and `packs.dynamic` and stays out of `tools`.
 
-Lua cannot get or call a tool only the model sees, one a Pack's render added (see [What a Pack's render can change](#what-a-packs-render-can-change)): `tools.get` reads `nil` for its id, and `tools.call` refuses the id with the `unbound_tool` error. A model call to it counts toward `total` and under its Pack in `packs`, and stays out of `tools`. Its id is missing from `tools`, so `pairs` over `tools.stats.tools` skips it, and reading `tools.stats.tools` with its id raises the error any id with no count raises (see [Reading a count that does not exist](#reading-a-count-that-does-not-exist)).
+Lua cannot get or call a tool only the model sees, one a Pack's render added (see [What a Pack's render can change](#what-a-packs-render-can-change)): `tools.get` reads `nil` for its id, and `tools.call` refuses the id with the `unbound_tool` error. A model call to it counts toward `total` and under its Pack in `packs`, and stays out of `tools`. Its id is missing from `tools`, so `pairs` over `tools.stats.tools` skips it, and reading `tools.stats.tools` with its id raises the error any id with no count raises (see [When reading a count fails](#when-reading-a-count-fails)).
 
 ### When `tools.stats` appears
 
@@ -1326,7 +1326,7 @@ An adhoc tool call and the catalog call its handler makes each count once. After
 
 Each section entry keeps its own `tools.stats` counts, set up by that entry's first tool call, so counts never pass from one section entry to the next: a section entered again with `jump`, a fanout arm, a task, and a section run with `call` each count from 0.
 
-### Reading a count that does not exist
+### When reading a count fails
 
 `tools.stats` and its `packs` and `tools` tables are read-only, as `tools.packs` is: a write to one of them raises `tools.stats is read-only`, `tools.stats.packs is read-only`, or `tools.stats.tools is read-only`, naming the table written to, so `tools.stats.total = 0` raises the first and `tools.stats.tools['web/fetch'] = 0` the last, and a refused write leaves every count as it was. `getmetatable` on each of them returns that same string, and `setmetatable` on it raises Lua's `cannot change a protected metatable`.
 
@@ -2413,7 +2413,7 @@ The calls of one round to tools that change files run one at a time too, in the 
 
 When a batch comes back with only some of its calls answered, the loop sends the next unanswered call on its own, then the remaining calls together as a new batch, keeping the model's order. A batch `c1,c2,c3,c4` answered only for `c1` sends `c2` alone, then `c3,c4` as a batch, and the records end with the results for `c3` and `c4`. Either way the loop feeds each result back to the conversation as text: a reply's calls go out as one batch, and any call where the batch stopped goes out alone.
 
-### When the loop raises instead of answering
+### When a tool call makes the loop raise
 
 An adhoc tool call that runs alone runs your Lua handler with the call's arguments, and `models.loop` answers it itself, so after `models.loop()` in the `grab-loop` prompt the list has `messages[3].role == 'tool'`. A few outcomes end the `models.loop` call rather than answering the model:
 
@@ -2851,7 +2851,7 @@ A store call at a prelude's top level fails the load the same way (see [Store ca
 attempt to call a nil value (global 'require')
 ````
 
-### Global names a prelude cannot take
+### Prelude globals the Engine refuses
 
 A prelude never replaces or shadows an Engine global for your code. Before any of a prelude's globals install, the Engine checks all of them in sorted name order, so an error names the first colliding global in byte order. Each refusal fails section setup with the error code `lua_runtime`, the way a prelude that fails to load does (see [When a prelude fails to load](#when-a-prelude-fails-to-load)):
 
