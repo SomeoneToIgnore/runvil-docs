@@ -744,7 +744,7 @@ lua|ghost.md:10: models.use label "reviewer" is not a model role: expected defau
 
 | Mistake | Message | What the message names |
 |---|---|---|
-| a first argument that is neither a role name nor a model handle | `models.use takes a model role name or a model handle, got {type}` | the Lua type of the value |
+| a first argument that is neither a string nor a model handle | `models.use takes a model role name or a model handle, got {type}` | the Lua type of the value |
 | a string that is not one of the five role names | `models.use label "{label}" is not a model role: expected default, strong, small, fast or creative` | the label and the five roles |
 | a role the Host gave no model | `the caller supplied no model for the {role} role` | the role |
 | more than two arguments | `models.use takes at most 2 arguments, got {n}` | the argument count |
