@@ -323,7 +323,7 @@ A value of another type ends the run at its first step. Send `"use_mcp":"no"` in
 argument `use_mcp` must be a boolean, got string
 ````
 
-The message names the type the node needs as `a string`, `a boolean`, `an integer`, `a number`, `an array`, or `an object`, and it names what the caller sent as `string`, `boolean`, `integer`, `number`, `array`, `object`, or `null`. A JSON number counts as `number` when it is written with a decimal point or an exponent, as `5.0` and `1e3` are, or as plain digits above `18446744073709551615` or below `-9223372036854775808`, and as `integer` otherwise, as `5` is.
+The message names the type the node needs as `a string`, `a boolean`, `an integer`, `a number`, `an array`, or `an object`, and it names what the caller sent as `string`, `boolean`, `integer`, `number`, `array`, `object`, or `null`. A JSON number counts as `number` when it is written with a decimal point or an exponent, as `5.0` and `1e3` are, or as plain digits above `18446744073709551615` or below `-9223372036854775808`, or as `-0`, and as `integer` otherwise, as `5` is.
 
 ### String arguments
 
@@ -360,7 +360,7 @@ The largest value that passes is `9223372036854775807`, and the smallest is `-92
 
 ### Number arguments
 
-`type: number` takes any JSON number. Lua reads a float when the caller wrote the number with a decimal point or an exponent, or as a whole number too large for 64 bits, and an integer otherwise:
+`type: number` takes any JSON number. Lua reads a float when the caller wrote the number with a decimal point or an exponent, or as a whole number too large for 64 bits, or as `-0`, and an integer otherwise:
 
 | The caller sends | `args.weight` reads | `math.type(args.weight)` |
 |---|---|---|
