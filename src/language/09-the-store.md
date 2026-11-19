@@ -1728,7 +1728,7 @@ This run ends before its `return`. Both arms append to `log.txt`, the two arms a
 store determinism violation: write on log.txt by {id} conflicts with a write claim by {other} (at race.md:17)
 ````
 
-Every store call claims what it touches for the chain that made it, so the store tracks which chain touches which region. That record is a claim. Two store accesses that touch the same region conflict only when at least one of them is a write and the two are concurrent, and such a clash is a claims conflict. Two accesses are concurrent when they come from chains of the run with different identities, unless a spawn or a join orders one before the other.
+Every store call claims what it touches for the identity of the chain that made it, so the store tracks which identity touches which region. That record is a claim. Two store accesses that touch the same region conflict only when at least one of them is a write and the two are concurrent, and such a clash is a claims conflict. Two accesses are concurrent when they come from chains of the run with different identities, unless a spawn or a join orders one before the other.
 
 Read claims never conflict with each other, whether they come from `store.read`, `store.read_numbered`, `store.exists`, or `store.glob`. A chain never conflicts with itself either, so a chain may write a path, overwrite it, append to it, and read it back freely.
 
