@@ -1220,7 +1220,7 @@ While the run is being canceled, an error that an adhoc tool handler or a compac
 
 The section's list carries across several `models.loop` calls, so you append a new user record between them, and each call continues the conversation by sending what earlier calls leave in the list, earlier replies included. A call wrapped as `pcall(models.loop)` runs the same way and still appends the reply, as the chat in [Common conversation shapes](#common-conversation-shapes) does. A call made after an earlier loop returned or raised runs normally, but a loop started while another loop or a compactor is running in the same section raises an error (see [Argument errors](#argument-errors)).
 
-When every reply is plain text with no tool calls and the chain's inbox stays empty, each `models.loop` call makes exactly one model request and returns, so two calls make two requests. Each such call adds exactly one `assistant` record, so two user records leave four records alternating `user` and `assistant`, with the replies at positions 2 and 4, as that chat's `4|first reply|second reply` shows.
+When every reply is plain text with no tool calls, the list fits the model's context window, and the chain's inbox stays empty, each `models.loop` call makes exactly one model request and returns, so two calls make two requests. Each such call adds exactly one `assistant` record, so two user records leave four records alternating `user` and `assistant`, with the replies at positions 2 and 4, as that chat's `4|first reply|second reply` shows.
 
 `models.loop` also works in the preamble (see [The preamble](02-file-structure.md#the-preamble)), so a prompt can hold a model conversation in the Lua above its first heading.
 
