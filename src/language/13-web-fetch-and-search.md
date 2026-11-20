@@ -4,7 +4,7 @@ The `runvil/web` Pack gives a prompt two tools: `web/fetch`, which fetches one w
 
 ## What the web Pack gives a prompt
 
-After this section you can declare the web Pack, call one of its tools, and tell what happens to a run when the Host cannot supply the Pack.
+After this section you can declare the web Pack, call one of its tools, and tell what happens to a run on a Host that has no web Pack.
 
 ````markdown
 ---
@@ -55,9 +55,11 @@ Both tools return untrusted output, which is tool output whose trust level is un
 
 ### What the Host supplies
 
-A prompt can use the web Pack only on a Host that calls the web Plugin, which adds the Pack under its fully qualified name, `runvil/web`. The Host also supplies the search provider, the Host-wide service `runvil/search-provider` that every web search runs through. The Pack holds the search provider and the client that fetches pages, and a prompt reaches both only through the Pack's two tools.
+A prompt can use the web Pack only on a Host that loads the web Plugin, which adds the Pack under its fully qualified name, `runvil/web`. The Plugin takes no configuration. It holds the client that fetches pages and the client that sends searches, and a prompt reaches both only through the Pack's two tools.
 
-Both web tools leave credentials out of their arguments, so a prompt never supplies an API key, a gateway address, or a token. The fetch tool's only arguments are `url`, `max_chars`, and `raw`. The search tool accepts only `query`, `count`, `freshness`, `country`, `search_lang`, `safesearch`, `include_domains`, and `exclude_domains`, and refuses any other argument.
+The fetch tool needs nothing more from the Host. The search tool runs no search of its own: it sends each search to a Runvil Gateway, at the address the Host offers its Plugins for web search, and the Gateway runs it (see [Where a search goes](#where-a-search-goes)). A Host that offers no such address still has the Pack and both of its tools, and there `web/fetch` works while each `web/search` call fails (see [When the Host offers no web search](#when-the-host-offers-no-web-search)).
+
+Both web tools leave credentials out of their arguments, so a prompt never supplies an API key, a Gateway address, or a token. The fetch tool's only arguments are `url`, `max_chars`, and `raw`. The search tool accepts only `query`, `count`, `freshness`, `country`, `search_lang`, `safesearch`, `include_domains`, and `exclude_domains`, and refuses any other argument.
 
 ### Pack ids and tool ids
 
@@ -91,7 +93,7 @@ The web Pack always has exactly two tools, `fetch` then `search`. They make up i
 
 A tool call reaches the web tool that its tool name names, the last segment of the tool id. Calling `web/fetch` runs the fetch tool with the call's arguments, passed through as JSON, and calling `web/search` runs the search tool with the call's arguments the same way.
 
-### When the web Pack is missing or unavailable
+### When the Host has no web Pack
 
 When a prompt declares `web` and the Host has no Pack with the Pack id `web`, the run is refused before any section runs. The run fails with code `requirements_unmet` (see [Preparing the run](04-how-a-prompt-runs.md#preparing-the-run)), and its requirements notice reads as follows, ending with the prompt file and its `uses:` line (see [Where an error points](16-limits-and-errors.md#where-an-error-points)):
 
@@ -100,36 +102,21 @@ the environment cannot satisfy this prompt:
 - missing required Pack: web (at {file}:{line})
 ````
 
-The web Pack can also fail to build when the Host sets up, which leaves it unavailable (see [Packs at prepare](04-how-a-prompt-runs.md#packs-at-prepare)). It fails when the configuration the Host passes the web Plugin holds anything but `null` or `{}` under its `web` key, when the Host provides no search provider, or when it provides no Tokio runtime service, and then no run receives `web/fetch` or `web/search`.
+A Host has no web Pack when it does not load the web Plugin, or when the Plugin fails to load. A Host that loads the Plugin has the Pack, with both of its tools, whether or not it offers web search. So a prompt that declares `web` starts on a Host that offers no web search, and only a `web/search` call fails there (see [When the Host offers no web search](#when-the-host-offers-no-web-search)).
 
-When a prompt declares `web` and the web Pack is unavailable, the run is refused with code `requirements_unmet`, and the notice line reads `- web is unavailable: {reason}`, where the reason is the text of the Pack's build failure (see [The requirements notice](04-how-a-prompt-runs.md#the-requirements-notice)). On a Host that provides no search provider, a prompt that declares `web` gets this notice:
-
-````text
-the environment cannot satisfy this prompt:
-- web is unavailable: web needs runvil/search-provider, and this host provides none (at {file}:{line})
-````
-
-Each setup problem has its own reason:
-
-| Host setup | Unavailable reason |
-|---|---|
-| A configuration other than `null` or `{}` | `web takes no configuration` |
-| A missing search provider | `web needs runvil/search-provider, and this host provides none` |
-| A missing Tokio runtime service | `web needs runvil/tokio-runtime, and this host provides none` |
-
-The web Pack accepts only an empty configuration, and `{}` counts as empty as well as `null`. When the Pack has several setup problems at once, its reason names only the first, in the order of the table: a bad configuration comes before a missing search provider, and a missing search provider comes before a missing Tokio runtime service.
-
-When the web Pack is unavailable and the prompt does not declare it, offering the whole Pack fails the run (see [Offering tools and Packs with `tools.offer`](12-tools.md#offering-tools-and-packs-with-toolsoffer)):
+When the Host has no web Pack and the prompt does not declare it, the run starts, and offering the whole Pack fails the run (see [Errors from `tools.offer`](12-tools.md#errors-from-toolsoffer)):
 
 ````lua
 tools.offer('web')
 ````
 
-The message has the form `tools.offer: the {pack} Pack is unavailable in this run: {reason}`, where `{reason}` is the Pack's reason, so on a Host that provides no search provider it reads:
+The message names the Pack and says what to write instead:
 
 ````text
-tools.offer: the web Pack is unavailable in this run: web needs runvil/search-provider, and this host provides none
+tools.offer: no Pack named "web" in this run; declare it under uses: to require it, or offer it only when tools.packs.get("web") returns it
 ````
+
+`tools.packs.get('web')` reads `nil` on such a Host, so a section that can do without the web tools checks it before the offer (see [Offering a Pack behind a guard](12-tools.md#offering-a-pack-behind-a-guard)).
 
 ## Fetching a page
 
@@ -204,7 +191,7 @@ return tools.call('web/fetch', { url = 'https://example.com/long-article', max_c
 ```
 ````
 
-`max_chars` runs from 1 up to 40,000, which is fetch's character limit. When the call omits `max_chars` or passes it as `null`, the full 40,000 limit applies to that call. A `max_chars` above 40,000 is quietly lowered to 40,000 rather than refused. The limit is always 40,000, because the web Pack accepts only an empty configuration. The model reads this description of the argument:
+`max_chars` runs from 1 up to 40,000, which is fetch's character limit. When the call omits `max_chars` or passes it as `null`, the full 40,000 limit applies to that call. A `max_chars` above 40,000 is quietly lowered to 40,000 rather than refused. The limit is always 40,000, because the web Plugin runs on its built-in fetch policy alone, on every Host. The model reads this description of the argument:
 
 ````text
 Maximum number of characters of text to return for this call. Clamped to the configured ceiling. Longer text is truncated on a character boundary and the result is flagged as truncated.
@@ -265,7 +252,7 @@ return tools.call('web/search', { query = 'rust async runtime' })
 ```
 ````
 
-The run result is compact JSON text inside the untrusted envelope. With a search provider that finds one match, the text inside the envelope reads:
+The run result is compact JSON text inside the untrusted envelope. When the search finds one match, the text inside the envelope reads:
 
 ````text
 {"query":"rust async runtime","results":[{"title":"T","url":"https://e.com","description":"D"}]}
@@ -275,11 +262,13 @@ The `web/search` tool takes a search query and returns a list of search results.
 
 A call passes one JSON argument object whose `query` names what to search for. `query` is the only required search argument and every other argument is optional, so a call can pass `query` alone, as `search-web` does. A model offered the tool calls it by its wire name, `web_search`, with an object such as `{"query": "Ada Lovelace"}` or `{"query": "rust async runtime"}`, and receives the results as untrusted text inside the untrusted envelope.
 
-### The search provider
+### Where a search goes
 
-Every `web/search` call runs through the search provider the Host supplies, the Host-wide service with the id `runvil/search-provider`, and never through one the prompt chooses. So the results you see depend on which search provider the Host supplies.
+Every `web/search` call goes where the Host says, and never where the prompt chooses. The Host offers its Plugins an entry named `runvil/web-search`, which holds the address of a Gateway's web search route and, when the Host has one, the Gateway's key. Each call gets the entry as it is when the call starts. The search tool sends the search to that address as one request and returns the Gateway's results, so the results you see depend on the search vendor behind the Host's Gateway.
 
-The search provider owns the search transport and its deadline, so the search vendor's credential stays wherever the search provider keeps it, out of the prompt's reach. The web Pack accepts only `null` or `{}` as its configuration, and the eight search arguments do not include a credential. Under Workshop, every search goes through Workshop's Runvil gateway, which keeps the search vendor's credential on the server and receives only the Gateway's key, so the prompt never touches a search credential.
+The search vendor's credential stays in the Gateway, out of the prompt's reach and out of the web Pack. The Pack takes no configuration, and the eight search arguments do not include a credential. The tool puts the Gateway's key into that one request and into nothing else, so no output and no error message holds it. Under Workshop, the entry names the Gateway that Workshop holds when the call starts, and that Gateway holds the search vendor's key, so the prompt never touches a search credential.
+
+A Host that moves its Gateway changes where the next search goes, because each call gets the entry anew. A Host that has no Gateway to offer leaves the entry out, and a search that starts then fails (see [When the Host offers no web search](#when-the-host-offers-no-web-search)).
 
 ### Reading the search results
 
@@ -289,19 +278,19 @@ A successful search returns compact JSON text, with no whitespace between tokens
 {"query":"rust","results":[]}
 ````
 
-Each row of `results` has `title`, a non-empty `url`, and `description` first, in that order. A result with no title or description still includes both, as empty strings. A row can also include three more fields when the search provider supplies them:
+Each row of `results` has `title`, a non-empty `url`, and `description` first, in that order. A result with no title or description still includes both, as empty strings. A row can also include three more fields when the Gateway's reply holds them:
 
 - `age`, a human-readable age of the page, such as `"2 days ago"`
-- `site_name`, the hostname of the result's url when the search provider derives one, such as `"www.rust-lang.org"` for the url `https://www.rust-lang.org/`
-- `extra_snippets`, an array of extra text snippets the search provider reports for that result, such as `["Fast.","Safe."]`
+- `site_name`, the hostname of the result's url when the Gateway derives one, such as `"www.rust-lang.org"` for the url `https://www.rust-lang.org/`
+- `extra_snippets`, an array of extra text snippets the Gateway reports for that result, such as `["Fast.","Safe."]`
 
-A row includes `age`, `site_name`, and `extra_snippets` only when they hold something the search provider reported, so an absent age or site name and an empty snippet list are left out of the row. Here is a search for `rust` whose first result has all six fields and whose second has only the three that are always present:
+A row includes `age`, `site_name`, and `extra_snippets` only when they hold something the Gateway reported, so an absent age or site name and an empty snippet list are left out of the row. Here is a search for `rust` whose first result has all six fields and whose second has only the three that are always present:
 
 ````text
 {"query":"rust","results":[{"title":"Rust","url":"https://www.rust-lang.org/","description":"A language.","age":"2 days ago","site_name":"www.rust-lang.org","extra_snippets":["Fast.","Safe."]},{"title":"","url":"https://e.com","description":""}]}
 ````
 
-Results appear in the order the search returns them. Only `query`, `results`, and the row fields `title`, `url`, `description`, `age`, `site_name`, and `extra_snippets` reach the prompt. Every result a successful search returns has a non-empty `url`, because a search provider response with any blank url is rejected whole before any output is built, and that rejection fails the call (see [Soft failures and hard failures](#soft-failures-and-hard-failures)).
+Results appear in the order the search returns them. Only `query`, `results`, and the row fields `title`, `url`, `description`, `age`, `site_name`, and `extra_snippets` reach the prompt. Every result a successful search returns has a non-empty `url`, because a Gateway reply with any blank url is rejected whole before any output is built, and that rejection fails the call (see [Soft failures and hard failures](#soft-failures-and-hard-failures)).
 
 `web/search` output is marked untrusted because it is external content that embeds third-party titles, URLs, and descriptions. It is wrapped with a nonce before it reaches model input, and the results reach the model as untrusted tool output.
 
@@ -332,11 +321,11 @@ The `query` argument holds the search text. An optional scalar argument the call
 
 ### Limiting results with `count`
 
-The optional `count` argument is a whole number from 1 to 20 that sets the maximum number of results, such as `"count": 5`, and a value outside that range is refused. When `count` is omitted, it reaches the search provider unset, so the search provider's own default applies. Under Workshop, an omitted `count` is left out of the search request, so the Gateway's own default number of results applies.
+The optional `count` argument is a whole number from 1 to 20 that sets the maximum number of results, such as `"count": 5`, and a value outside that range is refused. When `count` is omitted, it is left out of the search request, so the Gateway's own default number of results applies.
 
 ### Recent results with `freshness`
 
-The optional `freshness` argument restricts results by recency and accepts exactly one value from a closed set: `pd` (past day), `pw` (past week), `pm` (past month), or `py` (past year), such as `"freshness": "pw"`. The search that `web/search` hands to the search provider includes the call's freshness filter.
+The optional `freshness` argument restricts results by recency and accepts exactly one value from a closed set: `pd` (past day), `pw` (past week), `pm` (past month), or `py` (past year), such as `"freshness": "pw"`. The search request that `web/search` sends to the Gateway includes the call's freshness filter.
 
 ### Region and language with `country` and `search_lang`
 
@@ -344,13 +333,13 @@ The optional `country` argument targets one country's results and takes a countr
 
 ### Filtering with `safesearch`
 
-The optional `safesearch` argument sets the SafeSearch filtering level and accepts exactly one of `off`, `moderate`, or `strict`, such as `"safesearch": "strict"`. The search that `web/search` hands to the search provider includes the call's SafeSearch level.
+The optional `safesearch` argument sets the SafeSearch filtering level and accepts exactly one of `off`, `moderate`, or `strict`, such as `"safesearch": "strict"`. The search request that `web/search` sends to the Gateway includes the call's SafeSearch level.
 
 ### Keeping and dropping sites
 
 The optional `include_domains` argument is a list of hostnames, and the search keeps only results from those sites, such as `"include_domains": ["example.com"]`. The optional `exclude_domains` argument is a list of hostnames whose results the search drops, such as `"exclude_domains": ["example.com"]`.
 
-Each list holds at most 20 bare hostnames, and a longer list is refused. Each entry must be non-blank, at most 128 characters, and free of `/`, whitespace, and control characters, and both lists get the same checks. Omitting either list is the same as passing an empty list, and an empty list is valid, because the only limit on a list's length is the maximum. From Lua, write an empty list as `json.array()`, as in `include_domains = json.array()`, because a bare `{}` is sent as the empty object `{}`, which is the wrong JSON type for a domain list (see [Encoding and decoding JSON with `json`](05-lua-environment.md#encoding-and-decoding-json-with-json)). A list the call omits lets every result through on that side and reaches the search provider as an empty list.
+Each list holds at most 20 bare hostnames, and a longer list is refused. Each entry must be non-blank, at most 128 characters, and free of `/`, whitespace, and control characters, and both lists get the same checks. Omitting either list is the same as passing an empty list, and an empty list is valid, because the only limit on a list's length is the maximum. From Lua, write an empty list as `json.array()`, as in `include_domains = json.array()`, because a bare `{}` is sent as the empty object `{}`, which is the wrong JSON type for a domain list (see [Encoding and decoding JSON with `json`](05-lua-environment.md#encoding-and-decoding-json-with-json)). A list the call omits lets every result through on that side, and so does an empty list: `web/search` leaves both out of the search request.
 
 ### What the model sees for search
 
@@ -475,7 +464,7 @@ These are the eleven soft messages:
 | A body that breaks off | `the response body from {url} could not be read; try again or use a different URL` |
 | Any other network error | `fetch failed for {url}: network error; try a different URL` |
 
-With the web Pack, a blocked IP-literal address gets the IP-literal host refusal, as every IP-literal host does. A refusal of its own applies only when IP-literal hosts are allowed, which is off by default and which the web Pack's configuration cannot turn on.
+With the web Pack, a blocked IP-literal address gets the IP-literal host refusal, as every IP-literal host does. A refusal of its own applies only when IP-literal hosts are allowed, which is off by default and which nothing a Host or a prompt passes can turn on.
 
 ### Status codes, name lookups, and network errors
 
@@ -509,16 +498,16 @@ Because fetch drops a `#fragment` from the `url` argument before the request (se
 
 ### Search failures
 
-A `web/search` call whose arguments are accepted can still fail on the network or at the gateway, and every search failure is a hard failure that fails the call. A failed `web/search` call has a tool error kind that tells the causes apart:
+A `web/search` call whose arguments are accepted can still fail: the Host may offer no web search, the request may fail on the network, or the Gateway may answer with an error. Every search failure is a hard failure that fails the call. A failed `web/search` call has a tool error kind that tells the causes apart:
 
 | Tool error kind | Cause |
 |---|---|
 | `InvalidArguments` | The search refused the call's arguments |
-| `Transport` | The search request failed |
-| `Backend` | The backend failed or sent a malformed response |
-| `Other` | The tool could not render the results as JSON text, and the message is `web_search: the results could not be rendered` |
+| `Transport` | The Host offers no web search, or the search request failed |
+| `Backend` | The Gateway answered with an error status or sent a reply the tool rejects |
+| `Other` | The Host's `runvil/web-search` entry is not version 1, the search's task did not finish, or the tool could not render the results as JSON text |
 
-[Search argument rules and search errors](#search-argument-rules-and-search-errors) gives the message for each failure of the first three kinds.
+[Search argument rules and search errors](#search-argument-rules-and-search-errors) gives the message for each failure.
 
 ## Calling web tools from Lua and from the model
 
@@ -568,7 +557,7 @@ refused: {file}:{line}: url must not contain userinfo
 
 Your Lua cannot read which web tool failure happened from a field on the error value, because every web tool failure reaches Lua with just three fields: `err.kind` set to `tool`, the message, and a `code` that names only the class of tool failure, such as `tool_invalid_arguments`. To tell which fetch failure you caught, search `tostring(err)` for the tool's message text, as in `string.find(tostring(err), 'userinfo', 1, true)`, because `tostring(err)` returns the error's message, the `tools.call` line and then the tool's own message, such as `{file}:{line}: url must not contain userinfo` (see [Where an error points](16-limits-and-errors.md#where-an-error-points)).
 
-Catch a search failure the same way: wrap the call in `pcall` and check `err.kind == 'tool'`, just as for a hard fetch failure. Both a search provider failure and a result with an empty `url` fail the call like this.
+Catch a search failure the same way: wrap the call in `pcall` and check `err.kind == 'tool'`, just as for a hard fetch failure. A search on a Host that offers no web search, a search request that fails, and a result with an empty `url` all fail the call like this.
 
 An uncaught hard fetch failure ends the run with the tool code its tool error kind names, such as `tool_invalid_arguments` (see [Run error codes](16-limits-and-errors.md#run-error-codes)). Without the `pcall`, the fetch above ends the run with this text, which ends with the line of the `tools.call`:
 
@@ -576,11 +565,11 @@ An uncaught hard fetch failure ends the run with the tool code its tool error ki
 tool call failure: url must not contain userinfo (at {file}:{line})
 ````
 
-An uncaught search failure ends the run the same way, with the tool code its tool error kind names, such as `tool_transport` or `tool_backend`, and the text `tool call failure: {message} (at {file}:{line})`. Under Workshop, when the search gateway is missing, unusable, or cannot be reached, that text is `tool call failure: web_search: request failed (at {file}:{line})`.
+An uncaught search failure ends the run the same way, with the tool code its tool error kind names, such as `tool_transport` or `tool_backend`, and the text `tool call failure: {message} (at {file}:{line})`. On a Host that offers no web search, that text is `tool call failure: web_search: the host offers no web search right now (at {file}:{line})`, and when the request to the Gateway fails, it is `tool call failure: web_search: request failed (at {file}:{line})`.
 
 ### Messages reach you unchanged
 
-The Pack passes a web tool's output and errors on as the fetch or search tool produces them, and what the caller reads of an error is the tool's message. A caught error's message only gains the call's `{file}:{line}: ` in front, and a model reads the message alone. A cause that the tool keeps beside its message stays in the tool's own error. The tools' own messages keep fixed prefixes. Fetch argument errors start with `web_fetch:`, such as `web_fetch: missing url argument`, `web_fetch: max_chars must be a positive integer`, and `web_fetch: raw must be a boolean`. Every search error starts with `web_search:`, such as `web_search: malformed search response: ...` and `web_search: the results could not be rendered`.
+The Pack passes a web tool's output and errors on as the fetch or search tool produces them, and what the caller reads of an error is the tool's message. A caught error's message only gains the call's `{file}:{line}: ` in front, and a model reads the message alone. A failed call hands on its tool error kind and that one message, so a detail the message leaves out, such as a parser's own error text, reaches neither Lua nor a model. The tools' own messages keep fixed prefixes. Fetch argument errors start with `web_fetch:`, such as `web_fetch: missing url argument`, `web_fetch: max_chars must be a positive integer`, and `web_fetch: raw must be a boolean`. Every search error starts with `web_search:`, such as `web_search: malformed search response: ...` and `web_search: the results could not be rendered`.
 
 ### Offering a web tool to the model
 
@@ -823,7 +812,7 @@ The fetch policy is the server-side request forgery (SSRF) boundary. SSRF means 
 
 ### The default fetch policy
 
-The default fetch policy is the built-in policy, and it is the only one in force. The `runvil/web` Pack builds its fetch client once, when the Host builds the Pack, using the default policy, and the Pack accepts only an empty configuration (see [When the web Pack is missing or unavailable](#when-the-web-pack-is-missing-or-unavailable)). The fetch policy is fixed for a prompt and for the Host alike, so every `web/fetch` call runs under these values:
+The default fetch policy is the built-in policy, and it is the only one in force. The web Plugin builds its fetch client once, when the Host loads it, using the default policy, which nothing a Host or a prompt passes changes (see [What the Host supplies](#what-the-host-supplies)). The fetch policy is fixed for a prompt and for the Host alike, so every `web/fetch` call runs under these values:
 
 | Setting | Default fetch policy |
 |---|---|
@@ -1138,7 +1127,7 @@ A fetch goes through only when its host resolves to at least one address outside
 - A host whose addresses all fall inside blocked ranges, or whose lookup comes back empty, fails the call with tool error kind `InvalidArguments` and the message `host {host} has no allowed address`.
 - A host name such as `localhost` that resolves only to loopback addresses is refused, because the whole `127.0.0.0/8` block and `::1` are in the blocked table.
 
-The `host {host} has no allowed address` message names only the host, never the resolved address or the blocking range. Each address the fetch drops is written to the debug log instead, as `host {host} resolved to blocked address {addr} in range {range}`, where the range is the matching table row's CIDR text such as `127.0.0.0/8`. The model sees only the no-allowed-address message.
+The `host {host} has no allowed address` message names only the host, never the resolved address or the blocking range. The fetch drops each blocked address without reporting it, so neither the model nor your Lua learns which address a host name resolved to.
 
 ### DNS rebinding
 
@@ -1320,7 +1309,7 @@ return tools.call('web/search', {
 ```
 ````
 
-These arguments pass every check, so the call reaches the search provider, and `country` and `search_lang` reach it unchanged as `us` and `en`. `web/search` checks its arguments before it runs any search, and only a call that passes every check reaches the search provider. A call with an invalid argument fails with tool error kind `InvalidArguments` before it reaches the provider. This `Search` section replaces the one in `search-web`:
+These arguments pass every check, so on a Host that offers web search the call sends the search to the Gateway, and `country` and `search_lang` reach it unchanged as `us` and `en`. `web/search` checks its arguments before it does anything else, and only a call that passes every check sends a search. A call with an invalid argument fails with tool error kind `InvalidArguments` before any request goes out, and it fails the same way on every Host, whether or not the Host offers web search. This `Search` section replaces the one in `search-web`:
 
 ````markdown
 ## Search
@@ -1343,7 +1332,7 @@ Your Lua sees every `web/search` failure, whatever its tool error kind, as an er
 
 ### Search error messages and kinds
 
-Every error message from `web/search`, argument errors and failed searches alike, begins with `web_search: `, whether a script calls the tool by its id or a model calls it by its wire name. Every argument error has tool error kind `InvalidArguments`, and apart from `web_search: invalid arguments`, each argument error message names the offending argument and the rule it broke. A failed search has tool error kind `Transport` or `Backend`, as [When the search provider fails](#when-the-search-provider-fails) explains.
+Every error message from `web/search`, argument errors and failed searches alike, begins with `web_search: `, whether a script calls the tool by its id or a model calls it by its wire name. Every argument error has tool error kind `InvalidArguments`, and apart from `web_search: invalid arguments`, each argument error message names the offending argument and the rule it broke. A search that fails after its arguments pass has tool error kind `Transport`, `Backend`, or `Other`, as [When the Host offers no web search](#when-the-host-offers-no-web-search) and [When the search request fails](#when-the-search-request-fails) explain.
 
 ### The eight search arguments
 
@@ -1360,7 +1349,7 @@ The tool parses its arguments first, and four kinds of mistake fail at that stag
 - a missing `query`
 - a `freshness` or `safesearch` value other than the exact lowercase values listed
 
-The `web_search: invalid arguments` message reads the same for every parse failure, whichever argument is at fault and whatever the reason, and the tool keeps the detail of that parse failure in its own error, while the Engine builds what Lua, the model, and a failed run read from the message alone. Because parsing comes before any bounds check, a call that fails to parse and also breaks a bound reports only `web_search: invalid arguments`.
+The `web_search: invalid arguments` message reads the same for every parse failure, whichever argument is at fault and whatever the reason. The tool leaves the detail of the parse failure out of it, and the message is all that Lua, the model, and a failed run read. Because parsing comes before any bounds check, a call that fails to parse and also breaks a bound reports only `web_search: invalid arguments`.
 
 ### Errors from the search bounds checks
 
@@ -1378,36 +1367,49 @@ A call that parses then goes through the bounds checks, which report only the fi
 
 Some of these rules need more detail:
 
-- A whitespace-only `query` fails as empty even though it meets the schema's `minLength` of 1. The `query` reaches the search provider exactly as written, and its 400-character check counts any surrounding whitespace, because trimming applies only to the emptiness check.
-- `country` and `search_lang` are checked only for blankness and length, so any non-blank string of at most 128 characters passes, whether or not it is a real country or language code, and reaches the provider unchanged.
+- A whitespace-only `query` fails as empty even though it meets the schema's `minLength` of 1. The `query` goes into the search request exactly as written, and its 400-character check counts any surrounding whitespace, because trimming applies only to the emptiness check.
+- `country` and `search_lang` are checked only for blankness and length, so any non-blank string of at most 128 characters passes, whether or not it is a real country or language code, and reaches the Gateway unchanged. The Gateway checks the arguments again by rules of its own, which are stricter in places, such as the form of a country code, and it answers a value it refuses with an error status (see [When the search request fails](#when-the-search-request-fails)).
 - Each `include_domains` and `exclude_domains` entry must be a bare hostname such as `example.com`: not blank, at most 128 characters, and free of `/`, whitespace, and control characters, so a full URL or a hostname with a path is an invalid entry.
 - One invalid entry fails the whole call, even when the list's other entries are valid, and the message names the list but not the entry.
 - An empty `include_domains` or `exclude_domains` list is valid and keeps every result, the same as leaving the list out (see [Keeping and dropping sites](#keeping-and-dropping-sites)).
 
-### When the search provider fails
+### When the Host offers no web search
 
-When the search provider fails, the call fails with the message `web_search: {error}`, with the provider's own message after the prefix. A provider `Transport` failure becomes tool error kind `Transport`, and a provider `Backend` failure becomes tool error kind `Backend`, as in `web_search: request failed` with kind `Transport` or `web_search: backend returned 502: upstream down` with kind `Backend`.
+A search needs the Host's `runvil/web-search` entry (see [Where a search goes](#where-a-search-goes)). When a call starts on a Host that offers no entry, the search fails without sending a request, with tool error kind `Transport` and this message:
 
-Under any provider, a result row whose `url` is empty or only whitespace fails the whole search with tool error kind `Backend` and the message `web_search: malformed search response: result {index} has an empty url`. The index is zero-based and names the first such row, so a blank second row gives `result 1 has an empty url`.
+````text
+web_search: the host offers no web search right now
+````
 
-A search takes its time limit from the Host's search provider, because that provider owns the transport, and its deadline is whatever the provider enforces.
+The Pack and `web/fetch` work all the same on such a Host. The message covers a Host that has no web search at all and a Host whose Gateway is down right now, and because each call gets the entry anew, a later call can succeed. Under Workshop, a search gets this message while Workshop has no Gateway to offer: when no Gateway is registered, when the heartbeat reports the Gateway down, or when the Gateway's URL or key cannot be used.
 
-### Errors from the Gateway provider
+The entry has a version, and `web/search` reads version 1. An entry of another version, or one whose fields are not those of version 1, fails the call without sending a request, with tool error kind `Other` and this message:
 
-The Gateway provider is the search provider Workshop supplies. Under it, each search call finishes or fails within a fixed 30-second request deadline that a prompt cannot change, so a stalled gateway fails the call instead of hanging the run. Its failures are:
+````text
+web_search: the host's runvil/web-search entry is not version 1
+````
+
+Neither message quotes the entry, which can hold the Gateway's key.
+
+### When the search request fails
+
+A search that has its entry sends one request to the Gateway. Each search finishes or fails within a fixed 30-second deadline that a prompt cannot change, which covers the whole exchange, the reading of the reply included, so a stalled Gateway fails the call instead of hanging the run. The failures are:
 
 | What happened | Tool error kind | Message |
 |---|---|---|
-| The connection was refused or failed, the deadline passed while the request was being sent, or Workshop's gateway is unusable | `Transport` | `web_search: request failed` |
+| The connection was refused or failed, or the deadline passed while the request was being sent | `Transport` | `web_search: request failed` |
 | Reading a successful response's body failed, including the deadline passing mid-read | `Transport` | `web_search: reading response failed` |
-| The gateway answered with a status outside the 2xx range | `Backend` | `web_search: backend returned {code}: {body}` |
-| The gateway answered with an error status and the connection dropped while its error body was read | `Backend` | `web_search: backend returned {code}, and its error body could not be read` |
+| The Gateway answered with a status outside the 2xx range | `Backend` | `web_search: backend returned {code}: {body}` |
+| The Gateway answered with an error status and the connection dropped while its error body was read | `Backend` | `web_search: backend returned {code}, and its error body could not be read` |
 | A successful response was larger than 256 KiB (262,144 bytes) | `Backend` | `web_search: response body exceeded 262144 bytes` |
 | A successful response was not valid UTF-8 | `Backend` | `web_search: response body was not valid UTF-8` |
 | A successful response was not JSON, lacked the `query` string or the `results` array, had a row without a string `url`, or had a known field of the wrong type | `Backend` | `web_search: malformed search response` |
+| A result row had a `url` that is empty or only whitespace | `Backend` | `web_search: malformed search response: result {index} has an empty url` |
+| The task that runs the search did not finish | `Other` | `web_search: the search task did not finish` |
+| The tool could not render the results as JSON text | `Other` | `web_search: the results could not be rendered` |
 
-Workshop's gateway is unusable when it is missing, when it is reported down, or when Workshop cannot use its endpoint or key.
+The index in the empty-url message is zero-based and names the first such row, so a blank second row gives `web_search: malformed search response: result 1 has an empty url`.
 
-The `backend returned {code}: {body}` message names the HTTP status and the gateway's error body, with an empty body shown as `(empty body)`, as in `web_search: backend returned 503: (empty body)`. The quoted body is cut to its first 2000 bytes and has its control characters escaped, newline, carriage return, and tab as `\n`, `\r`, and `\t` and any other as `\u{xxxx}`, so the message stays on one line. When the error body cannot be read, the message says so instead, as in `web_search: backend returned 500, and its error body could not be read`.
+The `backend returned {code}: {body}` message names the HTTP status and the Gateway's error body, with an empty body shown as `(empty body)`, as in `web_search: backend returned 503: (empty body)` or `web_search: backend returned 502: upstream down`. The quoted body is cut to its first 2000 bytes and has its control characters escaped, newline, carriage return, and tab as `\n`, `\r`, and `\t` and any other as `\u{xxxx}`, so the message stays on one line. When the error body cannot be read, the message says so instead, as in `web_search: backend returned 500, and its error body could not be read`. A search argument that `web/search` accepts and the Gateway refuses fails this way too, with the Gateway's error body after the status.
 
-A successful response over 256 KiB is rejected whole rather than truncated, and that size check runs before the JSON shape is checked. Extra fields the Gateway adds beyond the known ones are ignored. The Gateway provider leaves an empty `include_domains` or `exclude_domains` list out of its search request.
+A successful response over 256 KiB is rejected whole rather than truncated, and that size check runs before the JSON shape is checked. Extra fields the Gateway adds beyond the known ones are ignored.

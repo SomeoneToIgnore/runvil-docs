@@ -74,7 +74,7 @@ uses:
 
 Both forms declare Packs the same way. A bare entry is a Pack id, one segment with no `/`, such as `web` or `user`, and it always means the `runvil` Pack of that id, so `web` and `runvil/web` are the same entry. A Pack from any other vendor is written `vendor/name`, such as `acme/poop`, and its Pack id is the last segment, `poop`. The entries keep the order you write them in, so `uses: [web, user]` holds `web` first and `user` second. You name each Pack id once, and you can list as many distinct Packs as the prompt needs. A prompt that leaves out `uses:` has an empty list of declared Packs.
 
-Each entry is a plain string with no settings of its own. A Pack's configuration and the services it reads, such as a search provider, come from the Host: the Plugin that adds a Pack to the Host passes its configuration, so a prompt takes each Pack as the Host configured it.
+Each entry is a plain string with no settings of its own. What a Pack works with comes from the Host: its settings, such as the `mcp` Pack's list of servers, and what the Host offers its Plugins, such as the address the `web` Pack sends its searches to. So a prompt takes each Pack as the Host set it up.
 
 ### What declaring a Pack does
 
@@ -686,7 +686,7 @@ Every section also holds the adhoc Pack, whose Pack id is `adhoc`, from the mome
 The run knows each of its Packs, declared or not and with or without tools: every Pack the Host has, whatever its vendor. The Host tells the run which of its Packs can serve it and, for each one that cannot, a reason written for the model. That decides which Packs get objects:
 
 - Each usable Pack, one that can serve the run, gets its own Pack object, whether or not the prompt declares it and whether or not it has tools. An undeclared usable Pack with no tools still has its `name` and an empty `tools` array, and it appears once in `tools.packs.extras()`, sorted by name among the extras that offer tools. A usable Pack that also offers tools is still listed only once.
-- A Pack that cannot serve the run is left out of the Pack objects, so an undeclared one is missing from both `tools.packs` and `tools.packs.extras()`, and `tools.packs.get` returns `nil` for it. Offering it raises its reason, as in `tools.offer: the web Pack is unavailable in this run: web needs runvil/search-provider, and this host provides none`. When the Host reports a Pack both as usable and as unavailable, the last of those reports counts.
+- A Pack that cannot serve the run is left out of the Pack objects, so an undeclared one is missing from both `tools.packs` and `tools.packs.extras()`, and `tools.packs.get` returns `nil` for it. Offering it raises its reason, as in ``tools.offer: the mcp Pack is unavailable in this run: the MCP configuration must be a JSON object of servers by name, as the `mcpServers` object of an mcp.json file is``. When the Host reports a Pack both as usable and as unavailable, the last of those reports counts.
 - A Pack that is neither declared nor reported usable has a Pack object only when it offers at least one tool to the run.
 - When the Host leaves this report out, a section's Lua sees the Packs its own prompt declares plus every Pack that has a tool in the catalog, and the adhoc Pack.
 
@@ -1089,10 +1089,10 @@ So `tools.offer('wbe')` raises `tools.offer: no Pack named "wbe" in this run; de
 Offering by Pack id a Pack the Host reports as unable to serve the run raises an error that names the Pack and gives the Host's reason, in the form `tools.offer: the {pack} Pack is unavailable in this run: {reason}`:
 
 ````text
-tools.offer: the web Pack is unavailable in this run: web needs runvil/search-provider, and this host provides none
+tools.offer: the mcp Pack is unavailable in this run: the MCP configuration must be a JSON object of servers by name, as the `mcpServers` object of an mcp.json file is
 ````
 
-So `tools.offer('mcp')` on a Host whose `mcp` Pack cannot serve raises with that Pack's own reason.
+That is what `tools.offer('mcp')` raises on a Host that hands the `mcp` Pack a list of MCP servers that is neither `null` nor a JSON object, and any other Pack that cannot serve raises the same way with its own reason.
 
 Because the check runs when `tools.offer` is called, an unknown entry raises on that line while the section's Lua runs, before the first loop round freezes the section entry's tool list, and the tool never reaches any model round. A failed `tools.offer` in a section's prologue, the Lua before its prose, stops the run before the section's prose reaches a model. The refusal reads the same wherever in the prompt's Lua the offer runs, apart from the line the error points at, and left uncaught it fails the run with the error code `lua_runtime` (see [Run error codes](16-limits-and-errors.md#run-error-codes)).
 
@@ -2517,7 +2517,7 @@ The run never retries a failed tool call, so a prompt that wants another attempt
 
 #### Model-safe error messages
 
-A model-safe error message is a tool's own short failure text, written so it can be shown to a model, with any deeper cause left out. It is what both sides read: inside the untrusted wrapper the model reads that same message alone, and `tostring(err)` in Lua holds it after the call's `{file}:{line}: `. A `web/search` call whose arguments do not parse gives a `tostring(err)` holding `web_search: invalid arguments`, and never the parse failure behind it, which the error keeps only as its hidden cause (see [Errors from parsing search arguments](13-web-fetch-and-search.md#errors-from-parsing-search-arguments)).
+A model-safe error message is a tool's own short failure text, written so it can be shown to a model, with any deeper cause left out. It is what both sides read: inside the untrusted wrapper the model reads that same message alone, and `tostring(err)` in Lua holds it after the call's `{file}:{line}: `. A `web/search` call whose arguments do not parse gives a `tostring(err)` holding `web_search: invalid arguments`, and never the parse failure behind it, which the tool leaves out of its message (see [Errors from parsing search arguments](13-web-fetch-and-search.md#errors-from-parsing-search-arguments)).
 
 #### Failures that end `models.loop`
 

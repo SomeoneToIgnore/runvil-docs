@@ -371,7 +371,7 @@ A declared Pack that the Host has but that cannot serve refuses the run with err
 - Its readiness check fails before the run.
 - It is the built-in `user` Pack, and the run has no user (see [The `user` Pack needs a run with a user](#the-user-pack-needs-a-run-with-a-user)).
 
-The `web` Pack fails to build on a Host that supplies no search provider, so a prompt that declares `web` there is refused with the notice line `- web is unavailable: web needs runvil/search-provider, and this host provides none`. A prompt that declares `user` in a run with no user is refused with this notice line:
+The `mcp` Pack fails to build on a Host that hands it a list of MCP servers that is neither `null` nor a JSON object, so a prompt that declares `mcp` there is refused with the notice line ``- mcp is unavailable: the MCP configuration must be a JSON object of servers by name, as the `mcpServers` object of an mcp.json file is``. A prompt that declares `user` in a run with no user is refused with this notice line:
 
 ````text
 - user is unavailable: this run has no user
@@ -555,7 +555,7 @@ The notice is written for a model to read: concise, factual, and self-contained.
 
 A bare entry under `uses:` whose Pack id no Pack of the Host has, from any vendor, refuses the run with the line `- missing required Pack: {id}`, such as `- missing required Pack: web`. A `vendor/name` entry never gives this line.
 
-A declared Pack that the Host has but that cannot serve, for example because it failed to build, appears as `- {pack} is unavailable: {reason}`, with the Pack id and the reason the environment gave, word for word. The reason is written for the model that reads the refusal, as in `- web is unavailable: web needs runvil/search-provider, and this host provides none`, or `- user is unavailable: this run has no user` for the `user` Pack declared in a run with no user.
+A declared Pack that the Host has but that cannot serve, for example because it failed to build, appears as `- {pack} is unavailable: {reason}`, with the Pack id and the reason the environment gave, word for word. The reason is written for the model that reads the refusal, as in ``- mcp is unavailable: the MCP configuration must be a JSON object of servers by name, as the `mcpServers` object of an mcp.json file is``, or `- user is unavailable: this run has no user` for the `user` Pack declared in a run with no user.
 
 A declared entry the Host has no Pack for appears the same way, unless it is a bare entry that no vendor has. A bare Pack id that the Host has from another vendor gives `- poop is unavailable: poop means runvil/poop, which is not installed; write acme/poop to use that Pack`, and a `vendor/name` the Host lacks gives `- poop is unavailable: acme/poop is not installed`, whether or not any vendor has that Pack id.
 

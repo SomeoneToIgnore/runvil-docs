@@ -262,7 +262,7 @@ Each Pack tool comes from a Pack that you can declare under `uses:` by its Pack 
 | Tool | Provided by | Arguments | Returns | Taught in |
 |---|---|---|---|---|
 | `web/fetch` | `runvil/web` | `url` (required); `max_chars` (default 40,000; 1 to 40,000); `raw` (default `false`) | Untrusted text: a `url:`, `truncated:`, and `extraction:` header, a blank line, then the page | [Fetching a page](13-web-fetch-and-search.md#fetching-a-page) |
-| `web/search` | `runvil/web` | `query` (required; 1 to 400 characters, not only whitespace); `count` (search provider default; 1 to 20); `freshness` (`pd`, `pw`, `pm`, or `py`); `country` (not blank, at most 128 characters); `search_lang` (not blank, at most 128 characters); `safesearch` (`off`, `moderate`, or `strict`); `include_domains` (default empty; at most 20 bare hostnames); `exclude_domains` (default empty; at most 20 bare hostnames) | Untrusted compact JSON of `query` and `results`, each with `title`, `url`, and `description` | [Searching the web](13-web-fetch-and-search.md#searching-the-web) |
+| `web/search` | `runvil/web` | `query` (required; 1 to 400 characters, not only whitespace); `count` (the Gateway's default; 1 to 20); `freshness` (`pd`, `pw`, `pm`, or `py`); `country` (not blank, at most 128 characters); `search_lang` (not blank, at most 128 characters); `safesearch` (`off`, `moderate`, or `strict`); `include_domains` (default empty; at most 20 bare hostnames); `exclude_domains` (default empty; at most 20 bare hostnames) | Untrusted compact JSON of `query` and `results`, each with `title`, `url`, and `description` | [Searching the web](13-web-fetch-and-search.md#searching-the-web) |
 
 ## Limits and defaults
 
