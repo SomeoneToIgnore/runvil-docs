@@ -373,11 +373,11 @@ An `item` whose Lua type is `function`, `userdata`, or `thread` fails at the cal
 
 A negative integer fails at the call site with a `lua` error that names the value, `index must be a non-negative integer, got {index}`, such as `index must be a non-negative integer, got -1`. A value of any other type, a float such as `1.0` or `2.0` included, fails with the same sentence ending in its Lua type name, such as `got number` or `got string`.
 
-The `item` and `sys.index` seeds reach only the first section a task enters. In a later section the task falls through to or jumps to, the `item` global reads nil and a read of `sys.index` fails, while `var` carries across.
+The `item` and `sys.index` seeds reach only the first section a task enters. In a later section the task falls through to or jumps to, the `item` global reads nil and a read of `sys.index` fails, while `var` keeps its values.
 
 ### The `var` snapshot at spawn time
 
-`tasks.spawn` seeds the task with a deep copy of the caller's [`var`](05-lua-environment.md#keeping-state-in-var), taken at the moment of the call and carried as plain JSON data, the same kind of [`var` snapshot](08-jump-and-call.md#call-args-and-var) a `call` takes. `var` is not an option you pass. The task and its owner each have their own `var` table, and the task's changes to `var` are discarded when the task ends:
+`tasks.spawn` seeds the task with a deep copy of the caller's [`var`](05-lua-environment.md#keeping-state-in-var), taken at the moment of the call and passed as plain JSON data, the same kind of [`var` snapshot](08-jump-and-call.md#call-args-and-var) a `call` takes. `var` is not an option you pass. The task and its owner each have their own `var` table, and the task's changes to `var` are discarded when the task ends:
 
 ````markdown
 ---
@@ -835,7 +835,7 @@ A wait never raises a canceled task's error value. It hands the error value back
 
 A canceled task stays as it is when a wait delivers it, so waiting on it again returns the same `canceled` error value instead of raising `task_consumed`. A canceled task's completed store writes are kept, and a wait that delivers it makes them readable to the owner from its next operation, however far the task got. Canceling a task that has already finished, but whose result no wait has taken yet, leaves that result in place for a later wait.
 
-A canceled task's error value shares kind `canceled` with a canceled run or a stopped call, and only the canceled task's value carries a `task` field and the `code` `task_canceled` rather than `canceled`, which tells them apart. The other `canceled` values come from a run being canceled or a call being stopped:
+A canceled task's error value shares kind `canceled` with a canceled run or a stopped call, and only the canceled task's value has a `task` field and the `code` `task_canceled` rather than `canceled`, which tells them apart. The other `canceled` values come from a run being canceled or a call being stopped:
 
 - A canceled run, such as a Host cancel that reaches running Lua or a waiting call, ends that Lua with an error value of kind `canceled`.
 - A model round, tool call, or other call stopped by cancellation raises an error value of kind `canceled` with the message `{file}:{line}: The operation was canceled.`, pointing at the stopped call.
@@ -848,7 +848,7 @@ A canceled task's error value shares kind `canceled` with a canceled run or a st
 
 Only live tasks are listed, running or [idle](#idle-tasks), so ended tasks drop out whether or not a wait took their results. After you spawn `a`, `b`, and `c` and wait on `b`, `tasks.pending()` holds two handles, for `a` and then for `c`. A task that a [timed-out wait](#time-limits-on-waits) left running is still listed, and so is an idle task after a wait took its reply, since it has not ended. A task that has ended drops out, so `tasks.pending()` returns an empty list once every task the caller spawned has ended. The list holds only tasks the calling chain spawned directly, not tasks those tasks spawned.
 
-Each handle `tasks.pending` returns carries the task id in its `task` field and works with every `tasks` function, so it passes straight to `tasks.cancel`.
+Each handle `tasks.pending` returns holds the task id in its `task` field and works with every `tasks` function, so it passes straight to `tasks.cancel`.
 
 `tasks.pending` takes no arguments. Any argument other than `nil` raises an error of kind `lua` at the call site, where `pcall` catches it, and the message names the argument's Lua type, such as `got table`:
 
@@ -1313,7 +1313,7 @@ tasks_live|0.0.0|leak-check.md:17: chain ended with tasks still live: 0.0.0; wai
 
 `Leaky` spawns a task and returns `'leaked'`, so its caller receives kind `tasks_live` as the call's error, and the run continues with `Main`'s result. The error keeps the line of `Leaky`'s `tasks.spawn`, line 17, rather than the `call` line in `Main`. Tasks spawned inside a `call` chain, including ones it leaks, are abandoned when that chain ends and returns to its caller (see [Catching call failures](08-jump-and-call.md#catching-call-failures)).
 
-A `tasks_live` error value caught in Lua has `kind` equal to `'tasks_live'`. The kind carries one field of its own, `tasks`, and belongs to the cancellation and task lifetimes group of error kinds. `err.tasks` is one string of the leaked task ids in the order they were spawned, joined with `, `, such as `0.0, 0.1`, not a table, so it concatenates directly with `..`. The message names the same ids, and `tostring` on the error value gives that message, where `{line}` is the spawn line of the first task left running:
+A `tasks_live` error value caught in Lua has `kind` equal to `'tasks_live'`. The kind has one field of its own, `tasks`, and belongs to the cancellation and task lifetimes group of error kinds. `err.tasks` is one string of the leaked task ids in the order they were spawned, joined with `, `, such as `0.0, 0.1`, not a table, so it concatenates directly with `..`. The message names the same ids, and `tostring` on the error value gives that message, where `{line}` is the spawn line of the first task left running:
 
 ````text
 {file}:{line}: chain ended with tasks still live: {ids}; wait on or cancel every task a chain spawns before it ends. The chain ended with tasks still running. Wait on or cancel every task the chain spawns before it ends.
@@ -1345,7 +1345,7 @@ When the run is canceled, every spawned task that is still live, running or idle
 
 ### Abandon reasons
 
-An abandoned task carries the reason it was abandoned, which says how its owner chain ended while the task was still live, and its abandonment event records that reason. An idle task abandoned with its owner gets the same reason a running one would, and a task whose owner the [idle cap](#the-idle-cap) closed gets `owner_returned`, as if that owner had returned, so the same reasons cover both. Each reason has a phrase, which is what the `TaskAbandoned` trace line renders for it. The five reasons are written in snake_case:
+An abandoned task gets a reason, which says how its owner chain ended while the task was still live, and its abandonment event records that reason. An idle task abandoned with its owner gets the same reason a running one would, and a task whose owner the [idle cap](#the-idle-cap) closed gets `owner_returned`, as if that owner had returned, so the same reasons cover both. Each reason has a phrase, which is what the `TaskAbandoned` trace line renders for it. The five reasons are written in snake_case:
 
 | Reason | Phrase | When it applies |
 |---|---|---|
@@ -1355,7 +1355,7 @@ An abandoned task carries the reason it was abandoned, which says how its owner 
 | `owner_aborted` | `the owner was aborted` | The owner was stopped from outside, by fail-fast after a sibling arm failed fatally or because the owner's own owner ended first |
 | `run_terminated` | `the run ended` | The run itself ended while the task was live, for example because the Host canceled the run or an answer was fatal |
 
-A tool loop that runs past its [round cap](11-conversations.md#tool-rounds-and-the-round-cap), set by `max_tool_iterations`, counts as a failure of the owner. `tool_loop_exhausted` is kept apart from `owner_failed` so a report can name the round cap as the cause, and a tool-loop overrun is checked before any other owner failure. Tasks abandoned because their owner failed with any other error carry `owner_failed`, decided from the owner's own outcome before any `tasks_live` is substituted. Tasks owned by a task that is itself being abandoned end with `owner_aborted`, and so does the work a canceled fanout arm had started.
+A tool loop that runs past its [round cap](11-conversations.md#tool-rounds-and-the-round-cap), set by `max_tool_iterations`, counts as a failure of the owner. `tool_loop_exhausted` is kept apart from `owner_failed` so a report can name the round cap as the cause, and a tool-loop overrun is checked before any other owner failure. Tasks abandoned because their owner failed with any other error get `owner_failed`, decided from the owner's own outcome before any `tasks_live` is substituted. Tasks owned by a task that is itself being abandoned end with `owner_aborted`, and so does the work a canceled fanout arm had started.
 
 ## Checking on a task with `tasks.status`, `tasks.ready`, and `tasks.note`
 
@@ -2313,11 +2313,11 @@ In a fanout, every started arm produces exactly one terminal task event: `TaskSu
 Canceling a started task reports a `TaskCanceled` event exactly once, attributed to the canceled task's section (see [Canceling and listing tasks](#canceling-and-listing-tasks)):
 
 - Canceling a started task that is still live, running or idle, emits one `TaskCanceled` event naming the task, after the events of everything the task owned.
-- The event carries the canceled task's own provenance, not that of the chain that canceled it.
+- The event is stamped with the canceled task's own provenance, not that of the chain that canceled it.
 - That event is the canceled task's one terminal event, in place of `TaskSucceeded`, `TaskFailed`, or `TaskAbandoned`.
 - Canceling a task that was still queued for a concurrency slot skips the `TaskCanceled` event, since it never started.
 
-An abandoned task fires a `TaskAbandoned` event under its target section, stamped with the task's own provenance and carrying one of the five [abandon reasons](#abandon-reasons). The reason names how the owner ended, and for an owner that returned normally it is `owner_returned`, whose phrase is `the section ended`. When the owner's walk ends with a task still live, the task is abandoned with reason `owner_returned`, and its `TaskAbandoned` event reports under the task's own section. Once an owner is gone, its abandoned tasks are out of reach of every wait, so each task's `TaskAbandoned` event is the only record of how it ended.
+An abandoned task fires a `TaskAbandoned` event under its target section, stamped with the task's own provenance and naming one of the five [abandon reasons](#abandon-reasons). The reason names how the owner ended, and for an owner that returned normally it is `owner_returned`, whose phrase is `the section ended`. When the owner's walk ends with a task still live, the task is abandoned with reason `owner_returned`, and its `TaskAbandoned` event reports under the task's own section. Once an owner is gone, its abandoned tasks are out of reach of every wait, so each task's `TaskAbandoned` event is the only record of how it ended.
 
 - A task still queued for a concurrency slot when it is abandoned skips its terminal event, because it never emitted a start event. A task abandoned before it ever ran, such as a queued task whose owner fails first, skips `TaskStarted` and every terminal event, `TaskAbandoned` included, though its state still reaches abandoned.
 - Tasks nested under an abandoned task report their own endings before the abandoned task's terminal event, which is always the last word on that task. During a run-wide shutdown each task reports its terminal event at most once, because nested tasks have already ended by the time their owner is reached.
@@ -2327,7 +2327,7 @@ The run log tells a canceled task, stopped on purpose, apart from an abandoned o
 
 ### Argument errors from the `tasks` functions
 
-The `tasks.*` functions check their arguments at the call site and raise an error of kind `lua` in the calling section, which `pcall` can catch (see [Raising and catching errors](05-lua-environment.md#raising-and-catching-errors)). The arguments are validated before the operation runs, so a bad argument stops the call at the check. Every mistake in a `tasks` call raises an error value (see [Error values](05-lua-environment.md#error-values)) carrying a `kind`, a `task` field naming the task where there is one, and a message you read with `tostring(err)`. Argument errors are structured error values with kind `lua` and a `message` field, raised at your own call site.
+The `tasks.*` functions check their arguments at the call site and raise an error of kind `lua` in the calling section, which `pcall` can catch (see [Raising and catching errors](05-lua-environment.md#raising-and-catching-errors)). The arguments are validated before the operation runs, so a bad argument stops the call at the check. Every mistake in a `tasks` call raises an error value (see [Error values](05-lua-environment.md#error-values)) that has a `kind`, a `task` field naming the task where there is one, and a message you read with `tostring(err)`. Argument errors are structured error values with kind `lua` and a `message` field, raised at your own call site.
 
 Argument checks made by the `tasks` functions themselves give messages that start with the call's name and are the error value's whole message, such as `tasks.spawn opts must be a table, got integer`, while other checks, which the Engine makes, name only the field or value at fault, and their error value's message puts the call's `{file}:{line}: ` in front of that refusal and the Lua runtime prose after it (see [Where an error points](16-limits-and-errors.md#where-an-error-points)). In the checks the `tasks` functions make themselves, the type named at the end is `integer` for a Lua integer such as `5`, `number` for a float such as `1.5`, and the Lua `type()` name for every other value, such as `string` or `table`, except that the `tasks.fanout` first-argument check reads any number as `number`. The checks the Engine makes use the same names, except that they name `json.null` `lightuserdata`.
 

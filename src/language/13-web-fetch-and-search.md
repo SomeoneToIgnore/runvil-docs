@@ -813,7 +813,7 @@ return tools.call('web/fetch', { url = 'https://example.com/' })
 ```
 ````
 
-This is `fetch-page` from [What the web Pack gives a prompt](#what-the-web-pack-gives-a-prompt). Its request goes over HTTPS to port 443, carries the header `User-Agent: harness-webfetch/0.0`, and leaves out cookies, the `Authorization` header, and the `Referer` header. The scheme, the port, and the `User-Agent` header come from the fetch policy, and the fetch client leaves the other three out under every fetch policy.
+This is `fetch-page` from [What the web Pack gives a prompt](#what-the-web-pack-gives-a-prompt). Its request goes over HTTPS to port 443, includes the header `User-Agent: harness-webfetch/0.0`, and leaves out cookies, the `Authorization` header, and the `Referer` header. The scheme, the port, and the `User-Agent` header come from the fetch policy, and the fetch client leaves the other three out under every fetch policy.
 
 ### What a fetch policy sets
 
@@ -861,7 +861,7 @@ Fetches are anonymous. Every request, redirect hops included, connects directly 
 - A request never sends a `Cookie` or `Authorization` header, on the first request or on any redirect hop.
 - A request never sends a `Referer` header on any hop, so the first URL and its query string never reach a redirect target. A secret in the first URL's query string does not leak to the site it redirects to.
 - A fetch ignores any system or environment proxy settings and connects directly.
-- Every request carries the header `User-Agent: harness-webfetch/0.0`, which matters when a site filters requests by user agent.
+- Every request sends the header `User-Agent: harness-webfetch/0.0`, which matters when a site filters requests by user agent.
 
 Because a fetch cannot log in or reuse a session, a page behind a login comes back the way an anonymous visitor sees it: a page that needs a login returns its logged-out content.
 

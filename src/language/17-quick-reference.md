@@ -87,7 +87,7 @@ Every global, function, field, and error kind a Lua block can use, plus the stan
 | `kind = "internal"` | error kind | A failure that falls outside the other kinds, such as a failed tool freeze or an Engine fault | [Error kinds in Lua and the run error they become](16-limits-and-errors.md#error-kinds-in-lua-and-the-run-error-they-become) |
 | `kind = "lua"` | error kind | An authoring or runtime failure, such as a compile or argument error | [Error values](05-lua-environment.md#error-values) |
 | `kind = "model_failure"` | error kind | A model call's transport, backend, or decode failure, or a disabled gateway | [Error kinds in Lua and the run error they become](16-limits-and-errors.md#error-kinds-in-lua-and-the-run-error-they-become) |
-| `kind = "model_only_tool"` | error kind | A script `tools.call` names a catalog tool marked `model_only_call`; carries `name` | [Model-only tools](12-tools.md#model-only-tools) |
+| `kind = "model_only_tool"` | error kind | A script `tools.call` names a catalog tool marked `model_only_call`; has `name` | [Model-only tools](12-tools.md#model-only-tools) |
 | `kind = "model_required"` | error kind | A `models.infer` or `models.loop` round when the Host gave no model, the missing-model error | [Error kinds in Lua and the run error they become](16-limits-and-errors.md#error-kinds-in-lua-and-the-run-error-they-become) |
 | `kind = "out_of_scope_tool"` | error kind | Model calls a tool outside the scope, raised at `models.loop` | [Tool errors](12-tools.md#tool-errors) |
 | `kind = "store"` | error kind | Any failure the store itself reports for an operation, or a `tasks.spawn` or a tool call that the run's files refuse | [When a store call fails](09-the-store.md#when-a-store-call-fails) |

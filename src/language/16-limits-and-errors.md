@@ -342,7 +342,7 @@ Here line 18 is the file line where the block's Lua starts, and `{message}` is `
 
 The whole prompt file is checked before anything runs. The parser validates the frontmatter, the headings, the fences, and the sections, and it compiles every Lua block in every section, so a structural error or a Lua syntax error anywhere in the file, even in the last section, stops the prompt before any section runs. A parse error rejects the whole prompt file, even when every other section in it is valid, as `Load` is here.
 
-A prompt file that fails to parse is rejected with a parse error, and that parse error carries a parse error kind, the stable name of the class of rule the file broke. A parse failure shows up when the prompt file is parsed, before any part of it runs, as one error with a stable kind and optional location fields, such as the line and column of the problem.
+A prompt file that fails to parse is rejected with a parse error, and that parse error has a parse error kind, the stable name of the class of rule the file broke. A parse failure shows up when the prompt file is parsed, before any part of it runs, as one error with a stable kind and optional location fields, such as the line and column of the problem.
 
 ### The five parse error kinds
 
@@ -356,7 +356,7 @@ Every parse failure has exactly one of five parse error kinds:
 | `Lua` | a Lua block does not compile |
 | `Internal` | the parser fails through no fault of the prompt |
 
-Common mistakes land in predictable parse error kinds. Malformed YAML and a `max_tool_iterations` value outside 1 to 1000 give `Frontmatter`, two sibling headings with the same name give `Structure`, and a Lua syntax error gives `Lua`. Every parse error carries a kind, and the kinds you run into while writing include `Structure`, `Fence`, and `Lua`.
+Common mistakes land in predictable parse error kinds. Malformed YAML and a `max_tool_iterations` value outside 1 to 1000 give `Frontmatter`, two sibling headings with the same name give `Structure`, and a Lua syntax error gives `Lua`. Every parse error has a kind, and the kinds you run into while writing include `Structure`, `Fence`, and `Lua`.
 
 The set of parse error kinds is open, so a Host program that branches on a parse error's kind needs a catch-all case for kinds it does not know.
 
@@ -745,7 +745,7 @@ Line numbers inside heading error messages also count from the first line of the
 
 Orphan and empty heading errors report the heading's file-absolute line, column 1, and cover the heading line, the same as a duplicate sibling heading. Every heading `Structure` error, for an orphan, empty, or duplicate sibling heading, points at the heading itself. A first heading that is deeper than a later one is itself the orphan, so the `late` prompt reports line 7, the line of its `## Run` heading, not the line of the `# Late` heading below it.
 
-A `Fence` error for a bad fence label reports the line where the offending fence opens, at column 1, so a fence whose opening line carries extra text after `lua` on line 12 is reported at line 12, column 1. A `Fence` error for a broken fence rule covers the text of the offending line, from column 1. A `lua` fence left open, which fails with the not-closed message, points at the line where the fence opens, at column 1, so the `open` prompt reports line 9.
+A `Fence` error for a bad fence label reports the line where the offending fence opens, at column 1, so a fence whose opening line has extra text after `lua` on line 12 is reported at line 12, column 1. A `Fence` error for a broken fence rule covers the text of the offending line, from column 1. A `lua` fence left open, which fails with the not-closed message, points at the line where the fence opens, at column 1, so the `open` prompt reports line 9.
 
 A bad closing line error reports the line of the offending closing line, at column 1. In this file the `lua` fence opens on line 8 and a fence line indented two spaces closes it on line 11:
 
@@ -1094,7 +1094,7 @@ When the model call succeeds, the run result is the model's reply. When it fails
 
 ### Sixteen error kinds
 
-Every Engine failure that reaches Lua carries exactly one of sixteen error kinds in its error value's `kind` field: `lua`, `context_exhausted`, `empty_model_reply`, `model_failure`, `model_required`, `canceled`, `tool_loop_exhausted`, `tasks_live`, `task_not_owned`, `task_consumed`, `out_of_scope_tool`, `unbound_tool`, `model_only_tool`, `tool`, `store`, and `internal`.
+Every Engine failure that reaches Lua has exactly one of sixteen error kinds in its error value's `kind` field: `lua`, `context_exhausted`, `empty_model_reply`, `model_failure`, `model_required`, `canceled`, `tool_loop_exhausted`, `tasks_live`, `task_not_owned`, `task_consumed`, `out_of_scope_tool`, `unbound_tool`, `model_only_tool`, `tool`, `store`, and `internal`.
 
 Error kinds and codes are separate vocabularies. An error kind is the broad class Lua sees in an error value's `kind`, and a code is the exact failure, which Lua sees in its `code` and which the run's error has when the failure ends the run. One error kind covers several codes, as `internal` does for a failed tool freeze, `tool_schema_invalid` or `tool_sets_invalid`, and for an Engine fault, `internal`, and as `lua` does for the refusals of an `execute` (see [Task and section path errors](#task-and-section-path-errors)).
 
@@ -1204,7 +1204,7 @@ The block catches the model call failure, checks for kind `model_failure`, logs 
 
 ### Completion errors and how Lua sees them
 
-A model call that fails surfaces as a completion error, and every completion error carries a completion error kind that names what went wrong, such as `Overloaded` or `Timeout`. When the model request for a `models.infer` round fails, the `models.infer` call raises that failure as its error.
+A model call that fails surfaces as a completion error, and every completion error has a completion error kind that names what went wrong, such as `Overloaded` or `Timeout`. When the model request for a `models.infer` round fails, the `models.infer` call raises that failure as its error.
 
 When the prompt catches a model call failure, the error value has kind `model_failure`, whether the cause is a connection failure, a receive timeout, a backend error status, a malformed or oversized reply, or a disabled gateway. An empty reply is the one case that differs, with kind `empty_model_reply` instead. A model call failure that the prompt does not catch ends the run with its model code, such as `overloaded`, and the run's message starts with the failure's own text, such as `the model backend is overloaded (status 503)`, and ends with ` (at {file}:{line})`, the line of the call.
 
@@ -1419,7 +1419,7 @@ When the model answers a `models.infer` round with tool calls, although the roun
 
 ## Cancellation and stops
 
-After this section you can predict how a run ends when the Host cancels it or stops the round in flight, and write a block that carries on after a stop.
+After this section you can predict how a run ends when the Host cancels it or stops the round in flight, and write a block that goes on after a stop.
 
 ````markdown
 ---
