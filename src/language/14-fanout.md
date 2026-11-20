@@ -1268,7 +1268,7 @@ In the main walk, the limit starts at the run's concurrency limit, and lowering 
 
 ### When `tasks.concurrency` refuses a limit
 
-An argument that is not a positive whole number fails at the call site with an error value of kind `lua` whose message, `tasks.concurrency limit must be a positive whole number, got {type}`, names only the value's type, not the value. This matters when the limit comes from data, such as a number parsed from [`args.text`](06-arguments.md#the-default-args-declaration), the one optional string a prompt with no `args:` key takes. Passing `nil` is the same as leaving the argument out and only reads the limit, so this block turns a text that is missing or is not a number into `0`, which is refused:
+An argument that is not a positive whole number fails at the call site with an error value of kind `lua` whose message, `tasks.concurrency limit must be a positive whole number, got {type}`, names only the value's type, not the value. This matters when the limit comes from data, such as a number parsed from [`args.text`](06-arguments.md#the-default-args-declaration), the one optional string that a prompt takes when it leaves the `args:` key out. Passing `nil` is the same as leaving the argument out and only reads the limit, so this block turns a text that is missing or is not a number into `0`, which is refused:
 
 ````lua
 local ok, err = pcall(tasks.concurrency, tonumber(args.text) or 0)
