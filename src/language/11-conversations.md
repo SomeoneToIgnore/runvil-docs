@@ -1959,7 +1959,7 @@ The context precheck is Runvil's own check, before each request leaves, that the
 
 The precheck runs on every `models.loop` call and before every round. A list that grows past the window between calls is refused before the next request leaves, and the precheck also guards the first request of a list, refusing it before any round runs when the list is already too large.
 
-The precheck uses the context window and `max_tokens` of the model the round goes to. When the round comes from `models.loop(h)`, that is the handle's own (see [Model handles](10-models.md#model-handles)). Otherwise it is the chain's current model, which the Host fills from its role map (see [How the Host fills and checks roles](10-models.md#how-the-host-fills-and-checks-roles)). A handle that `models.get` returns for a raw model id, rather than one of the five model roles, has a context window of 8192 tokens for the precheck, visible as `h.context`. On a Host that passes a Host-state snapshot, `models.get('qwen/qwen3-8b').context` reads `8192`, and on a Host that does not, that call raises an error because the name is not a model role (see [Raw model ids and the Host-state snapshot](10-models.md#raw-model-ids-and-the-host-state-snapshot)).
+The precheck uses the context window and `max_tokens` of the model the round goes to. When the round comes from `models.loop(h)`, that is the handle's own (see [Model handles](10-models.md#model-handles)). Otherwise it is the chain's current model, which the Host fills from its role map (see [How the Host fills and checks roles](10-models.md#how-the-host-fills-and-checks-roles)).
 
 ### The output reserve
 

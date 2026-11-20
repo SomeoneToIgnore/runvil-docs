@@ -641,7 +641,7 @@ An arm starts on a copy of its caller's current model, taken when `tasks.fanout`
 
 Worker section Lua can also run one round on a different model through a [model handle](10-models.md#model-handles) with `models.infer(handle, prompt)`, which leaves the arm's own model as it is. Each arm runs in its own section VM with its own empty [`messages`](11-conversations.md#messages-is-the-section-entrys-conversation) list, which it fills and drives with [`models.loop`](11-conversations.md#starting-a-conversation), so the arms' conversations stay separate and each arm opens its own first round.
 
-A fanout arm can call the run's bound tools with [`tools.call`](12-tools.md#calling-tools-from-lua-and-counting-calls), such as `tools.call('web/search', { query = item })` in a prompt that declares `uses: [web]`. Inside an arm, [`sys.model`](05-lua-environment.md#run-facts-in-sys-and-ui) reads the name part of the id of the arm's current model, without the server namespace, as the model stood at the arm's first `tools.call`, and the name stays fixed for the rest of the arm, as in any section, so a worker section that runs `tools.call('web/search', { query = item })` and then `return sys.model .. ':' .. item` gives a text such as `claude-sonnet-4-6:a` when that model's id is `gateway/claude-sonnet-4-6`.
+A fanout arm can call the run's bound tools with [`tools.call`](12-tools.md#calling-tools-from-lua-and-counting-calls), such as `tools.call('web/search', { query = item })` in a prompt that declares `uses: [web]`. Inside an arm, [`sys.model`](05-lua-environment.md#run-facts-in-sys) reads the name part of the id of the arm's current model, without the server namespace, as the model stood at the arm's first `tools.call`, and the name stays fixed for the rest of the arm, as in any section, so a worker section that runs `tools.call('web/search', { query = item })` and then `return sys.model .. ':' .. item` gives a text such as `claude-sonnet-4-6:a` when that model's id is `gateway/claude-sonnet-4-6`.
 
 Inside an arm, and in a chain the arm starts with `call`, `sys.section_count` is the top-level section count of the prompt the worker section belongs to, so a child worker section does not add to it. With `Parent` as the only top-level section and the worker section under it, the arm and a `Sub` it calls both read `sys.section_count == 1`.
 
@@ -1311,7 +1311,7 @@ return sys.taskid .. '@' .. sys.id
 0.0@0.0.0|0.1@0.1.0|0.2@0.2.0
 ````
 
-The main walk reads [`sys.taskid`](05-lua-environment.md#run-facts-in-sys-and-ui) as `0`. Each arm reads its own task id, `0.0`, `0.1`, and `0.2`, and its worker section reads `sys.id` as `0.0.0`, `0.1.0`, and `0.2.0`.
+The main walk reads [`sys.taskid`](05-lua-environment.md#run-facts-in-sys) as `0`. Each arm reads its own task id, `0.0`, `0.1`, and `0.2`, and its worker section reads `sys.id` as `0.0.0`, `0.1.0`, and `0.2.0`.
 
 ### Each arm is a task
 

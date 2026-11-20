@@ -1,6 +1,6 @@
 # The Lua environment
 
-Every Lua block in a prompt runs in a sandboxed section VM that already holds the Engine globals, so the Harness's work, the run's facts, and the operator are each one plain function call away. This chapter covers that environment: what a block starts with, what the sandbox keeps, how tables iterate, the run state in `var`, `sys`, and `ui`, logging, asking the operator, and how errors are raised, caught, and located. Knowing it tells you exactly which Lua a block can run and what each call does to your run.
+Every Lua block in a prompt runs in a sandboxed section VM that already holds the Engine globals, so the Harness's work, the run's facts, and the operator are each one plain function call away. This chapter covers that environment: what a block starts with, what the sandbox keeps, how tables iterate, the run state in `var` and `sys`, logging, asking the operator, and how errors are raised, caught, and located. Knowing it tells you exactly which Lua a block can run and what each call does to your run.
 
 ## Lua blocks, section VMs, and Engine globals
 
@@ -165,11 +165,11 @@ Every section VM, the preamble's included, starts with these Engine globals:
 - `call`, `execute`, `jump`, `prompt`, and `require`
 - `tasks`
 
-Two more Engine globals are installed only in some section VMs. `ui` is installed when the run has an application-state snapshot (see [Run facts in `sys` and `ui`](#run-facts-in-sys-and-ui)), and `item` is installed in a spawned chain, such as a fanout arm (see [What an arm sees](14-fanout.md#what-an-arm-sees)). That makes 21 Engine globals in all.
+One more Engine global is installed only in some section VMs. `item` is installed in a spawned chain, such as a fanout arm (see [What an arm sees](14-fanout.md#what-an-arm-sees)). That makes 20 Engine globals in all.
 
 Together they give every section's Lua logging through `log` (see [Logging and lifecycle reports](#logging-and-lifecycle-reports)), tool scoping through `tools`, store operations through `store`, and the `var` and `args` globals, all inside the sandboxed section VM. `prose` is the global that reads pending prose (see [Pending prose and the `prose` global](03-blocks-and-prose.md#pending-prose-and-the-prose-global)), `prompt` holds the section reads (see [Reading sections with `prompt.section` and `prompt.section_or`](03-blocks-and-prose.md#reading-sections-with-promptsection-and-promptsection_or)), and `models` holds the model functions: [`models.infer`](10-models.md#running-a-round-with-modelsinfer), `models.loop`, and `models.compact` run model rounds, and `models.use`, `models.get`, and `models.current` choose and read the model (see [The `models` global](10-models.md#the-models-global)). The rest are taught where they are used: `args`, the read-only table that holds the run's checked arguments, in [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args), `store` in [What the store is](09-the-store.md#what-the-store-is), `untrusted` in [Handing store text to a model with `untrusted`](09-the-store.md#handing-store-text-to-a-model-with-untrusted), `json` in [Encoding and decoding JSON with `json`](#encoding-and-decoding-json-with-json), `markdown` in [Parsing Markdown with `markdown`](#parsing-markdown-with-markdown), `messages`, the section entry's own conversation that each new section VM starts empty, in [`messages` is the section entry's conversation](11-conversations.md#messages-is-the-section-entrys-conversation), `compactors` in [Compactors and context exhaustion](11-conversations.md#compactors-and-context-exhaustion), `tools` in [The members of `tools`](12-tools.md#the-members-of-tools), `tasks` in [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn), and `execute`, the function that runs another prompt with its own arguments and its own `var`, in [Executing another prompt](08-jump-and-call.md#executing-another-prompt).
 
-These 21 are all the globals the Engine installs. Fanout is `tasks.fanout`, a function on the `tasks` table (see [Fanout in one call](14-fanout.md#fanout-in-one-call)), and reading a list kept in a section goes through `prompt.section`.
+These 20 are all the globals the Engine installs. Fanout is `tasks.fanout`, a function on the `tasks` table (see [Fanout in one call](14-fanout.md#fanout-in-one-call)), and reading a list kept in a section goes through `prompt.section`.
 
 The preamble and every other section see the same set of globals, and `args` is read-only in all of them (see [`args` is read-only](06-arguments.md#args-is-read-only)).
 
@@ -180,18 +180,17 @@ Every section VM is set up in one fixed order. The same order applies to every s
 1. `untrusted`, when the VM is built
 2. `args`, `sys`, `var`, `tools`, `models`, `messages`, and `compactors`
 3. `log`, `json`, and `markdown`
-4. `ui`
-5. `item`
-6. `jump` and the `prompt` reads
-7. the suspending calls: `call`, `execute`, the `tasks` table, `tools.call`, `models.infer`, `models.loop`, `models.compact`, and the `store` table
-8. Pack preludes
-9. `require`
+4. `item`
+5. `jump` and the `prompt` reads
+6. the suspending calls: `call`, `execute`, the `tasks` table, `tools.call`, `models.infer`, `models.loop`, `models.compact`, and the `store` table
+7. Pack preludes
+8. `require`
 
 ### Reserved names
 
-The Engine reserves the name of every global it installs in a section VM, and its reserved-name list matches that set exactly. The list holds 63 names: the 21 Engine globals, the 19 Lua globals the sandbox keeps (listed in [The sandbox](#the-sandbox)), and the 23 Lua 5.5 keywords. It classes each name as an Engine global, a Lua global, or a Lua keyword.
+The Engine reserves the name of every global it installs in a section VM, and its reserved-name list matches that set exactly. The list holds 62 names: the 20 Engine globals, the 19 Lua globals the sandbox keeps (listed in [The sandbox](#the-sandbox)), and the 23 Lua 5.5 keywords. It classes each name as an Engine global, a Lua global, or a Lua keyword.
 
-The 23 Lua 5.5 keywords in prompt Lua are `and`, `break`, `do`, `else`, `elseif`, `end`, `false`, `for`, `function`, `global`, `goto`, `if`, `in`, `local`, `nil`, `not`, `or`, `repeat`, `return`, `then`, `true`, `until`, and `while`. A Lua keyword never reads as a global. Every Engine global and Lua global on the list reads non-nil in a section entry once its conditional bindings apply, such as `ui` with a snapshot and `item` in a spawned chain.
+The 23 Lua 5.5 keywords in prompt Lua are `and`, `break`, `do`, `else`, `elseif`, `end`, `false`, `for`, `function`, `global`, `goto`, `if`, `in`, `local`, `nil`, `not`, `or`, `repeat`, `return`, `then`, `true`, `until`, and `while`. A Lua keyword never reads as a global. Every Engine global and Lua global on the list reads non-nil in a section entry once the one conditional binding applies, `item` in a spawned chain.
 
 Apart from what a Pack prelude adds, every global a section entry's `_G` holds is either an Engine global or a Lua global on the reserved-name list. With no prelude, `_G` holds exactly what the Engine installs.
 
@@ -282,7 +281,7 @@ Run on a Host that has the `acme/issue-tracker` Pack (see [Packs at prepare](04-
 function,function,function
 ````
 
-The `issue-tracker` prelude defines the global `tickets`, so `type(tickets.open)` reads `function`. A prelude global sits beside the Engine's globals without replacing them, so `type(store.read)` and `type(tools.call)` still give `function` when `acme/issue-tracker` is declared. Your code still sees the `ui`, `args`, `sys`, and `models` globals when Pack preludes are installed.
+The `issue-tracker` prelude defines the global `tickets`, so `type(tickets.open)` reads `function`. A prelude global sits beside the Engine's globals without replacing them, so `type(store.read)` and `type(tools.call)` still give `function` when `acme/issue-tracker` is declared. Your code still sees the `args`, `sys`, and `models` globals when Pack preludes are installed.
 
 A prelude can add any globals to a section entry's `_G` beyond the ones the Engine installs. A prelude that runs `answer = 42`, `label = 'kit'`, and `function shout(text) ... end` makes `answer`, `label`, and `shout` readable from your blocks.
 
@@ -319,7 +318,7 @@ A prelude that defines a reserved name fails to install, so a Pack leaves every 
 All the preludes that one prompt installs share one global namespace, and a prelude that cannot install fails the run with [error code](16-limits-and-errors.md#run-error-codes) `lua_runtime`. Every such message starts with `` Pack `{pack}`: its prelude ... ``, naming the Pack that contributed the prelude. A prelude fails in these cases:
 
 - It defines a global an earlier prelude already defines. The message has the form `` Pack `{pack}`: its prelude defines the global `{name}`, which Pack `{owner}`'s prelude already defines ``, naming the later Pack, the global, and the Pack that defined it first.
-- It defines a global that an Engine global or another reserved name already holds. A prelude defining `ui` or `item` fails the run with a message saying the name `is reserved as an Engine global`.
+- It defines a global that an Engine global or another reserved name already holds. A prelude defining `item` fails the run with a message saying the name `is reserved as an Engine global`.
 - It fails to load. The message says `its prelude failed to load`.
 
 A prelude failure happens when the first section VM is set up, before the run issues any effect. The failure comes before every store write, tool call, and model request of the prompt, and that includes a preamble block such as `store.write('first.txt', 'x')`, which would otherwise be the first thing the prompt does. In a prompt run with `execute`, the failure happens when that prompt's own first section VM is set up: it is raised at the `execute`, as an error value of kind `lua` that a `pcall` around the `execute` catches, after everything the calling prompt did before that line.
@@ -2132,9 +2131,9 @@ local blocks = markdown.parse(prompt.section('Template'))
 
 Text from a model, a tool, or the store is still untrusted text after it is parsed. The strings in the blocks are plain Lua strings, so wrap one with [`untrusted`](09-the-store.md#handing-store-text-to-a-model-with-untrusted) before it reaches a model.
 
-## Run facts in `sys` and `ui`
+## Run facts in `sys`
 
-After this section you can read the facts the run keeps about itself from `sys`, read the Host's state from `ui()`, and know when each value is fixed.
+After this section you can read the facts the run keeps about itself from `sys` and know when each value is fixed.
 
 ````markdown
 ---
@@ -2402,36 +2401,6 @@ At the section entry's first tool call, `sys.model` takes the chain's current mo
 Reading `sys.model` before the section entry's first tool call fails with `unknown sys field 'model'`, even when an earlier section of the chain, such as the preamble, selected a model with `models.use('strong')`. That holds whether the read is in the section's opening Lua block or inside a function from a library the section loads with [`require`](03-blocks-and-prose.md#sharing-code-with-require), as in `require '/sys_reader'` followed by `return read_sys_model()`.
 
 Inside a fanout arm, once the arm's first tool call has been dispatched, `sys.model` reads the name part of the arm's current model's id in the same way. In the two-argument form `tasks.fanout(worker, collection)`, an arm starts on the model its parent was on when the arm was dispatched, so an arm for the member `a` that returns `sys.model .. ':' .. item`, with the parent on `strong` as above, gives `claude-sonnet-4-6:a`. With `tasks.fanout(model, worker, collection)`, every arm starts on the given handle's model instead.
-
-### The Host's state in `ui()`
-
-````markdown
----
-name: host-model
-description: Reads the Host-state snapshot when the run has one.
-runvil: 0
----
-
-## Main
-
-```lua
-if ui then
-  local state = ui()
-  return state.selected_model .. '/' .. tostring(state.workspace_root)
-end
-return 'no host state'
-```
-````
-
-Started with the snapshot `{ "selected_model": "m-1", "workspace_root": null }`, the run result is `m-1/nil`. Started without a snapshot, it is `no host state`.
-
-The `ui` snapshot is the application state the Host hands to the run at run start, when the run has one. You call `ui()` as a global function with no arguments to get it as a Lua table: `ui` is called, not indexed as a table. When the Host supplies a snapshot, every section in the run gets a `ui()` global that returns that same snapshot.
-
-In a run started without a snapshot, the `ui` global is absent from every section rather than stubbed. `type(ui)` is `"nil"`, an unguarded `ui()` call fails as a call to a nil value, and so a block tests for `ui` before calling it, as in `if ui then` above or `ui and ui().selected_model`.
-
-`ui()` returns the snapshot as a Lua table whose fields are the snapshot's JSON fields as Lua values, so for the snapshot above, `ui().selected_model` reads `m-1`. A JSON null field reads as Lua `nil`, the same as an absent field, and never as a NULL sentinel userdata, which is why `ui().selected_model .. '/' .. tostring(ui().workspace_root)` gives `m-1/nil`. `json.decode` and structured tool results do give that sentinel, [`json.null`](#null-values-and-jsonnull), so their null fields are tested with `v == json.null` rather than `v == nil`.
-
-Each `ui()` call builds a fresh table, so changes you make to one returned table stay in that table. The snapshot is taken once at run start and stays fixed for the run, so every call in every section returns the same Host state, and a change to application state shows up in `ui()` only on the next run. Which fields the snapshot holds is up to the Host. `ui` is installed before any library loads, so library code can call it too.
 
 ## Section entry ids
 
@@ -3026,7 +2995,7 @@ The run result is:
 table|lua|read-error.md:10: unknown sys field 'nothing'. The Lua code failed at runtime. Fix the code at this location.
 ````
 
-`nothing` is an unknown field of [`sys`](#run-facts-in-sys-and-ui), so the read fails, and `pcall` catches the failure instead of letting it end the block (see [Raising and catching errors](#raising-and-catching-errors)). What comes back is an error value: a Lua table holding a `kind` string, a `code` string, a `message` string, and any extra fields its kind defines. Every failure that an Engine call or an Engine function raises reaches your code as one, so `type(err)` is `table` and never a plain string, whether the failure came from a model round, a store operation, or a guard like the one on `sys`.
+`nothing` is an unknown field of [`sys`](#run-facts-in-sys), so the read fails, and `pcall` catches the failure instead of letting it end the block (see [Raising and catching errors](#raising-and-catching-errors)). What comes back is an error value: a Lua table holding a `kind` string, a `code` string, a `message` string, and any extra fields its kind defines. Every failure that an Engine call or an Engine function raises reaches your code as one, so `type(err)` is `table` and never a plain string, whether the failure came from a model round, a store operation, or a guard like the one on `sys`.
 
 The message starts with where the failure happened, `read-error.md:10:`, the prompt file and the line of the `sys.nothing` read, and goes on with what failed and what to do about it, as [Reading `kind` and `message`](#reading-kind-and-message) explains.
 

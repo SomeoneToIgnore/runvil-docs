@@ -1401,7 +1401,7 @@ A task's status lasts for the whole run. After a wait has taken a task's result,
 
 `tasks.status(task)` reads one task's status per call, so you pass it a single task. Like every `tasks` function that takes a task, it accepts the Task handle that `tasks.spawn` returned or the handle's bare id string (see [Task ids and handles](#task-ids-and-handles)).
 
-You can read the status of any task the calling chain owns (see [Ownership, leaked tasks, and abandonment](#ownership-leaked-tasks-and-abandonment)), and also the status of the task your code runs inside, by passing `sys.taskid` (see [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui)):
+You can read the status of any task the calling chain owns (see [Ownership, leaked tasks, and abandonment](#ownership-leaked-tasks-and-abandonment)), and also the status of the task your code runs inside, by passing `sys.taskid` (see [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys)):
 
 ````markdown
 ---

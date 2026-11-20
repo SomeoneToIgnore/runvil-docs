@@ -42,7 +42,7 @@ The Host passes one map from role to model. A role with no entry of its own uses
 
 You attach requirements to a role in the frontmatter, such as a context minimum, under `models:`. A role declares only two keys, `min_context` and `thinking`, and each is a requirement on whichever model fills the role. [Declaring roles under `models:`](#declaring-roles-under-models) covers both keys.
 
-The Host's list of models stays with the Host. A prompt's roles draw only on the models the Host's map gives them, so those are the only models a prompt reaches, with one exception: when the Host passes a Host-state snapshot, `models.get` also accepts a raw gateway model id (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)).
+The Host's list of models stays with the Host. A prompt's roles draw only on the models the Host's map gives them, so those are the only models a prompt reaches.
 
 ### The `models` global
 
@@ -61,7 +61,7 @@ The table holds six functions. `models.use` selects a role or a handle, `models.
 
 The `models` table is in place with the other Engine globals before any block runs, so any block, its top-level statements included, calls it directly with no `require` and no setup line. The block in `hello` uses it that way.
 
-The roles are fixed, and Lua never creates or binds one, so the `models` table cannot add a role. `models.use` and `models.get` take one of the five role names, and any other name is an error that lists the five (see [Rejected calls](#rejected-calls)), except that when the Host passes a Host-state snapshot, `models.get` also accepts a raw gateway model id (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)). The run fills its roles before any Lua runs, and every section, the preamble included, reads that same set, so the same roles work in every section.
+The roles are fixed, and Lua never creates or binds one, so the `models` table cannot add a role. `models.use` and `models.get` take one of the five role names, and any other name is an error that lists the five (see [Rejected calls](#rejected-calls)). The run fills its roles before any Lua runs, and every section, the preamble included, reads that same set, so the same roles work in every section.
 
 ### When a prompt needs a role
 
@@ -679,7 +679,7 @@ Selecting the same role again is allowed, and a plain re-selection clears the ea
 
 ### Selecting a handle
 
-`models.use(handle)` selects the model a handle was made for, which is how you return to a model you saved or select one that is not a role. The handle's own frozen binding is used as it is, so `models.use(previous)` puts the chain back on the model and the options `previous` was made with (see [Reading the current model with `models.current`](#reading-the-current-model-with-modelscurrent)). A handle for a raw model id works the same way (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)).
+`models.use(handle)` selects the model a handle was made for, which is how you return to a model you saved. The handle's own frozen binding is used as it is, so `models.use(previous)` puts the chain back on the model and the options `previous` was made with (see [Reading the current model with `models.current`](#reading-the-current-model-with-modelscurrent)).
 
 Options passed with a handle go on top of the handle's own settings. Each option that is set replaces the handle's value, and each option that is left out keeps it:
 
@@ -935,7 +935,7 @@ A model handle has exactly nine fields, all read-only:
 | `temperature` | The `temperature` option from `models.use`, a number, or `nil` |
 | `max_tokens` | The `max_tokens` option from `models.use`, a positive integer, or `nil` |
 
-`name` and `label` always hold the same string: the role name the handle was obtained by. A handle from `models.get('strong')` or `models.use('strong')` reads `strong` for both. The role name stays the role name whatever model fills the role, so `models.get('strong').name` reads `strong` even when the `default` entry fills `strong`. On a handle for a raw model id, both fields hold that id (see [Raw model ids and the Host-state snapshot](#raw-model-ids-and-the-host-state-snapshot)).
+`name` and `label` always hold the same string: the role name the handle was obtained by. A handle from `models.get('strong')` or `models.use('strong')` reads `strong` for both. The role name stays the role name whatever model fills the role, so `models.get('strong').name` reads `strong` even when the `default` entry fills `strong`.
 
 `model_id` holds only the name part of the filling model's model id, such as `claude-sonnet-4-6` for a role filled by `gateway/claude-sonnet-4-6` (see [Model ids](#model-ids)), never the server namespace and never the role name. When the Host fills several roles with one model, as it does with a map that holds only a `default` entry, every role's handle reads the same `model_id`, and the `name` and `thinking` fields show how the roles differ (see [The role map](#the-role-map)).
 
@@ -977,7 +977,7 @@ A model handle is Lua userdata, not a table, so `type(h)` returns `'userdata'`. 
 
 ## Getting handles with `models.get`
 
-You can get the model handle for any of the five roles, or with a Host-state snapshot for a gateway model by its name, and leave the chain's current model as it is.
+You can get the model handle for any of the five roles and leave the chain's current model as it is.
 
 ````markdown
 ---
@@ -1045,7 +1045,7 @@ return models.infer(h, prose)
 ```
 ````
 
-The role name arrives as the run's `text` argument, which the block reads as `args.text` (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)). In a run without a Host-state snapshot, the arguments `{"text":"reviewer"}` give a name outside the five roles, `pcall` catches the failure, and the block falls back instead of failing:
+The role name arrives as the run's `text` argument, which the block reads as `args.text` (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)). The arguments `{"text":"reviewer"}` give a name outside the five roles, `pcall` catches the failure, and the block falls back instead of failing:
 
 ````text
 unknown role: ask-role.md:12: models.get label "reviewer" is not a model role: expected default, strong, small, fast or creative. The Lua code failed at runtime. Fix the code at this location.
@@ -1055,61 +1055,14 @@ With the arguments `{"text":"strong"}`, the block runs one round on the `strong`
 
 A failing `models.get` call caught by `pcall` or `xpcall` yields an error value whose `kind` is `lua`, whose `message` is the file and line of the call, then the rejection text, then the fixed prose for a Lua runtime failure, and whose `tostring` is that message. An `xpcall` handler sees the same error value.
 
-### Raw model ids and the Host-state snapshot
-
-````markdown
----
-name: raw-id
-description: Reads a handle for a raw model id
-runvil: 0
----
-
-## Look
-
-```lua
-local h = models.get('qwen/qwen3-8b')
-return h.name .. '|' .. h.model_id .. '|' .. h.context
-```
-````
-
-When the Host runs this prompt with a Host-state snapshot, the run result is:
-
-````text
-qwen/qwen3-8b|qwen/qwen3-8b|8192
-````
-
-A Host-state snapshot is the application state a Host can hand a run, the value that `ui()` returns (see [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui)). With one, `models.get` treats a name that is not one of the five roles as a raw model id: the name a gateway model is listed under, passed in place of a role name. It returns a handle for the model id made of the server namespace `gateway` and that name, so the handle above is for `gateway/qwen/qwen3-8b` and its `model_id` reads the name as passed. Pass the name alone, because a full model id such as `gateway/fast` is read as a name too, giving the model id `gateway/gateway/fast`, and the handle's requests then name the model `gateway/fast`.
-
-A prompt can then reach a gateway model by its name alone, usually the one the Host reports in `ui().selected_model`:
-
-````markdown
-## Reply
-
-Say hello.
-
-```lua
-return models.infer(models.get(ui().selected_model), prose)
-```
-````
-
-Raw model ids follow these rules:
-
-- One of the five role names always resolves as the role, even when raw model ids are allowed.
-- A raw model id is not a role name, so it may contain `/`, `.`, and `:`, and only the model id's own rules apply (see [Model ids](#model-ids)). The id must be non-empty and free of control characters, or `models.get` fails with `models.get model id "{id}" is invalid: invalid model id: name {reason}`, where `{reason}` is `must not be empty` or `must not contain a control character`.
-- A handle for a raw model id has `name`, `label`, `model_id`, and `description` all equal to the id, and `nil` for `provider`, `temperature`, `max_tokens`, and `thinking`. Its `context` is a fixed 8192 tokens, because the run has no catalog details for the id.
-- A raw-id handle works anywhere a handle does, in `models.use`, `models.infer(model, prompt)`, `models.loop(model, compactor?)`, and the model-first form of `tasks.fanout`, and it works on a Host that gave the run no model, because the handle holds its own binding.
-- The run's roles are filled from the Host's role map, so a raw model id through `models.get` is the only way a prompt reaches a model outside that map.
-- Only `models.get` has the raw model id fallback. `models.use` takes only the five role names and handles, so `models.use('qwen/qwen3-8b')` fails with `models.use label "qwen/qwen3-8b" is not a model role: expected default, strong, small, fast or creative`. To select a raw model id, pass its handle: `models.use(models.get('qwen/qwen3-8b'))`.
-- Without a Host-state snapshot the `ui` global reads as nil, and `models.get` accepts only the five role names, so any other name is an error rather than a raw model id.
-
 ### `models.get` errors and check order
 
-Without a Host-state snapshot, a name outside the five roles fails `models.get` with an error value of kind `lua` whose message holds the rejection `models.get label "{label}" is not a model role: expected default, strong, small, fast or creative`, where `{label}` is the name passed. The rejection reads the same wherever the call runs: on the main walk, inside a fanout arm, or in a run with no model. With a snapshot, such a name is tried as a raw model id instead, and fails only when the id is invalid, with the `is invalid` message above. A role the Host gave no model fails with `the caller supplied no model for the {role} role`.
+A name outside the five roles fails `models.get` with an error value of kind `lua` whose message holds the rejection `models.get label "{label}" is not a model role: expected default, strong, small, fast or creative`, where `{label}` is the name passed. The rejection reads the same wherever the call runs: on the main walk, inside a fanout arm, or in a run with no model. A role the Host gave no model fails with `the caller supplied no model for the {role} role`.
 
-The two functions check a name in different orders:
+The two functions check a name in the same order:
 
 1. `models.use` checks the type of its target, then whether a string names one of the five roles, then whether the Host gave that role a model, and only then its options.
-2. `models.get` looks for one of the five role names first. When the Host gave a Host-state snapshot, it then treats any other name as a raw model id. Otherwise it reports that the name is not a role.
+2. `models.get` looks for one of the five role names first, and reports any other name as not a role. It then checks whether the Host gave that role a model.
 
 ## Running a round with `models.infer`
 
@@ -1149,7 +1102,7 @@ return models.infer(models.get('fast'), 'say hello')
 ```
 ````
 
-The handle form returns the reply as a plain Lua string, just as the one-argument form does. It runs on the handle's frozen binding even when the chain has switched to another role, so it never needs the chain to have a model. A handle for a raw model id therefore runs even on a Host that gave the run no model, and a handle for a role needs the Host to have given that role a model in the first place (see [When the role map is empty](#when-the-role-map-is-empty)).
+The handle form returns the reply as a plain Lua string, just as the one-argument form does. It runs on the handle's frozen binding even when the chain has switched to another role. A handle needs the Host to have given its role a model in the first place (see [When the role map is empty](#when-the-role-map-is-empty)).
 
 ### Infer prompts and replies
 
@@ -1193,7 +1146,7 @@ An infer round only sends the prompt and returns the reply:
 - The reply comes back whole as the call's return value, and the run's live output leaves it out while the model is still writing.
 - The returned value holds only the reply text, and any reasoning text the model backend supplies stays out of it.
 - A round cut off at the generation cap, such as one limited by a `max_tokens` option, still returns the text the model produced up to that point.
-- The round leaves every global as it was, `sys` included, so `sys` reads the same before and after it (see [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui)).
+- The round leaves every global as it was, `sys` included, so `sys` reads the same before and after it (see [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys)).
 
 ### Infer rounds in tasks and arms
 
@@ -1268,8 +1221,6 @@ skipped (model_required)
 `models.loop` with no model handle on such a Host fails with the same missing-model error naming the section, which `pcall` also catches as kind `model_required`.
 
 Only an explicit model call such as `models.infer(prose)` can raise the missing-model error, so prose needs a model only when a block sends it to one (see [When a prompt needs a role](#when-a-prompt-needs-a-role)). `models.use`, `models.get`, and `models.current` do not raise it. On a Host with no model they fail with ordinary Lua errors of kind `lua`, as [When the role map is empty](#when-the-role-map-is-empty) shows.
-
-`models.infer(model, prompt)` runs on the handle's own model, so it works on a Host that gave no model when the handle is a raw-id handle such as `models.get('qwen/qwen3-8b')`, where `models.infer(prompt)` would fail with the missing-model error.
 
 ## What an infer round reports
 

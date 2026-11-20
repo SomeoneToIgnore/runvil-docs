@@ -441,7 +441,7 @@ The Host's record of runs gives each run an id of its own. The Harness draws the
 
 ### Run inputs a prompt can read
 
-A prompt can observe four run inputs, the values from outside that shape a run. This prompt reads two of them:
+A prompt can observe three run inputs, the values from outside that shape a run. This prompt reads two of them:
 
 ````markdown
 ---
@@ -457,22 +457,11 @@ return sys.when .. '|' .. untrusted('data')
 ```
 ````
 
-The run result is the run's start time in RFC 3339 form, a `|`, and the envelope that `untrusted('data')` returns, which carries a nonce of 32 hex digits drawn from the seed. The four run inputs are:
+The run result is the run's start time in RFC 3339 form, a `|`, and the envelope that `untrusted('data')` returns, which carries a nonce of 32 hex digits drawn from the seed. The three run inputs are:
 
 - The arguments, one JSON object that Lua reads from the global `args` (see [Reading arguments from `args`](06-arguments.md#reading-arguments-from-args)).
 - The seed, which a prompt sees through the nonce in each `untrusted()` envelope (see [Handing store text to a model with `untrusted`](09-the-store.md#handing-store-text-to-a-model-with-untrusted)).
-- The start time, read as `sys.when` (see [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui)).
-- The Host's UI snapshot, served by `ui()`.
-
-When the run has no UI snapshot, `ui` is `nil`. In that run, this block returns `nil`:
-
-````lua
-return type(ui)
-````
-
-````text
-nil
-````
+- The start time, read as `sys.when` (see [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys)).
 
 ### Stopping a model round
 
@@ -562,7 +551,7 @@ There are exactly five kinds of Harness work:
 
 A model round is one request to a model and its reply. The Harness answers it with the model's reply or with the reason the round failed.
 
-A render asks the Harness how each Pack the entry offered tools from shows those tools to the model, for that entry and the model of its first loop round, the first round a `models.loop` sends (see [Starting a conversation](11-conversations.md#starting-a-conversation)). It happens before that round's request goes out, once per freeze attempt, and the round then freezes the entry's Static Set and Dynamic Set from its answer (see [Tool scope](12-tools.md#tool-scope)); a freeze that fails attaches nothing, so the entry's next round freezes again, rendering first only when its offers name a catalog tool. The Harness asks each of those Packs, and a Pack's render may rename its tools, reshape their descriptions and schemas, drop some, or add tools only the model sees, while a Pack that does not render passes its tools through as offered (see [What a Pack's render can change](12-tools.md#what-a-packs-render-can-change)). The run's record shows each render ahead of the round that asked for it: the request names the entry's `sys.id`, the role the round runs under (for a [raw-id handle](10-models.md#raw-model-ids-and-the-host-state-snapshot), the raw id), and the ids of the tools offered from each Pack, and the answer holds the tools each Pack shows the model. An entry that offers only adhoc tools, or that runs no loop round, has no render.
+A render asks the Harness how each Pack the entry offered tools from shows those tools to the model, for that entry and the model of its first loop round, the first round a `models.loop` sends (see [Starting a conversation](11-conversations.md#starting-a-conversation)). It happens before that round's request goes out, once per freeze attempt, and the round then freezes the entry's Static Set and Dynamic Set from its answer (see [Tool scope](12-tools.md#tool-scope)); a freeze that fails attaches nothing, so the entry's next round freezes again, rendering first only when its offers name a catalog tool. The Harness asks each of those Packs, and a Pack's render may rename its tools, reshape their descriptions and schemas, drop some, or add tools only the model sees, while a Pack that does not render passes its tools through as offered (see [What a Pack's render can change](12-tools.md#what-a-packs-render-can-change)). The run's record shows each render ahead of the round that asked for it: the request names the entry's `sys.id`, the role the round runs under, and the ids of the tools offered from each Pack, and the answer holds the tools each Pack shows the model. An entry that offers only adhoc tools, or that runs no loop round, has no render.
 
 Waiting for the operator is not Harness work. The operator is the person who answers a run while it runs, and the run's main chain reads the operator's messages with `tasks.receive()` (see [Asking the operator](05-lua-environment.md#asking-the-operator)). The Host hands the run each message the operator sends, a message that arrives first waits in the main chain's inbox, and the wait issues no effect.
 

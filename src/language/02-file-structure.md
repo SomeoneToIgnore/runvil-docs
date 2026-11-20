@@ -650,7 +650,7 @@ At parse time, the grammar applies to every key of every `properties` map in the
 
 At run time, the Engine enforces the same grammar for the `name` Lua passes to `tools.adhoc`, with the same length, first-character, and later-character rules.
 
-`models.use` and `models.get` skip the grammar. `models.use` compares the name with the five role names, so a name outside the grammar and a well-formed name that is not a role fail with the same message, which [Run-time name errors](#run-time-name-errors) gives. `models.get` does the same unless the Host allows raw model ids. With raw model ids allowed, `models.get` reads a name outside the five as a raw model id instead, the name a gateway model is listed under, because model names can contain `/`, `.`, and `:`, so `models.get('qwen/qwen3-8b')` returns a handle bound to `gateway/qwen/qwen3-8b`, whose `model_id` is `qwen/qwen3-8b`. A role name always resolves as the role, with or without raw model ids.
+`models.use` and `models.get` skip the grammar. `models.use` compares the name with the five role names, so a name outside the grammar and a well-formed name that is not a role fail with the same message, which [Run-time name errors](#run-time-name-errors) gives. `models.get` does the same.
 
 ### Contract maps and duplicate keys
 
@@ -735,7 +735,7 @@ When the name passed to `models.use` is not one of the five role names, the call
 models.use label "{label}" is not a model role: expected default, strong, small, fast or creative
 ````
 
-`models.get` fails the same way when the name is not a role and the Host has not allowed raw model ids, with `models.get` in place of `models.use`:
+`models.get` fails the same way when the name is not a role, with `models.get` in place of `models.use`:
 
 ````text
 models.get label "{label}" is not a model role: expected default, strong, small, fast or creative

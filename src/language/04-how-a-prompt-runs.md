@@ -1089,7 +1089,7 @@ The preamble is one of the walk's sections, so all of this holds for it as for a
 
 ### Section entry ids on the main walk
 
-Each section the main walk enters gets a section entry id, which its Lua reads as [`sys.id`](05-lua-environment.md#run-facts-in-sys-and-ui):
+Each section the main walk enters gets a section entry id, which its Lua reads as [`sys.id`](05-lua-environment.md#run-facts-in-sys):
 
 ````markdown
 ---

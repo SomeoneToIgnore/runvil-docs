@@ -62,11 +62,11 @@ Every global, function, field, and error kind a Lua block can use, plus the stan
 | `getfenv` | removed | Reads nil; no function environments | [The sandbox](05-lua-environment.md#the-sandbox) |
 | `getmetatable` | function | Reads a metatable, as in stock Lua on values other than `_G` | [The sandbox](05-lua-environment.md#the-sandbox) |
 | `handle.context` | field | Bound model's context window in tokens, a positive integer | [Model handles](10-models.md#model-handles) |
-| `handle.description` | field | Bound model's catalog description, which can be empty; on a raw-id handle, the id itself | [Model handles](10-models.md#model-handles) |
-| `handle.label` | field | Role name, or the raw model id when the Host passed a Host-state snapshot, the same string as `handle.name` | [Model handles](10-models.md#model-handles) |
+| `handle.description` | field | Bound model's catalog description, which can be empty | [Model handles](10-models.md#model-handles) |
+| `handle.label` | field | Role name, the same string as `handle.name` | [Model handles](10-models.md#model-handles) |
 | `handle.max_tokens` | field | `max_tokens` option from `models.use`, or `nil` | [Model handles](10-models.md#model-handles) |
 | `handle.model_id` | field | Name part of the bound model's model id | [Model handles](10-models.md#model-handles) |
-| `handle.name` | field | Role name, or the raw model id when the Host passed a Host-state snapshot, as a string | [Model handles](10-models.md#model-handles) |
+| `handle.name` | field | Role name, as a string | [Model handles](10-models.md#model-handles) |
 | `handle.provider` | field | Provider id the model catalog records, or `nil` | [Model handles](10-models.md#model-handles) |
 | `handle.temperature` | field | `temperature` option from `models.use`, or `nil` | [Model handles](10-models.md#model-handles) |
 | `handle.thinking` | field | `true` for `thinking: true`, `false` for `thinking: false`, `nil` when the role leaves `thinking` out | [Model handles](10-models.md#model-handles) |
@@ -121,7 +121,7 @@ Every global, function, field, and error kind a Lua block can use, plus the stan
 | `models` | global | Table that selects model roles by name and runs rounds | [Model roles instead of models](10-models.md#model-roles-instead-of-models) |
 | `models.compact` | function | Runs `compactor(reason)` once over `messages` outside any loop, checking the structural rules; returns `nil` | [Compacting on demand with `models.compact`](11-conversations.md#compacting-on-demand-with-modelscompact) |
 | `models.current` | function | Returns a handle for the chain's current model; called with empty parentheses | [Reading the current model with `models.current`](10-models.md#reading-the-current-model-with-modelscurrent) |
-| `models.get` | function | Returns a handle for a role name, or for a raw model id when the Host passed a Host-state snapshot, leaving the chain's current model as it is | [Getting handles with `models.get`](10-models.md#getting-handles-with-modelsget) |
+| `models.get` | function | Returns a handle for a role name, leaving the chain's current model as it is | [Getting handles with `models.get`](10-models.md#getting-handles-with-modelsget) |
 | `models.infer` | function | Runs one round on the chain's current model and returns the reply | [Running a round with `models.infer`](10-models.md#running-a-round-with-modelsinfer) |
 | `models.infer (model, prompt)` | form | Runs one round on the given model handle, leaving the chain's current model as it is, and returns the reply | [Running a round with `models.infer`](10-models.md#running-a-round-with-modelsinfer) |
 | `models.loop` | function | Runs the section entry's `messages` to a final reply, appending records, optional compactor; its first round fixes the section entry's tool list; returns `nil` | [Starting a conversation](11-conversations.md#starting-a-conversation) |
@@ -180,14 +180,14 @@ Every global, function, field, and error kind a Lua block can use, plus the stan
 | `store.str_replace` | function | Replaces the single anchor `old` with `new` and returns `nil` | [Editing, deleting, and checking files](09-the-store.md#editing-deleting-and-checking-files) |
 | `store.write` | function | Creates or replaces a file with a text string and returns `nil` | [Writing and reading files](09-the-store.md#writing-and-reading-files) |
 | `string` | global | Standard `string` library, including method calls such as `s:match` | [The sandbox](05-lua-environment.md#the-sandbox) |
-| `sys` | global | Read-only table of run facts | [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui) |
+| `sys` | global | Read-only table of run facts | [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys) |
 | `sys.id` | field | Current section entry id, such as `0.0` in the first section the run enters | [Section entry ids](05-lua-environment.md#section-entry-ids) |
 | `sys.index` | field | An arm's 1-based position in collection order, or a task's `index` seed | [What an arm sees](14-fanout.md#what-an-arm-sees) |
-| `sys.model` | field | Name part of the current model's model id, such as `fast` for `gateway/fast`, readable after the section entry's first tool call | [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui) |
-| `sys.section_count` | field | Number of top-level sections in the prompt the section belongs to, counting a preamble that holds a `lua` fence | [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui) |
-| `sys.section_name` | field | Running section's name; the empty string in the preamble | [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui) |
-| `sys.taskid` | field | Nearest enclosing task's id, `'0'` on the main walk | [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui) |
-| `sys.when` | field | Run start instant as an RFC 3339 UTC string | [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui) |
+| `sys.model` | field | Name part of the current model's model id, such as `fast` for `gateway/fast`, readable after the section entry's first tool call | [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys) |
+| `sys.section_count` | field | Number of top-level sections in the prompt the section belongs to, counting a preamble that holds a `lua` fence | [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys) |
+| `sys.section_name` | field | Running section's name; the empty string in the preamble | [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys) |
+| `sys.taskid` | field | Nearest enclosing task's id, `'0'` on the main walk | [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys) |
+| `sys.when` | field | Run start instant as an RFC 3339 UTC string | [Run facts in `sys`](05-lua-environment.md#run-facts-in-sys) |
 | `table` | global | Standard `table` library, as in Lua 5.5 | [The sandbox](05-lua-environment.md#the-sandbox) |
 | `table.concat` | function | Joins strings, numbers, and `__tostring` values with a separator | [The sandbox](05-lua-environment.md#the-sandbox) |
 | `tasks` | global | Table holding every task function, `fanout` included | [Starting a task with `tasks.spawn`](15-tasks.md#starting-a-task-with-tasksspawn) |
@@ -230,7 +230,6 @@ Every global, function, field, and error kind a Lua block can use, plus the stan
 | `tools.stats.total` | field | Every tool call the section entry has made, counted at dispatch | [Counting calls with `tools.stats`](12-tools.md#counting-calls-with-toolsstats) |
 | `tostring` | function | Turns a value such as a number into text | [The sandbox](05-lua-environment.md#the-sandbox) |
 | `type` | function | Returns a value's Lua type name, such as `'table'` | [The sandbox](05-lua-environment.md#the-sandbox) |
-| `ui` | function | Returns the Host's run-start snapshot table, when the run has one | [Run facts in `sys` and `ui`](05-lua-environment.md#run-facts-in-sys-and-ui) |
 | `untrusted` | function | Wraps a string in the run's untrusted envelope and returns it | [Handing store text to a model with `untrusted`](09-the-store.md#handing-store-text-to-a-model-with-untrusted) |
 | `utf8` | global | Standard `utf8` library, as in Lua 5.5 | [The sandbox](05-lua-environment.md#the-sandbox) |
 | `var` | global | Guarded table of JSON data that passes between sections | [Keeping state in `var`](05-lua-environment.md#keeping-state-in-var) |

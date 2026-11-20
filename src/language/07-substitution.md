@@ -371,7 +371,7 @@ A placeholder that names a `var` key that does not exist, such as `{{ var.nope }
 
 ### Fields of `sys`
 
-A `sys` placeholder, `{{ sys.key }}`, inserts a field of [`sys`](05-lua-environment.md#run-facts-in-sys-and-ui), the facts the run provides, such as `{{ sys.id }}` or `{{ sys.when }}`:
+A `sys` placeholder, `{{ sys.key }}`, inserts a field of [`sys`](05-lua-environment.md#run-facts-in-sys), the facts the run provides, such as `{{ sys.id }}` or `{{ sys.when }}`:
 
 ````markdown
 id {{ sys.id }} at {{ sys.when }}
