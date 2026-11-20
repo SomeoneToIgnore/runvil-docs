@@ -273,7 +273,7 @@ After a model call, the model's reply is an `assistant` record at the end of the
 
 A record whose `role` is missing or not a string is refused with `messages[{index}] role must be a string, one of: system, user, assistant, tool`. A `role` string other than the four is refused with a message that quotes it and lists `system, user, assistant, tool` as the known roles. [Record error messages](#record-error-messages) gives every record error in full, along with what `{index}` counts.
 
-### Content
+### The `content` field
 
 Every message record has a `content` field, whatever its message role, and `content` is always sent to the model beside `role`. It holds the message's visible content, its text and images, in one of two forms: a plain text string, or a non-empty array of content parts.
 
