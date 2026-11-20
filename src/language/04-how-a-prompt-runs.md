@@ -1076,7 +1076,7 @@ return var.note .. '|' .. models.current().name .. '|' .. tasks.concurrency() ..
 kept|strong|2|nil
 ````
 
-`Second` reads three things that `First` left behind and one that it did not. Four things stay from one section to the next on a walk:
+`Second` reads three things that `First` left behind and one that it did not. On a walk, one section leaves four things for the next:
 
 - `var`, with every value the earlier sections stored in it (see [Keeping state in `var`](05-lua-environment.md#keeping-state-in-var)).
 - The chain's current model. The `models.use('strong')` in `First` keeps `Second` and every section after it on the `strong` role until one of them calls `models.use` again (see [Where a chain starts](10-models.md#where-a-chain-starts)).
@@ -1486,7 +1486,7 @@ The rule holds at every heading level the main walk reaches: when the top-level 
 
 A section's `return` value becomes the run result, not the model's last reply. A section that ends with `return 'ok'` after the model's final reply `done` gives the result `ok`. A model's reply stays with the section that asked for it, and only a reply that a block returns, such as `return models.infer(prose)` in the last block, becomes the result. Running [`models.loop`](11-conversations.md#starting-a-conversation) on the section entry's `messages` list and then returning `messages[#messages].content` makes the model's final text reply from the loop the run result, which is how the last block of the [shipped](01-what-a-prompt-is.md#shipped-example-prompts) `research-person` prompt ends.
 
-Returns from other chains go back to the code that started them instead. A value returned inside a section reached through `call('../S1')` goes back to the caller as the value of `call`. A value returned inside a prompt run with `execute` goes back the same way, as the value of `execute`. A section started with `tasks.spawn` hands its `return` value back as that task's result, and the section that started the tasks reads those values as `results[1].result` and `results[2].result`. When two `Reply` tasks each return `hi there`, the run result is `hi there hi there` only because `Greet`, the entry section, returns that text after waiting on both tasks. A called section, an executed prompt, or a task that ends without returning, or at a `return` that gives no value, never gives back `done`: `call` and `execute` return `nil`, and the task's result is the empty string.
+Returns from other chains go back to the code that started them instead. A value returned inside a section reached through `call('../S1')` goes back to the caller as the value of `call`. A value returned inside a prompt run with `execute` goes back the same way, as the value of `execute`. A section started with `tasks.spawn` hands its `return` value back as that task's result, and the section that started the tasks reads those values as `results[1].result` and `results[2].result`. When two `Reply` tasks each return `hi there`, the run result is `hi there hi there` only because `Greet`, the entry section, returns that text after waiting on both tasks. A called section, an executed prompt, or a task that ends without returning, or at a bare `return` or a `return` of `nil`, never gives back `done`: `call` and `execute` return `nil`, and the task's result is the empty string.
 
 ### The `done` fallback
 
